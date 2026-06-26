@@ -4,5 +4,13 @@ Forward → Backward → Validate → Buffer，四类样本归因，经验三级
 """
 
 from codepulse.evolve.attribution import AttributionReport, SampleAttribution
+from codepulse.evolve.prompt_edit import EditBatch, EditType, PromptEdit, RejectedEdit
 
-__all__ = ["AttributionReport", "SampleAttribution"]
+__all__ = [
+    "AttributionReport",
+    "EditBatch",
+    "EditType",
+    "PromptEdit",
+    "RejectedEdit",
+    "SampleAttribution",
+]

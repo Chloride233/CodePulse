@@ -4,5 +4,16 @@
 """
 
 from codepulse.data.models import AgentConfig, GraderConfig, Task, Trial, TrialMetrics
+from codepulse.data.protocols import Agent, DatasetLoader, Grader, GraderResult
 
-__all__ = ["AgentConfig", "GraderConfig", "Task", "Trial", "TrialMetrics"]
+__all__ = [
+    "Agent",
+    "AgentConfig",
+    "DatasetLoader",
+    "Grader",
+    "GraderConfig",
+    "GraderResult",
+    "Task",
+    "Trial",
+    "TrialMetrics",
+]
