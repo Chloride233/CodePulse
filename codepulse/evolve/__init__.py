@@ -4,13 +4,20 @@ Forward → Backward → Validate → Buffer，四类样本归因，经验三级
 """
 
 from codepulse.evolve.attribution import AttributionReport, SampleAttribution
+from codepulse.evolve.buffer import EditBuffer
+from codepulse.evolve.forward import ForwardPass, Trajectory
+from codepulse.evolve.gate import ValidationGate
 from codepulse.evolve.prompt_edit import EditBatch, EditType, PromptEdit, RejectedEdit
 
 __all__ = [
     "AttributionReport",
     "EditBatch",
+    "EditBuffer",
     "EditType",
+    "ForwardPass",
     "PromptEdit",
     "RejectedEdit",
     "SampleAttribution",
+    "Trajectory",
+    "ValidationGate",
 ]
