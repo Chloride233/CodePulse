@@ -24,6 +24,7 @@ wheels/
 .venv/
 venv/
 ENV/
+!codepulse/env/
 
 # IDE
 .idea/

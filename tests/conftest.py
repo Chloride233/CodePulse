@@ -2,6 +2,23 @@
 
 import pytest
 
+try:
+    import docker
+
+    _docker_available = docker.from_env().ping()
+except Exception:
+    _docker_available = False
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """自动跳过需要 Docker 但 Docker 不可用的集成测试。"""
+    if _docker_available:
+        return
+    skip_integration = pytest.mark.skip(reason="Docker daemon 不可用")
+    for item in items:
+        if "integration" in item.keywords:
+            item.add_marker(skip_integration)
+
 
 @pytest.fixture
 def sample_task_data() -> dict:
