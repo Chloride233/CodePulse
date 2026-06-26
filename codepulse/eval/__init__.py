@@ -7,6 +7,8 @@ from codepulse.eval.code_quality_grader import CodeQualityGrader
 from codepulse.eval.efficiency_grader import EfficiencyGrader
 from codepulse.eval.harness import EvaluationHarness
 from codepulse.eval.pytest_grader import PytestGrader
+from codepulse.eval.reasoning_grader import ReasoningGrader
+from codepulse.eval.rubric_grader import RubricGrader
 from codepulse.eval.scoring import ScoreDimension, ScoringConfig, aggregate_scores
 
 __all__ = [
@@ -14,6 +16,8 @@ __all__ = [
     "EfficiencyGrader",
     "EvaluationHarness",
     "PytestGrader",
+    "ReasoningGrader",
+    "RubricGrader",
     "ScoreDimension",
     "ScoringConfig",
     "aggregate_scores",
