@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from codepulse.data.models import Task
     from codepulse.data.protocols import Agent
     from codepulse.eval.harness import EvaluationHarness
