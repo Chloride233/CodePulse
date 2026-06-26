@@ -6,35 +6,24 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from codepulse.data.models import AgentConfig, Task
-    from codepulse.data.protocols import Grader
+    from codepulse.data.models import Task
+    from codepulse.data.protocols import Agent, Grader
     from codepulse.env.sandbox import SandboxManager
 
 from codepulse.data.models import Trial
-from codepulse.env.mock_agent import MockAgent
 from codepulse.eval.scoring import PASS_THRESHOLD, ScoreDimension, aggregate_scores
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class GraderResult:
-    """单个 Grader 的评分结果。"""
-
-    dimension: ScoreDimension
-    score: float  # 0-1 之间的比例
-    details: dict[str, Any] = field(default_factory=dict)
-
-
 class EvaluationHarness:
     """评测编排器。
 
-    协调 Grader 执行，收集结果，聚合分数。使用 MockAgent 生成合成
-    Transcript，避免真实 LLM 调用，确保评测管线可独立运行。
+    协调 Grader 执行，收集结果，聚合分数。支持注入真实 Agent 或 MockAgent，
+    通过 Agent Protocol 实现多模型切换。
 
     Attributes:
         sandbox: Docker 沙箱管理器。
@@ -58,29 +47,31 @@ class EvaluationHarness:
     def run_task(
         self,
         task: Task,
-        agent_config: AgentConfig,
+        agent: Agent,
         n_trials: int = 5,
     ) -> list[Trial]:
         """运行一个任务的多次试运行。
 
-        使用 MockAgent 生成合成 Transcript，对每次试运行进行评分，
+        使用注入的 Agent 执行任务，对每次试运行进行评分，
         并根据通过阈值判断成功与否。
 
         Args:
             task: 评测任务。
-            agent_config: Agent 配置。
+            agent: Agent 实现（满足 Agent Protocol）。
             n_trials: 试运行次数。
 
         Returns:
             试运行结果列表。
         """
-        agent = MockAgent()
+        from codepulse.data.models import AgentConfig
+
+        agent_config = AgentConfig(name=agent.name, model=agent.model)
         trials: list[Trial] = []
 
         for i in range(n_trials):
             trial_id = f"{task.task_id}-trial-{i}"
 
-            # 使用 MockAgent 生成合成 Transcript
+            # 使用 Agent 执行任务
             transcript = agent.run(task, self.sandbox)
 
             # 构建 Trial 对象

@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
-    from codepulse.data.models import AgentConfig, Task
+    from codepulse.data.models import Task
+    from codepulse.data.protocols import Agent
     from codepulse.eval.harness import EvaluationHarness
 from codepulse.observe.metrics import compute_pass_metrics
 
@@ -54,7 +55,7 @@ class AgentComparator:
     def compare(
         self,
         task: Task,
-        agents: list[AgentConfig],
+        agents: Sequence[Agent],
         n_trials: int = 5,
     ) -> dict[str, AgentMetrics]:
         """对同一任务横向对比多个 Agent。
@@ -64,7 +65,7 @@ class AgentComparator:
 
         Args:
             task: 评测任务。
-            agents: Agent 配置列表。
+            agents: Agent 实现列表（满足 Agent Protocol）。
             n_trials: 每个 Agent 的试运行次数。
 
         Returns:
@@ -72,15 +73,15 @@ class AgentComparator:
         """
         results: dict[str, AgentMetrics] = {}
 
-        for agent_config in agents:
+        for agent in agents:
             logger.info(
                 "运行 Agent '%s' 在任务 '%s'，共 %d 次试运行",
-                agent_config.name,
+                agent.name,
                 task.task_id,
                 n_trials,
             )
 
-            trials = self.harness.run_task(task, agent_config, n_trials=n_trials)
+            trials = self.harness.run_task(task, agent, n_trials=n_trials)
 
             n_total = len(trials)
             n_success = sum(1 for t in trials if t.success)
@@ -114,7 +115,7 @@ class AgentComparator:
             )
 
             metrics = AgentMetrics(
-                agent_name=agent_config.name,
+                agent_name=agent.name,
                 n_success=n_success,
                 n_total=n_total,
                 pass_at_1=pass_metrics.pass_at_1,
@@ -126,11 +127,11 @@ class AgentComparator:
                 self_correction_rate=self_correction_rate,
             )
 
-            results[agent_config.name] = metrics
+            results[agent.name] = metrics
 
             logger.info(
                 "Agent '%s': pass@1=%.2f, pass@%d=%.2f, pass^%d=%.2f",
-                agent_config.name,
+                agent.name,
                 metrics.pass_at_1,
                 n_trials,
                 metrics.pass_at_k,

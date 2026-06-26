@@ -10,8 +10,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from codepulse.data.models import AgentConfig
-
 if TYPE_CHECKING:
     from codepulse.data.models import Task, Trial
     from codepulse.data.protocols import Agent
@@ -98,11 +96,6 @@ class ForwardPass:
         Returns:
             每个任务对应的 Trajectory 列表。
         """
-        agent_config = AgentConfig(
-            name=skill.name,
-            model=skill.model,
-        )
-
         trajectories: list[Trajectory] = []
 
         for task in self.dataset:
@@ -112,7 +105,7 @@ class ForwardPass:
                 n_trials,
             )
 
-            trials = self.harness.run_task(task, agent_config, n_trials)
+            trials = self.harness.run_task(task, skill, n_trials)
             success = all(trial.success for trial in trials)
             avg_scores = _compute_avg_scores(trials)
 

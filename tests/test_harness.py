@@ -19,6 +19,7 @@ from codepulse.data.models import (
     Trial,
 )
 from codepulse.data.protocols import GraderResult
+from codepulse.env.mock_agent import MockAgent
 from codepulse.eval.harness import EvaluationHarness
 from codepulse.eval.scoring import MAX_SCORES, PASS_THRESHOLD, ScoreDimension, aggregate_scores
 
@@ -42,9 +43,9 @@ def sample_task(sample_task_data: dict) -> Task:
 
 
 @pytest.fixture
-def agent_config() -> AgentConfig:
-    """测试用 Agent 配置。"""
-    return AgentConfig(name="test-agent", model="test-model")
+def mock_agent() -> MockAgent:
+    """测试用 MockAgent。"""
+    return MockAgent(name="test-agent", model="test-model")
 
 
 @pytest.fixture
@@ -162,20 +163,20 @@ class TestRunTask:
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """run_task 必须返回 list。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         assert isinstance(trials, list)
 
     def test_run_task_returns_trials(
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """run_task 返回的每个元素必须是 Trial 实例。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         assert len(trials) == 1
         assert isinstance(trials[0], Trial)
 
@@ -183,30 +184,30 @@ class TestRunTask:
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """n_trials=1 时应返回恰好 1 个 Trial。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         assert len(trials) == 1
 
     def test_run_task_n_trials_5(
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """n_trials=5 时应返回恰好 5 个 Trial。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=5)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=5)
         assert len(trials) == 5
 
     def test_run_task_trial_ids_unique(
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """每次试运行的 trial_id 必须唯一。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=5)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=5)
         trial_ids = [t.trial_id for t in trials]
         assert len(set(trial_ids)) == 5
 
@@ -214,10 +215,10 @@ class TestRunTask:
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """trial_id 必须包含 task_id 前缀。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=3)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=3)
         for trial in trials:
             assert trial.task_id == sample_task.task_id
             assert sample_task.task_id in trial.trial_id
@@ -226,20 +227,20 @@ class TestRunTask:
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """Trial 必须保存 agent_config。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
-        assert trials[0].agent_config is agent_config
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
+        assert trials[0].agent_config.name == "test-agent"
 
     def test_run_task_trial_has_outcome(
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """Trial.outcome 必须包含 Transcript 摘要字段。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         outcome = trials[0].outcome
         assert "transcript_events" in outcome
         assert "total_tokens" in outcome
@@ -250,20 +251,20 @@ class TestRunTask:
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """Trial.scores 必须包含评分结果。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         assert len(trials[0].scores) > 0
 
     def test_run_task_uses_mock_agent_internally(
         self,
         harness_with_graders: EvaluationHarness,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """run_task 应通过 MockAgent 生成 Transcript（验证集成路径）。"""
-        trials = harness_with_graders.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         # MockAgent produces 2 events (LLM_CALL + TOOL_CALL) and 150 tokens
         assert trials[0].outcome["transcript_events"] == 2
         assert trials[0].outcome["total_tokens"] == 150
@@ -439,18 +440,18 @@ class TestTrialSuccess:
         mock_sandbox: MagicMock,
         passing_graders: list[MagicMock],
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """总分 >= PASS_THRESHOLD 时 trial.success 应为 True。"""
         harness = EvaluationHarness(sandbox=mock_sandbox, graders=passing_graders)
-        trials = harness.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=1)
         assert trials[0].success is True
 
     def test_success_false_when_below_threshold(
         self,
         mock_sandbox: MagicMock,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """总分 < PASS_THRESHOLD 时 trial.success 应为 False。"""
         low_grader = MagicMock()
@@ -461,7 +462,7 @@ class TestTrialSuccess:
             )
         )
         harness = EvaluationHarness(sandbox=mock_sandbox, graders=[low_grader])
-        trials = harness.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=1)
         # Only FUNCTIONAL dimension scored at 0.0 => total = 0 < PASS_THRESHOLD
         assert trials[0].success is False
 
@@ -470,11 +471,11 @@ class TestTrialSuccess:
         mock_sandbox: MagicMock,
         passing_graders: list[MagicMock],
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """使用确定性 grader 时所有 trial 的 success 应一致。"""
         harness = EvaluationHarness(sandbox=mock_sandbox, graders=passing_graders)
-        trials = harness.run_task(sample_task, agent_config, n_trials=5)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=5)
         successes = [t.success for t in trials]
         assert all(s == successes[0] for s in successes)
 
@@ -482,15 +483,15 @@ class TestTrialSuccess:
         self,
         mock_sandbox: MagicMock,
         sample_task: Task,
-        agent_config: AgentConfig,
+        mock_agent: MockAgent,
     ) -> None:
         """无 grader 时总分为 0，trial.success 应为 False。"""
         harness = EvaluationHarness(sandbox=mock_sandbox)
-        trials = harness.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=1)
         assert trials[0].success is False
 
     def test_success_threshold_boundary(
-        self, mock_sandbox: MagicMock, sample_task: Task, agent_config: AgentConfig
+        self, mock_sandbox: MagicMock, sample_task: Task, mock_agent: MockAgent
     ) -> None:
         """总分恰好等于 PASS_THRESHOLD 时 trial.success 应为 True。"""
         # Craft dimension scores so total == PASS_THRESHOLD exactly:
@@ -521,5 +522,5 @@ class TestTrialSuccess:
             )
             boundary_graders.append(grader)
         harness = EvaluationHarness(sandbox=mock_sandbox, graders=boundary_graders)
-        trials = harness.run_task(sample_task, agent_config, n_trials=1)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=1)
         assert trials[0].success is True

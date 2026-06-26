@@ -11,16 +11,18 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
 
 from codepulse.data.custom_loader import CustomDatasetLoader
-from codepulse.data.models import AgentConfig, Task
 from codepulse.env.sandbox import SandboxError, SandboxManager
 from codepulse.eval.harness import EvaluationHarness
 from codepulse.observe.comparator import AgentComparator
 from codepulse.output.report import ReportGenerator
+
+if TYPE_CHECKING:
+    from codepulse.data.models import Task
 
 
 def _load_first_task(task_file: str) -> Task:
@@ -151,9 +153,12 @@ def evaluate(task_file: str, agent_name: str, model: str, n_trials: int) -> None
     prints the results to stdout.
     """
     task = _load_first_task(task_file)
-    agent_config = AgentConfig(name=agent_name, model=model)
 
     harness = _create_harness()
+
+    # 使用 MockAgent 作为默认 Agent 实现
+    from codepulse.env.mock_agent import MockAgent
+    agent = MockAgent(name=agent_name, model=model)
 
     click.echo(
         f"Evaluating task '{task.task_id}' with agent '{agent_name}' "
@@ -161,7 +166,7 @@ def evaluate(task_file: str, agent_name: str, model: str, n_trials: int) -> None
     )
 
     try:
-        trials = harness.run_task(task, agent_config, n_trials=n_trials)
+        trials = harness.run_task(task, agent, n_trials=n_trials)
     except Exception as exc:
         raise click.ClickException(f"Evaluation failed: {exc}") from exc
 
@@ -221,19 +226,19 @@ def compare(task_file: str, agents: tuple[str, ...], n_trials: int) -> None:
     task = _load_first_task(task_file)
     harness = _create_harness()
 
-    agent_configs = [
-        AgentConfig(name=name, model=name) for name in agents
-    ]
+    # 使用 MockAgent 作为默认 Agent 实现
+    from codepulse.env.mock_agent import MockAgent
+    agent_list = [MockAgent(name=name, model=name) for name in agents]
 
     comparator = AgentComparator(harness)
 
     click.echo(
-        f"Comparing {len(agent_configs)} agents on task '{task.task_id}' "
+        f"Comparing {len(agent_list)} agents on task '{task.task_id}' "
         f"({n_trials} trials each) ..."
     )
 
     try:
-        results = comparator.compare(task, agent_configs, n_trials=n_trials)
+        results = comparator.compare(task, agent_list, n_trials=n_trials)
     except Exception as exc:
         raise click.ClickException(f"Comparison failed: {exc}") from exc
 
