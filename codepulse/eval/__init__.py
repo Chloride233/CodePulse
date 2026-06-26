@@ -3,7 +3,18 @@
 三类 Grader（确定性 + LLM-as-Judge + 人工校准），100 分扣分制。
 """
 
+from codepulse.eval.code_quality_grader import CodeQualityGrader
+from codepulse.eval.efficiency_grader import EfficiencyGrader
 from codepulse.eval.harness import EvaluationHarness
+from codepulse.eval.pytest_grader import PytestGrader
 from codepulse.eval.scoring import ScoreDimension, ScoringConfig, aggregate_scores
 
-__all__ = ["EvaluationHarness", "ScoreDimension", "ScoringConfig", "aggregate_scores"]
+__all__ = [
+    "CodeQualityGrader",
+    "EfficiencyGrader",
+    "EvaluationHarness",
+    "PytestGrader",
+    "ScoreDimension",
+    "ScoringConfig",
+    "aggregate_scores",
+]
