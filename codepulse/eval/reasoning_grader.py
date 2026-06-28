@@ -138,6 +138,8 @@ class ReasoningGrader:
                     "error": "no reasoning steps found",
                     "model": self.model,
                 },
+                evidence=[{"kind": "step_count", "value": 0}],
+                diagnosis="缺少可审查的 reasoning steps，无法判断过程质量。",
             )
 
         task_description = _build_task_description(task.input)
@@ -166,6 +168,8 @@ class ReasoningGrader:
                 dimension=ScoreDimension.PROCESS,
                 score=0.0,
                 details={"error": "LLM call failed", "model": self.model},
+                evidence=[{"kind": "judge_model", "value": self.model}],
+                diagnosis="Reasoning judge 调用失败，需检查模型或网络配置。",
             )
 
         try:
@@ -184,6 +188,8 @@ class ReasoningGrader:
                     "raw_response": raw,
                     "model": self.model,
                 },
+                evidence=[{"kind": "raw_response", "value": raw[:200]}],
+                diagnosis="Reasoning judge 返回不可解析结果，需收紧输出格式。",
             )
 
         clamped_score = max(1, min(5, raw_score))
@@ -198,4 +204,9 @@ class ReasoningGrader:
                 "step_count": len(reasoning_steps),
                 "model": self.model,
             },
+            evidence=[
+                {"kind": "raw_score", "value": clamped_score},
+                {"kind": "step_count", "value": len(reasoning_steps)},
+            ],
+            diagnosis=reasoning,
         )

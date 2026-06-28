@@ -81,6 +81,9 @@ class TraceCollector:
                     "content": event.content,
                     "token_usage": event.token_usage,
                     "duration": event.duration,
+                    "span_kind": event.span_kind.value if event.span_kind is not None else None,
+                    "parent_id": event.parent_id,
+                    "span_id": event.span_id,
                 }
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
 

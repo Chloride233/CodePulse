@@ -41,6 +41,9 @@ class TestBaselineSave:
             "pass_rate": 0.8,
             "avg_score": 85.0,
             "avg_scores": {"functional": 0.9},
+            "suite_type": "regression",
+            "avg_cost_usd": 0.02,
+            "failure_types": ["functional_weakness"],
         }
         (task_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
 
@@ -57,6 +60,8 @@ class TestBaselineSave:
             ])
             assert result.exit_code == 0, result.output
             assert "Baseline" in result.output or "saved" in result.output
+            manifest = json.loads((fs_path / "results" / "baselines" / "v1" / "baseline.json").read_text(encoding="utf-8"))
+            assert manifest["task_summaries"]["task-001"]["suite_type"] == "regression"
 
     def test_save_with_existing_name_fails(self, tmp_path: Path) -> None:
         """Saving with a name that already exists should fail."""

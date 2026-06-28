@@ -84,7 +84,7 @@ def load_all_summaries(results_dir: Path | None = None) -> dict[str, Any]:
 
 
 def load_task_trials(results_dir: Path | None = None) -> dict[str, list[dict[str, Any]]]:
-    """Load all trial JSONL files grouped by task_id."""
+    """Load all trial JSON/JSONL files grouped by task_id."""
     base = results_dir or Path("results")
     if not base.exists():
         return {}
@@ -93,17 +93,24 @@ def load_task_trials(results_dir: Path | None = None) -> dict[str, list[dict[str
     if cached is not None:
         return cached  # type: ignore[no-any-return]
     trials: dict[str, list[dict[str, Any]]] = {}
-    for trial_path in sorted(base.rglob("trial-*.jsonl")):
-        # Skip trace files
-        if "-trace.jsonl" in trial_path.name:
+    trial_files = sorted(base.rglob("*.json")) + sorted(base.rglob("*.jsonl"))
+    for trial_path in trial_files:
+        if trial_path.name == "summary.json":
+            continue
+        if "-trace.jsonl" in trial_path.name or "-trace.json" in trial_path.name:
             continue
         task_id = trial_path.parent.name
         try:
-            lines = trial_path.read_text(encoding="utf-8").strip().splitlines()
-            for line in lines:
-                if line.strip():
-                    data = json.loads(line)
-                    trials.setdefault(task_id, []).append(data)
+            raw = trial_path.read_text(encoding="utf-8").strip()
+            if not raw:
+                continue
+            if trial_path.suffix == ".json":
+                trials.setdefault(task_id, []).append(json.loads(raw))
+            else:
+                for line in raw.splitlines():
+                    if line.strip():
+                        data = json.loads(line)
+                        trials.setdefault(task_id, []).append(data)
         except (json.JSONDecodeError, OSError):
             continue
 

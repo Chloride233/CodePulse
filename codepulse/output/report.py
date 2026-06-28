@@ -76,6 +76,8 @@ class ReportGenerator:
         sections.append(f"| 类别 | {task.category.value} |")
         sections.append(f"| 难度 | {task.difficulty.value} |")
         sections.append(f"| 语言 | {task.language} |")
+        sections.append(f"| 套件类型 | {task.suite_type.value} |")
+        sections.append(f"| 基线 ID | {task.baseline_id or '-'} |")
         sections.append("")
         status = "✅ 通过" if trial.success else "❌ 未通过"
         sections.append(f"## 结果：{status}\n")
@@ -96,11 +98,26 @@ class ReportGenerator:
         sections.append(f"| 总 Token | {m.total_tokens:,} |")
         sections.append(f"| 输入 Token | {m.input_tokens:,} |")
         sections.append(f"| 输出 Token | {m.output_tokens:,} |")
+        sections.append(f"| 推理 Token | {m.reasoning_tokens:,} |")
+        sections.append(f"| 工具往返 Token | {m.tool_roundtrip_tokens:,} |")
+        sections.append(f"| 重试次数 | {m.retry_count} |")
         sections.append(f"| 耗时 | {m.total_duration:.1f}s |")
         sections.append(f"| 工具调用次数 | {m.tool_call_count} |")
         sections.append(f"| 自纠正次数 | {m.self_correction_count} |")
         sections.append(f"| 费用 (USD) | ${m.cost_usd:.4f} |")
         sections.append("")
+        if trial.failure_analysis:
+            sections.append("## 失败归因\n")
+            sections.append("| 阶段 | 类型 | 证据 | 建议动作 | 回归候选 |")
+            sections.append("|------|------|------|----------|----------|")
+            for item in trial.failure_analysis:
+                evidence = "; ".join(item.evidence[:2]) if item.evidence else "-"
+                sections.append(
+                    f"| {item.stage} | {item.failure_type} | {evidence} | "
+                    f"{item.suggested_action or '-'} | "
+                    f"{'是' if item.should_enter_regression else '否'} |"
+                )
+            sections.append("")
         sections.append("## Agent 配置\n")
         ac = trial.agent_config
         sections.append(f"- **名称**: {ac.name}")
@@ -148,6 +165,18 @@ class ReportGenerator:
             if dim in dim_sums:
                 avg = dim_sums[dim] / dim_counts[dim]
                 sections.append(f"| {label} | {avg:.3f} / 1.0 |")
+        failure_type_counts: dict[str, int] = {}
+        regression_candidates = 0
+        for r in results.values():
+            for item in r.get("failure_analysis", []):
+                failure_type = str(item.get("failure_type", "unknown"))
+                failure_type_counts[failure_type] = failure_type_counts.get(failure_type, 0) + 1
+                if item.get("should_enter_regression", False):
+                    regression_candidates += 1
+        if failure_type_counts:
+            top_failure = max(failure_type_counts.items(), key=lambda item: item[1])[0]
+            sections.append(f"| Top failure type | {top_failure} |")
+            sections.append(f"| Regression candidates | {regression_candidates} |")
         sections.append("")
 
         sections.append("## Per-Task Detail\n")
@@ -175,6 +204,8 @@ class ReportGenerator:
             sections.append(f"- Token range: {min(all_tokens):,} ~ {max(all_tokens):,} (avg {sum(all_tokens) / len(all_tokens):,.0f})")
         if all_durations:
             sections.append(f"- Duration range: {min(all_durations):.1f}s ~ {max(all_durations):.1f}s (avg {sum(all_durations) / len(all_durations):.1f}s)")
+        if failure_type_counts:
+            sections.append(f"- Top failure type: **{max(failure_type_counts.items(), key=lambda item: item[1])[0]}**")
         sections.append("")
         return "\n".join(sections)
 

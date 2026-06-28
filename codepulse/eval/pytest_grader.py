@@ -93,4 +93,14 @@ class PytestGrader:
             dimension=ScoreDimension.FUNCTIONAL,
             score=score,
             details=details,
+            evidence=[
+                {"kind": "exit_code", "value": exit_code},
+                {"kind": "pytest_pass_rate", "value": f"{pytest_passed}/{pytest_total}"},
+                {"kind": "negative_test_failures", "value": neg_failures},
+            ],
+            diagnosis=(
+                "功能验证未完全通过，请优先修复测试失败和误报场景。"
+                if score < 1.0
+                else "功能验证通过。"
+            ),
         )

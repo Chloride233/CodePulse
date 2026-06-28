@@ -21,6 +21,7 @@ from codepulse.env.mock_agent import MockAgent
 from codepulse.observe.collector import TraceCollector
 from codepulse.observe.comparator import AgentComparator
 from codepulse.observe.trace import EventType, TraceEvent, Transcript
+from codepulse.shared.trace_types import SpanKind
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -225,6 +226,30 @@ class TestTraceCollectorSaveTrace:
         assert record["content"] == sample_event.content
         assert record["token_usage"] == sample_event.token_usage
         assert record["duration"] == sample_event.duration
+
+    def test_save_trace_preserves_span_fields(self, collector: TraceCollector) -> None:
+        """Span metadata should be preserved when writing trace JSONL."""
+        transcript = collector.start_session("sess-011b")
+        collector.record_event(
+            transcript,
+            TraceEvent(
+                timestamp=1.23,
+                event_type=EventType.LLM_CALL,
+                content={"model": "test"},
+                token_usage={"input": 10, "output": 5},
+                duration=0.4,
+                span_kind=SpanKind.LLM,
+                parent_id="root-span",
+                span_id="llm-span-1",
+            ),
+        )
+
+        path = collector.save_trace(transcript, "task-span", "trial-0")
+        record = json.loads(path.read_text(encoding="utf-8").strip())
+
+        assert record["span_kind"] == "llm"
+        assert record["parent_id"] == "root-span"
+        assert record["span_id"] == "llm-span-1"
 
     def test_save_trace_empty_transcript(self, collector: TraceCollector) -> None:
         """空 Transcript 应创建空文件（零行）。"""

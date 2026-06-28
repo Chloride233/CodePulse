@@ -130,12 +130,16 @@ class ValidationGate:
                 "improved": False,
                 "improvement_rate": 0.0,
                 "regression_rate": 0.0,
+                "rejection_reason": "empty_dataset",
             }
 
         candidate_total = 0.0
         baseline_total = 0.0
         improved_count = 0
         regressed_count = 0
+        p0_regressions = 0
+        cost_violations = 0
+        regression_suite_failures = 0
 
         for c_traj, b_traj in zip(
             candidate_trajs, baseline_trajs, strict=True
@@ -151,10 +155,41 @@ class ValidationGate:
             elif c_score < b_score:
                 regressed_count += 1
 
+            c_func = c_traj.avg_scores.get(ScoreDimension.FUNCTIONAL.value, 0.0)
+            b_func = b_traj.avg_scores.get(ScoreDimension.FUNCTIONAL.value, 0.0)
+            c_robust = c_traj.avg_scores.get(ScoreDimension.ROBUSTNESS.value, 0.0)
+            b_robust = b_traj.avg_scores.get(ScoreDimension.ROBUSTNESS.value, 0.0)
+            if c_func < b_func or c_robust < b_robust:
+                p0_regressions += 1
+
+            c_cost = self._avg_cost(c_traj)
+            b_cost = self._avg_cost(b_traj)
+            if b_cost > 0 and c_cost > b_cost * 1.1:
+                cost_violations += 1
+
+            if c_traj.task.suite_type.value == "regression" and not c_traj.success:
+                regression_suite_failures += 1
+
         candidate_score = round(candidate_total / n_tasks, 2)
         baseline_score = round(baseline_total / n_tasks, 2)
         improvement_rate = round(improved_count / n_tasks, 4)
         regression_rate = round(regressed_count / n_tasks, 4)
+        improved = (
+            candidate_score >= baseline_score
+            and p0_regressions == 0
+            and cost_violations == 0
+            and regression_suite_failures == 0
+        )
+        rejection_reason = ""
+        if not improved:
+            if p0_regressions > 0:
+                rejection_reason = "p0_regression"
+            elif cost_violations > 0:
+                rejection_reason = "cost_budget_exceeded"
+            elif regression_suite_failures > 0:
+                rejection_reason = "regression_suite_failed"
+            elif candidate_score < baseline_score:
+                rejection_reason = "score_regression"
 
         logger.info(
             "Validation 结果: 候选=%.2f, 基线=%.2f, "
@@ -168,7 +203,16 @@ class ValidationGate:
         return {
             "candidate_score": candidate_score,
             "baseline_score": baseline_score,
-            "improved": candidate_score > baseline_score,
+            "improved": improved,
             "improvement_rate": improvement_rate,
             "regression_rate": regression_rate,
+            "p0_regressions": p0_regressions,
+            "cost_violations": cost_violations,
+            "regression_suite_failures": regression_suite_failures,
+            "rejection_reason": rejection_reason,
         }
+
+    def _avg_cost(self, trajectory: Trajectory) -> float:
+        if not trajectory.trials:
+            return 0.0
+        return sum(trial.metrics.cost_usd for trial in trajectory.trials) / len(trajectory.trials)

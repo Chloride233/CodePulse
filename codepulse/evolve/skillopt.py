@@ -35,6 +35,8 @@ class EvolutionResult:
     attribution_report: dict[str, Any]
     edits_applied: int
     edits_rejected: int
+    improvement_plan: dict[str, Any]
+    validation_summary: dict[str, Any]
 
 
 class SkillOpt:
@@ -147,6 +149,7 @@ class SkillOpt:
         # Validation Gate
         gate = ValidationGate(self.harness, self.dataset)
         gate_result = gate.validate(candidate, baseline, n_trials)
+        improvement_plan = self._build_improvement_plan(candidate_trajs, gate_result)
 
         # 记录编辑（简化版：每轮生成一个示例编辑）
         edits_applied = 0
@@ -167,7 +170,7 @@ class SkillOpt:
             self.buffer.add_rejected(
                 edit,
                 gate_result["candidate_score"] - gate_result["baseline_score"],
-                "未优于基线",
+                gate_result.get("rejection_reason", "未优于基线"),
             )
             edits_rejected = 1
 
@@ -184,6 +187,8 @@ class SkillOpt:
             },
             edits_applied=edits_applied,
             edits_rejected=edits_rejected,
+            improvement_plan=improvement_plan,
+            validation_summary=gate_result,
         )
 
     def get_buffer_stats(self) -> dict[str, Any]:
@@ -193,3 +198,38 @@ class SkillOpt:
             缓冲区统计信息。
         """
         return self.buffer.get_stats()
+
+    def _build_improvement_plan(
+        self,
+        candidate_trajs: list[Any],
+        gate_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """从候选轨迹和 gate 结果生成建议，不直接改代码。"""
+        focus_items: list[dict[str, Any]] = []
+
+        for trajectory in candidate_trajs:
+            for trial in trajectory.trials:
+                for item in trial.failure_analysis:
+                    focus_items.append({
+                        "task_id": trajectory.task.task_id,
+                        "stage": item.stage,
+                        "failure_type": item.failure_type,
+                        "evidence": item.evidence[:2],
+                        "action": item.suggested_action,
+                        "should_enter_regression": item.should_enter_regression,
+                    })
+
+        focus_items = focus_items[:5]
+        return {
+            "goal": "提高评测分数且不引入回归",
+            "candidate_edits": [
+                item["action"] for item in focus_items if item.get("action")
+            ][:3],
+            "evidence": focus_items,
+            "risk": gate_result.get("rejection_reason", ""),
+            "validation_commands": [
+                "pytest",
+                "ruff check .",
+                "mypy codepulse",
+            ],
+        }

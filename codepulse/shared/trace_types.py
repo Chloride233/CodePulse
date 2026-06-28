@@ -21,6 +21,19 @@ class EventType(StrEnum):
     ERROR = "error"
 
 
+class SpanKind(StrEnum):
+    """细粒度 span 语义。"""
+
+    ENTRY = "entry"
+    STEP = "step"
+    LLM = "llm"
+    TOOL = "tool"
+    SKILL = "skill"
+    MEMORY = "memory"
+    ARTIFACT = "artifact"
+    ERROR = "error"
+
+
 @dataclass(frozen=True)
 class TraceEvent:
     """单个 Trace 事件。"""
@@ -30,6 +43,9 @@ class TraceEvent:
     content: dict[str, Any]
     token_usage: dict[str, int] = field(default_factory=dict)
     duration: float = 0.0
+    span_kind: SpanKind | None = None
+    parent_id: str | None = None
+    span_id: str | None = None
 
 
 @dataclass
@@ -63,6 +79,7 @@ class Transcript:
             steps.append({
                 "step": i,
                 "event_type": ev.event_type.value,
+                "span_kind": ev.span_kind.value if ev.span_kind is not None else "",
                 "tokens": total,
                 "duration_ms": int(ev.duration * 1000),
             })

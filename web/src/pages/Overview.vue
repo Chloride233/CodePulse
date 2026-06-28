@@ -9,6 +9,7 @@ import {
   PhCheckCircle as CheckCircle,
   PhClock as Clock,
   PhCoins as Coins,
+  PhWarningCircle as WarningCircle,
   PhListChecks as ListChecks,
   PhRocket as Rocket,
 } from "@phosphor-icons/vue";
@@ -78,6 +79,30 @@ onMounted(() => {
           :value="store.overview.active_agents.length"
           :icon="Clock"
         />
+      </div>
+
+      <div class="insight-grid">
+        <section class="card insight-card">
+          <h2 class="section-title">最弱维度</h2>
+          <p class="insight-value">{{ store.overview.weakest_dimension ?? "暂无" }}</p>
+        </section>
+        <section class="card insight-card">
+          <h2 class="section-title">最高成本任务</h2>
+          <p class="insight-value">
+            {{ store.overview.costliest_task.task_id ?? "暂无" }}
+          </p>
+          <p class="insight-meta" v-if="store.overview.costliest_task.cost_usd">
+            ${{ store.overview.costliest_task.cost_usd.toFixed(4) }}
+          </p>
+        </section>
+        <section class="card insight-card">
+          <div class="insight-header">
+            <h2 class="section-title">新增回归风险</h2>
+            <WarningCircle :size="18" class="insight-icon" />
+          </div>
+          <p class="insight-value">{{ store.overview.regression_risks.length }}</p>
+          <p class="insight-meta">最近 10 条结构化风险</p>
+        </section>
       </div>
 
       <div class="charts-row">
@@ -168,6 +193,13 @@ onMounted(() => {
   margin-bottom: 32px;
 }
 
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
 .chart-card {
   background: var(--apple-surface);
   border-radius: var(--apple-radius);
@@ -192,6 +224,34 @@ onMounted(() => {
   font-size: 14px;
   color: var(--apple-text-secondary);
   margin-bottom: 20px;
+}
+
+.insight-card {
+  min-height: 140px;
+}
+
+.insight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.insight-icon {
+  color: var(--apple-warning);
+}
+
+.insight-value {
+  margin-top: 18px;
+  font-family: var(--apple-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--apple-text);
+}
+
+.insight-meta {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--apple-text-secondary);
 }
 
 .agent-table-wrap {

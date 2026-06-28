@@ -105,6 +105,8 @@ class RubricGrader:
                 dimension=ScoreDimension.PROCESS,
                 score=0.0,
                 details={"error": "LLM call failed"},
+                evidence=[{"kind": "llm_error", "value": self.model}],
+                diagnosis="Rubric 评分失败，需检查 judge 模型或改用确定性证据兜底。",
             )
 
         try:
@@ -117,6 +119,8 @@ class RubricGrader:
                 dimension=ScoreDimension.PROCESS,
                 score=0.0,
                 details={"error": "unparseable LLM response", "raw_response": raw},
+                evidence=[{"kind": "raw_response", "value": raw[:200]}],
+                diagnosis="Rubric 输出不可解析，需收紧 JSON schema 或加解析兜底。",
             )
 
         clamped_score = max(1, min(5, raw_score))
@@ -130,4 +134,9 @@ class RubricGrader:
                 "reasoning": reasoning,
                 "model": self.model,
             },
+            evidence=[
+                {"kind": "raw_score", "value": clamped_score},
+                {"kind": "judge_model", "value": self.model},
+            ],
+            diagnosis=reasoning,
         )

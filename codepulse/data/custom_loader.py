@@ -26,6 +26,7 @@ from typing import Any
 
 from codepulse.data.models import (
     Difficulty,
+    SuiteType,
     Task,
     TaskCategory,
     TaskSource,
@@ -43,6 +44,7 @@ _REQUIRED_FIELDS: tuple[str, ...] = (
 # Build reverse-lookups for string-to-enum conversion.
 _CATEGORY_MAP: dict[str, TaskCategory] = {v.value: v for v in TaskCategory}
 _DIFFICULTY_MAP: dict[str, Difficulty] = {v.value: v for v in Difficulty}
+_SUITE_TYPE_MAP: dict[str, SuiteType] = {v.value: v for v in SuiteType}
 
 
 def _resolve_category(raw: str) -> TaskCategory:
@@ -60,6 +62,11 @@ def _resolve_difficulty(raw: str) -> Difficulty:
     Falls back to ``Difficulty.MEDIUM`` for unrecognised values.
     """
     return _DIFFICULTY_MAP.get(raw, Difficulty.MEDIUM)
+
+
+def _resolve_suite_type(raw: str) -> SuiteType:
+    """Convert a suite type string to a SuiteType enum member."""
+    return _SUITE_TYPE_MAP.get(raw, SuiteType.CAPABILITY)
 
 
 class CustomDatasetLoader:
@@ -186,4 +193,8 @@ class CustomDatasetLoader:
                 "test_cases": record.get("test_cases", []),
             },
             metadata=record.get("metadata", {}),
+            suite_type=_resolve_suite_type(record.get("suite_type", "")),
+            acceptance_criteria=record.get("acceptance_criteria", []),
+            baseline_id=record.get("baseline_id"),
+            artifact_expectations=record.get("artifact_expectations", {}),
         )

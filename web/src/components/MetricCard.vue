@@ -20,7 +20,7 @@ const displayValue = computed(() => {
     case "percent":
       return `${(props.value * 100).toFixed(1)}%`;
     case "score":
-      return (props.value * 100).toFixed(1);
+      return props.value.toFixed(1);
     case "cost":
       return props.value < 0.01
         ? `$${props.value.toFixed(4)}`

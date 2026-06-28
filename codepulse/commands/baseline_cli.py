@@ -18,6 +18,33 @@ from codepulse.eval.scoring import sequence_similarity
 BASELINE_DIR = "results/baselines"
 
 
+def _iter_trial_files(task_dir: Path) -> list[Path]:
+    files = sorted(task_dir.glob("*.json")) + sorted(task_dir.glob("*.jsonl"))
+    return [
+        path
+        for path in files
+        if path.name != "summary.json" and "trace" not in path.name
+    ]
+
+
+def _load_trial_payloads(task_dir: Path) -> list[dict[str, object]]:
+    payloads: list[dict[str, object]] = []
+    for trial_file in _iter_trial_files(task_dir):
+        try:
+            raw = trial_file.read_text(encoding="utf-8").strip()
+            if not raw:
+                continue
+            if trial_file.suffix == ".json":
+                payloads.append(json.loads(raw))
+            else:
+                for line in raw.splitlines():
+                    if line.strip():
+                        payloads.append(json.loads(line))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return payloads
+
+
 @click.group(name="baseline")
 def baseline_group() -> None:
     """Manage evaluation baselines for tracking progress over time."""
@@ -68,6 +95,7 @@ def baseline_save(name: str, results_dir: str, description: str | None) -> None:
     task_scores: dict[str, float] = {}
     # NEW: Capture tool_call_sequences per task from trial files
     task_sequences: dict[str, list[list[str]]] = {}
+    task_summaries: dict[str, dict[str, object]] = {}
 
     for summary_path in summaries:
         rel = summary_path.relative_to(source)
@@ -82,20 +110,23 @@ def baseline_save(name: str, results_dir: str, description: str | None) -> None:
                 total_passed += 1
             tid = data.get("task_id", summary_path.parent.name)
             task_scores[tid] = data.get("avg_score", 0)
+            task_summaries[tid] = {
+                "suite_type": data.get("suite_type", "capability"),
+                "baseline_id": data.get("baseline_id"),
+                "avg_scores": data.get("avg_scores", {}),
+                "avg_cost_usd": data.get("avg_cost_usd", 0.0),
+                "failure_types": data.get("failure_types", []),
+                "model": data.get("model", ""),
+                "agent_name": data.get("agent_name", ""),
+            }
 
             # Collect tool_call_sequences from trial files in same task dir
             task_dir = summary_path.parent
             sequences: list[list[str]] = []
-            for trial_file in sorted(task_dir.glob("*.json")):
-                if trial_file.name == "summary.json":
-                    continue
-                try:
-                    tdata = json.loads(trial_file.read_text(encoding="utf-8"))
-                    seq = tdata.get("tool_call_sequence", [])
-                    if seq:
-                        sequences.append(seq)
-                except (json.JSONDecodeError, OSError):
-                    continue
+            for tdata in _load_trial_payloads(task_dir):
+                seq = tdata.get("tool_call_sequence", [])
+                if isinstance(seq, list) and seq:
+                    sequences.append([str(item) for item in seq])
             if sequences:
                 task_sequences[tid] = sequences
         except (json.JSONDecodeError, OSError):
@@ -111,6 +142,7 @@ def baseline_save(name: str, results_dir: str, description: str | None) -> None:
         "avg_score": sum(task_scores.values()) / len(task_scores) if task_scores else 0,
         "task_scores": task_scores,
         "task_sequences": {k: v for k, v in task_sequences.items()},
+        "task_summaries": task_summaries,
     }
     manifest_path = baseline_path / "baseline.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -184,6 +216,7 @@ def baseline_compare(baseline_name: str, results_dir: str, show_diff: bool) -> N
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     baseline_scores: dict[str, float] = manifest.get("task_scores", {})
     baseline_sequences: dict[str, list[list[str]]] = manifest.get("task_sequences", {})
+    baseline_summaries: dict[str, dict[str, object]] = manifest.get("task_summaries", {})
 
     current = Path(results_dir)
     if not current.exists():
@@ -191,26 +224,26 @@ def baseline_compare(baseline_name: str, results_dir: str, show_diff: bool) -> N
 
     current_scores: dict[str, float] = {}
     current_sequences: dict[str, list[list[str]]] = {}
+    current_summaries: dict[str, dict[str, object]] = {}
 
     for summary_path in current.rglob("summary.json"):
         try:
             data = json.loads(summary_path.read_text(encoding="utf-8"))
             tid = data.get("task_id", summary_path.parent.name)
             current_scores[tid] = data.get("avg_score", 0)
+            current_summaries[tid] = {
+                "suite_type": data.get("suite_type", "capability"),
+                "avg_cost_usd": data.get("avg_cost_usd", 0.0),
+                "failure_types": data.get("failure_types", []),
+            }
 
             # Collect current tool_call_sequences
             task_dir = summary_path.parent
             sequences: list[list[str]] = []
-            for trial_file in sorted(task_dir.glob("*.json")):
-                if trial_file.name == "summary.json":
-                    continue
-                try:
-                    tdata = json.loads(trial_file.read_text(encoding="utf-8"))
-                    seq = tdata.get("tool_call_sequence", [])
-                    if seq:
-                        sequences.append(seq)
-                except (json.JSONDecodeError, OSError):
-                    continue
+            for tdata in _load_trial_payloads(task_dir):
+                seq = tdata.get("tool_call_sequence", [])
+                if isinstance(seq, list) and seq:
+                    sequences.append([str(item) for item in seq])
             if sequences:
                 current_sequences[tid] = sequences
         except (json.JSONDecodeError, OSError):
@@ -229,8 +262,8 @@ def baseline_compare(baseline_name: str, results_dir: str, show_diff: bool) -> N
     click.echo(f"Baseline: {baseline_name} ({manifest.get('created_at', 'unknown')[:10]})")
     click.echo(f"Current:  {results_dir}")
     click.echo()
-    click.echo(f"{'Task':<32} {'Base':>7} {'Curr':>7} {'Δ':>7}  {'Process':>8} {'Eff':>6}")
-    click.echo(f"{'-'*32} {'-'*7:>7} {'-'*7:>7} {'-'*7:>7}  {'-'*8:>8} {'-'*6:>6}")
+    click.echo(f"{'Task':<32} {'Base':>7} {'Curr':>7} {'Δ':>7}  {'Process':>8} {'Eff':>6} {'Diag':>8}")
+    click.echo(f"{'-'*32} {'-'*7:>7} {'-'*7:>7} {'-'*7:>7}  {'-'*8:>8} {'-'*6:>6} {'-'*8:>8}")
 
     for task_id in sorted(all_tasks):
         base_score = baseline_scores.get(task_id)
@@ -238,10 +271,10 @@ def baseline_compare(baseline_name: str, results_dir: str, show_diff: bool) -> N
 
         if base_score is None:
             curr_d = f"{curr_score:.1f}" if curr_score is not None else "—"
-            click.echo(f"{task_id:<32} {'—':>7} {curr_d:>7} {'NEW':>7}  {'—':>8} {'—':>6}")
+            click.echo(f"{task_id:<32} {'—':>7} {curr_d:>7} {'NEW':>7}  {'—':>8} {'—':>6} {'—':>8}")
             new += 1
         elif curr_score is None:
-            click.echo(f"{task_id:<32} {base_score:>7.1f} {'—':>7} {'MISS':>7}  {'—':>8} {'—':>6}")
+            click.echo(f"{task_id:<32} {base_score:>7.1f} {'—':>7} {'MISS':>7}  {'—':>8} {'—':>6} {'—':>8}")
             missing += 1
         else:
             diff_score = curr_score - base_score
@@ -263,10 +296,14 @@ def baseline_compare(baseline_name: str, results_dir: str, show_diff: bool) -> N
 
             # Efficiency change (tokens)
             eff_str = _efficiency_change(task_id, baseline_path, current)
+            diag_str = _compare_failure_types(
+                baseline_summaries.get(task_id, {}),
+                current_summaries.get(task_id, {}),
+            )
             click.echo(
                 f"{task_id:<32} "
                 f"{base_score:>7.1f} {curr_score:>7.1f} {tag}  "
-                f"{proc_str:>8} {eff_str:>6}"
+                f"{proc_str:>8} {eff_str:>6} {diag_str:>8}"
             )
 
     click.echo()
@@ -303,29 +340,19 @@ def _efficiency_change(
     """Compare token efficiency between baseline and current."""
     base_total = 0
     base_count = 0
-    for trial_file in sorted((baseline_path / task_id).glob("*.json")):
-        if trial_file.name == "summary.json":
-            continue
-        try:
-            data = json.loads(trial_file.read_text(encoding="utf-8"))
-            m = data.get("metrics", {})
-            base_total += m.get("total_tokens", 0)
+    for data in _load_trial_payloads(baseline_path / task_id):
+        m = data.get("metrics", {})
+        if isinstance(m, dict):
+            base_total += int(m.get("total_tokens", 0))
             base_count += 1
-        except (json.JSONDecodeError, OSError):
-            continue
 
     curr_total = 0
     curr_count = 0
-    for trial_file in sorted((current / task_id).glob("*.json")):
-        if trial_file.name == "summary.json":
-            continue
-        try:
-            data = json.loads(trial_file.read_text(encoding="utf-8"))
-            m = data.get("metrics", {})
-            curr_total += m.get("total_tokens", 0)
+    for data in _load_trial_payloads(current / task_id):
+        m = data.get("metrics", {})
+        if isinstance(m, dict):
+            curr_total += int(m.get("total_tokens", 0))
             curr_count += 1
-        except (json.JSONDecodeError, OSError):
-            continue
 
     if not base_count or not curr_count:
         return "N/A"
@@ -340,6 +367,21 @@ def _efficiency_change(
     if pct >= 5:
         return click.style(f"{pct:+d}%", fg="red")
     return f"{pct:+d}%"
+
+
+def _compare_failure_types(
+    baseline_summary: dict[str, object],
+    current_summary: dict[str, object],
+) -> str:
+    base = set(str(item) for item in baseline_summary.get("failure_types", []))
+    curr = set(str(item) for item in current_summary.get("failure_types", []))
+    if not base and not curr:
+        return "—"
+    if curr - base:
+        return click.style("new-risk", fg="red")
+    if base - curr:
+        return click.style("better", fg="green")
+    return "same"
 
 
 def _show_diffs(baseline_path: Path, current: Path) -> None:

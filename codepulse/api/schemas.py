@@ -18,10 +18,15 @@ class TrialMetricsResponse(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cache_tokens: int = 0
+    reasoning_tokens: int = 0
+    tool_roundtrip_tokens: int = 0
+    retry_count: int = 0
+    cache_hit_tokens: int = 0
     total_duration: float = 0.0
     tool_call_count: int = 0
     self_correction_count: int = 0
     cost_usd: float = 0.0
+    cost_breakdown: dict[str, float] = {}
 
 
 class AgentConfigResponse(BaseModel):
@@ -49,6 +54,8 @@ class TrialResponse(BaseModel):
     metrics: TrialMetricsResponse
     success: bool = False
     total_score: float = 0.0
+    tool_call_sequence: list[str] = []
+    failure_analysis: list[dict[str, Any]] = []
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +71,8 @@ class TaskResponse(BaseModel):
     category: str
     difficulty: str
     language: str
+    suite_type: str = "capability"
+    baseline_id: str | None = None
     n_trials: int = 0
     pass_rate: float = 0.0
     avg_score: float = 0.0
@@ -88,6 +97,9 @@ class TraceEventResponse(BaseModel):
     content: dict[str, Any] = {}
     token_usage: dict[str, int] = {}
     duration: float = 0.0
+    span_kind: str | None = None
+    parent_id: str | None = None
+    span_id: str | None = None
 
 
 class TraceSessionResponse(BaseModel):
@@ -138,6 +150,9 @@ class OverviewResponse(BaseModel):
     dimension_scores: dict[str, float] = {}
     recent_scores: list[dict[str, Any]] = []
     active_agents: list[AgentSummary] = []
+    weakest_dimension: str | None = None
+    costliest_task: dict[str, Any] = {}
+    regression_risks: list[dict[str, Any]] = []
 
 
 # ---------------------------------------------------------------------------

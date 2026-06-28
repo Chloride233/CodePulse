@@ -41,6 +41,8 @@ def get_overview(
     dimension_counts: dict[str, int] = {}
     recent: list[dict[str, Any]] = []
     agent_map: dict[str, dict[str, Any]] = {}
+    task_costs: dict[str, float] = {}
+    regression_risks: list[dict[str, Any]] = []
 
     _dim_weights: dict[str, int] = {
         "functional": 30, "process": 25, "efficiency": 15,
@@ -70,6 +72,7 @@ def get_overview(
             metrics = trial_data.get("metrics", {})
             cost = metrics.get("cost_usd", 0.0)
             total_cost += cost
+            task_costs[task_id] = task_costs.get(task_id, 0.0) + cost
 
             total_score = _compute_total(scores)
             total_score_sum += total_score
@@ -81,6 +84,14 @@ def get_overview(
                 "total_score": total_score,
                 "success": success,
             })
+            for failure in trial_data.get("failure_analysis", []):
+                if failure.get("should_enter_regression"):
+                    regression_risks.append({
+                        "task_id": task_id,
+                        "trial_id": trial_data.get("trial_id", ""),
+                        "stage": failure.get("stage", ""),
+                        "failure_type": failure.get("failure_type", ""),
+                    })
 
             # Agent tracking
             agent_cfg = trial_data.get("agent_config", {})
@@ -107,6 +118,11 @@ def get_overview(
     for dim, total in dimension_sums.items():
         count = dimension_counts.get(dim, 1)
         dimension_scores[dim] = round(total / count, 3)
+    weakest_dimension = min(dimension_scores.items(), key=lambda item: item[1])[0] if dimension_scores else None
+    costliest_task: dict[str, Any] = {}
+    if task_costs:
+        task_id, cost = max(task_costs.items(), key=lambda item: item[1])
+        costliest_task = {"task_id": task_id, "cost_usd": round(cost, 4)}
 
     # Recent: last 10
     recent = recent[-10:]
@@ -131,4 +147,7 @@ def get_overview(
         dimension_scores=dimension_scores,
         recent_scores=recent,
         active_agents=active_agents,
+        weakest_dimension=weakest_dimension,
+        costliest_task=costliest_task,
+        regression_risks=regression_risks[:10],
     )

@@ -27,6 +27,7 @@ from codepulse.env.sandbox import SandboxError, SandboxManager
 from codepulse.eval.harness import EvaluationHarness
 from codepulse.eval.scoring import weighted_total
 from codepulse.output.report import ReportGenerator
+from codepulse.observe.metrics import compute_pass_metrics
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task
@@ -319,9 +320,41 @@ def _save_task_results(
         trial_data = {
             "trial_id": trial.trial_id,
             "task_id": trial.task_id,
+            "agent_config": {
+                "name": trial.agent_config.name,
+                "model": trial.agent_config.model,
+                "temperature": trial.agent_config.temperature,
+                "max_tokens": trial.agent_config.max_tokens,
+            },
             "success": trial.success,
             "scores": trial.scores,
             "outcome": trial.outcome,
+            "metrics": {
+                "total_tokens": trial.metrics.total_tokens,
+                "input_tokens": trial.metrics.input_tokens,
+                "output_tokens": trial.metrics.output_tokens,
+                "cache_tokens": trial.metrics.cache_tokens,
+                "reasoning_tokens": trial.metrics.reasoning_tokens,
+                "tool_roundtrip_tokens": trial.metrics.tool_roundtrip_tokens,
+                "retry_count": trial.metrics.retry_count,
+                "cache_hit_tokens": trial.metrics.cache_hit_tokens,
+                "total_duration": trial.metrics.total_duration,
+                "tool_call_count": trial.metrics.tool_call_count,
+                "self_correction_count": trial.metrics.self_correction_count,
+                "cost_usd": trial.metrics.cost_usd,
+                "cost_breakdown": trial.metrics.cost_breakdown,
+            },
+            "tool_call_sequence": trial.tool_call_sequence,
+            "failure_analysis": [
+                {
+                    "stage": item.stage,
+                    "failure_type": item.failure_type,
+                    "evidence": item.evidence,
+                    "suggested_action": item.suggested_action,
+                    "should_enter_regression": item.should_enter_regression,
+                }
+                for item in trial.failure_analysis
+            ],
         }
         trial_dicts.append(trial_data)
 
@@ -336,6 +369,16 @@ def _save_task_results(
             avg_scores[dim_name] = sum(values) / len(values)
 
     avg_total = weighted_total(avg_scores)
+    avg_cost = (
+        sum(trial.metrics.cost_usd for trial in trials) / len(trials)
+        if trials else 0.0
+    )
+    pass_metrics = compute_pass_metrics(len(trials), n_success, k=len(trials) if trials else 1)
+    failure_types = sorted({
+        analysis.failure_type
+        for trial in trials
+        for analysis in trial.failure_analysis
+    })
 
     # 保存 summary
     summary = {
@@ -343,11 +386,27 @@ def _save_task_results(
         "agent_name": profile.name,
         "agent_type": profile.type,
         "model": profile.model,
+        "source": task.source.value,
+        "category": task.category.value,
+        "difficulty": task.difficulty.value,
+        "language": task.language,
+        "suite_type": task.suite_type.value,
+        "baseline_id": task.baseline_id,
+        "acceptance_criteria": task.acceptance_criteria,
+        "artifact_expectations": task.artifact_expectations,
         "n_total": len(trials),
         "n_passed": n_success,
         "pass_rate": pass_rate,
         "avg_score": avg_total,
         "avg_scores": avg_scores,
+        "avg_cost_usd": avg_cost,
+        "pass_metrics": {
+            "pass_at_1": pass_metrics.pass_at_1,
+            "pass_at_k": pass_metrics.pass_at_k,
+            "pass_hat_k": pass_metrics.pass_hat_k,
+            "k": pass_metrics.k,
+        },
+        "failure_types": failure_types,
         "trials": trial_dicts,
     }
 

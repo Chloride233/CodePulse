@@ -80,4 +80,14 @@ class EfficiencyGrader:
             dimension=ScoreDimension.EFFICIENCY,
             score=round(score, 4),
             details=details,
+            evidence=[
+                {"kind": "total_tokens", "value": tokens},
+                {"kind": "total_duration", "value": round(duration, 4)},
+                {"kind": "baseline_tokens", "value": self.baseline_tokens},
+            ],
+            diagnosis=(
+                "成本或时延高于基线，建议先压缩上下文和工具往返。"
+                if score < 1.0
+                else "效率维度达到基线。"
+            ),
         )

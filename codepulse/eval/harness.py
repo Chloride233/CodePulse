@@ -10,11 +10,12 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task
-    from codepulse.data.protocols import Agent, Grader
+    from codepulse.data.protocols import Agent, Grader, GraderResult
     from codepulse.env.sandbox import SandboxManager
 
-from codepulse.data.models import AgentConfig, Trial, TrialMetrics
+from codepulse.data.models import AgentConfig, FailureAnalysis, Trial, TrialMetrics
 from codepulse.eval.scoring import PASS_THRESHOLD, ScoreDimension, aggregate_scores
+from codepulse.shared.trace_types import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -90,10 +91,15 @@ class EvaluationHarness:
                 exec_result = self._run_sandbox_checks(task, utils, container)
                 self.sandbox.clear_active_container()
                 trial = self._build_trial(trial_id, task.task_id, agent_config, transcript, exec_result)
-                dimension_scores = self.grade(task, trial)
+                grader_results = self.grade_results(task, trial)
+                dimension_scores = {
+                    result.dimension: result.score for result in grader_results
+                }
                 total_score = self.compute_total_score(dimension_scores)
                 trial.scores = {dim.value: score for dim, score in dimension_scores.items()}
                 trial.success = total_score >= PASS_THRESHOLD
+                trial.failure_analysis = self._build_failure_analysis(trial, grader_results)
+                trial.outcome["grader_diagnostics"] = self._build_grader_diagnostics(grader_results)
                 return trial
             except Exception:
                 logger.exception("Trial %s failed", trial_id)
@@ -177,10 +183,15 @@ class EvaluationHarness:
                         logger.warning("销毁容器失败: %s", container.id[:12])
 
             # 评分
-            dimension_scores = self.grade(task, trial)
+            grader_results = self.grade_results(task, trial)
+            dimension_scores = {
+                result.dimension: result.score for result in grader_results
+            }
             total_score = self.compute_total_score(dimension_scores)
             trial.scores = {dim.value: score for dim, score in dimension_scores.items()}
             trial.success = total_score >= PASS_THRESHOLD
+            trial.failure_analysis = self._build_failure_analysis(trial, grader_results)
+            trial.outcome["grader_diagnostics"] = self._build_grader_diagnostics(grader_results)
 
             logger.debug(
                 "试运行 %s: 总分=%.2f, 成功=%s",
@@ -202,19 +213,10 @@ class EvaluationHarness:
         Returns:
             各维度得分（0-1 之间的比例）。
         """
-        dimension_scores: dict[ScoreDimension, float] = {}
-
-        for grader in self.graders:
-            try:
-                result = grader.grade(task, trial)
-                dimension_scores[result.dimension] = result.score
-            except Exception:
-                logger.exception(
-                    "Grader '%s' 评分失败，跳过该维度",
-                    grader.name,
-                )
-
-        return dimension_scores
+        return {
+            result.dimension: result.score
+            for result in self.grade_results(task, trial)
+        }
 
     def compute_total_score(self, dimension_scores: dict[ScoreDimension, float]) -> float:
         """聚合各维度分数为总分。
@@ -226,6 +228,21 @@ class EvaluationHarness:
             总分（0-100）。
         """
         return aggregate_scores(dimension_scores)
+
+    def grade_results(self, task: Task, trial: Trial) -> list[GraderResult]:
+        """返回完整评分结果，用于诊断和归因。"""
+        results: list[GraderResult] = []
+
+        for grader in self.graders:
+            try:
+                results.append(grader.grade(task, trial))
+            except Exception:
+                logger.exception(
+                    "Grader '%s' 评分失败，跳过该维度",
+                    grader.name,
+                )
+
+        return results
 
     # ------------------------------------------------------------------
     # 内部方法
@@ -434,15 +451,64 @@ class EvaluationHarness:
         Returns:
             Trial 对象。
         """
+        llm_input_tokens = 0
+        llm_output_tokens = 0
+        reasoning_tokens = 0
+        tool_roundtrip_tokens = 0
+        tool_call_sequence: list[str] = []
+        artifacts: list[dict[str, Any]] = []
+        retry_count = 0
+
+        for event in transcript.events:
+            if event.event_type == EventType.LLM_CALL:
+                llm_input_tokens += int(event.token_usage.get("input", 0))
+                llm_output_tokens += int(event.token_usage.get("output", 0))
+                reasoning_tokens += int(
+                    event.token_usage.get("reasoning", event.token_usage.get("thinking", 0))
+                )
+                if event.content.get("retry"):
+                    retry_count += 1
+
+            if event.event_type in (EventType.TOOL_CALL, EventType.TOOL_RESULT):
+                tool_roundtrip_tokens += sum(event.token_usage.values())
+                if event.event_type == EventType.TOOL_CALL:
+                    tool_name = str(event.content.get("tool_name", "")).strip()
+                    if tool_name:
+                        tool_call_sequence.append(tool_name)
+
+            artifact_path = event.content.get("artifact_path")
+            artifact_kind = event.content.get("artifact_kind")
+            if artifact_path or artifact_kind:
+                artifacts.append({
+                    "path": artifact_path or "",
+                    "kind": artifact_kind or "",
+                    "event_type": event.event_type.value,
+                })
+
         # 从 transcript 提取指标
         metrics = TrialMetrics(
             total_tokens=transcript.total_tokens,
-            input_tokens=transcript.agent_config.get("input_tokens", 0),
-            output_tokens=transcript.agent_config.get("output_tokens", 0),
+            input_tokens=transcript.agent_config.get("input_tokens", llm_input_tokens),
+            output_tokens=transcript.agent_config.get("output_tokens", llm_output_tokens),
             cache_tokens=transcript.agent_config.get("cache_tokens", 0),
+            reasoning_tokens=transcript.agent_config.get("reasoning_tokens", reasoning_tokens),
+            tool_roundtrip_tokens=transcript.agent_config.get(
+                "tool_roundtrip_tokens", tool_roundtrip_tokens
+            ),
+            retry_count=transcript.agent_config.get("retry_count", retry_count),
+            cache_hit_tokens=transcript.agent_config.get(
+                "cache_hit_tokens",
+                transcript.agent_config.get("cache_tokens", 0),
+            ),
             total_duration=transcript.total_duration,
             tool_call_count=transcript.tool_call_count,
+            self_correction_count=transcript.agent_config.get("self_correction_count", 0),
             cost_usd=transcript.agent_config.get("cost_usd", 0.0),
+            cost_breakdown=transcript.agent_config.get("cost_breakdown", {
+                "input_cost": float(transcript.agent_config.get("input_cost_usd", 0.0)),
+                "output_cost": float(transcript.agent_config.get("output_cost_usd", 0.0)),
+                "cache_cost": float(transcript.agent_config.get("cache_cost_usd", 0.0)),
+            }),
         )
 
         # 合并 transcript 事件统计和执行结果到 outcome
@@ -451,6 +517,13 @@ class EvaluationHarness:
             "total_tokens": transcript.total_tokens,
             "total_duration": transcript.total_duration,
             "tool_call_count": transcript.tool_call_count,
+            "reasoning_tokens": metrics.reasoning_tokens,
+            "tool_roundtrip_tokens": metrics.tool_roundtrip_tokens,
+            "retry_count": metrics.retry_count,
+            "cache_hit_tokens": metrics.cache_hit_tokens,
+            "artifact_count": len(artifacts),
+            "artifacts": artifacts,
+            "failure_stage": self._infer_failure_stage(exec_result),
             # 沙箱验证结果
             "exit_code": exec_result.get("exit_code", -1),
             "stdout": exec_result.get("stdout", ""),
@@ -467,4 +540,111 @@ class EvaluationHarness:
             agent_config=agent_config,
             outcome=outcome,
             metrics=metrics,
+            tool_call_sequence=tool_call_sequence,
         )
+
+    def _infer_failure_stage(self, exec_result: dict[str, Any]) -> str:
+        """基于验证结果推断失败阶段。"""
+        if exec_result.get("exit_code", 0) != 0:
+            return "verification"
+        if exec_result.get("mypy_errors", 0) or exec_result.get("ruff_violations", 0):
+            return "quality_checks"
+        if exec_result.get("pytest_total", 0) and (
+            exec_result.get("pytest_passed", 0) < exec_result.get("pytest_total", 0)
+        ):
+            return "tests"
+        return "completed"
+
+    def _build_grader_diagnostics(
+        self,
+        grader_results: list[GraderResult],
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                "dimension": result.dimension.value,
+                "score": result.score,
+                "details": result.details,
+                "evidence": result.evidence,
+                "diagnosis": result.diagnosis,
+            }
+            for result in grader_results
+        ]
+
+    def _build_failure_analysis(
+        self,
+        trial: Trial,
+        grader_results: list[GraderResult],
+    ) -> list[FailureAnalysis]:
+        """从执行结果和 grader 输出构造结构化失败归因。"""
+        analyses: list[FailureAnalysis] = []
+        failure_stage = str(trial.outcome.get("failure_stage", "completed"))
+
+        if trial.outcome.get("exit_code", 0) != 0:
+            analyses.append(FailureAnalysis(
+                stage=failure_stage,
+                failure_type="execution_failed",
+                evidence=[
+                    f"exit_code={trial.outcome.get('exit_code', -1)}",
+                    str(trial.outcome.get("stderr", ""))[:200],
+                ],
+                suggested_action="先修复执行或测试失败，再看高层评分。",
+                should_enter_regression=False,
+            ))
+
+        for result in grader_results:
+            if result.score >= 0.999:
+                continue
+
+            evidence = [self._stringify_evidence(item) for item in result.evidence[:3]]
+            if not evidence and result.details:
+                evidence = [
+                    f"{key}={value}"
+                    for key, value in list(result.details.items())[:3]
+                ]
+
+            analyses.append(FailureAnalysis(
+                stage=self._stage_for_dimension(result.dimension),
+                failure_type=f"{result.dimension.value}_weakness",
+                evidence=evidence,
+                suggested_action=result.diagnosis or self._default_suggested_action(result.dimension),
+                should_enter_regression=result.dimension in {
+                    ScoreDimension.FUNCTIONAL,
+                    ScoreDimension.ROBUSTNESS,
+                },
+            ))
+
+        if not analyses and not trial.success:
+            analyses.append(FailureAnalysis(
+                stage=failure_stage,
+                failure_type="unknown_failure",
+                evidence=["trial marked failed without explicit diagnosis"],
+                suggested_action="检查 trace 和 grader 规则，补齐失败证据。",
+                should_enter_regression=False,
+            ))
+
+        return analyses
+
+    def _stage_for_dimension(self, dimension: ScoreDimension) -> str:
+        return {
+            ScoreDimension.FUNCTIONAL: "verification",
+            ScoreDimension.PROCESS: "reasoning",
+            ScoreDimension.EFFICIENCY: "cost",
+            ScoreDimension.ROBUSTNESS: "robustness",
+            ScoreDimension.ALIGNMENT: "alignment",
+        }.get(dimension, "evaluation")
+
+    def _default_suggested_action(self, dimension: ScoreDimension) -> str:
+        return {
+            ScoreDimension.FUNCTIONAL: "补强最终状态断言和核心用例。",
+            ScoreDimension.PROCESS: "补过程 Rubric，审查关键步骤和上下文利用。",
+            ScoreDimension.EFFICIENCY: "拆分 token/工具往返成本，减少重复上下文。",
+            ScoreDimension.ROBUSTNESS: "补异常与越权用例，并提高回归覆盖。",
+            ScoreDimension.ALIGNMENT: "补格式和清晰度约束，增强输出一致性。",
+        }.get(dimension, "补充诊断规则。")
+
+    def _stringify_evidence(self, item: dict[str, object]) -> str:
+        if not item:
+            return ""
+        key = str(item.get("kind", item.get("field", "evidence")))
+        value = item.get("value", item)
+        return f"{key}={value}"

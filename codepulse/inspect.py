@@ -73,7 +73,11 @@ def inspect_task(results_dir: str, task_id: str) -> None:
         inspect_result(str(summary_path))
     else:
         # 列出可用的 trial 文件
-        trial_files = sorted(task_dir.glob("trial-*.json"))
+        trial_files = [
+            path
+            for path in sorted(task_dir.glob("*.json"))
+            if path.name != "summary.json" and "trace" not in path.name
+        ]
         if trial_files:
             console.print(f"任务 [bold]{task_id}[/bold] 有 {len(trial_files)} 个 trial:")
             for f in trial_files:
@@ -90,12 +94,14 @@ def _inspect_summary(data: dict[str, Any]) -> None:
     n_passed = data.get("n_passed", 0)
     pass_rate = n_passed / n_total if n_total > 0 else 0
     avg_score = data.get("avg_score", 0)
+    suite_type = data.get("suite_type", "capability")
 
     # 标题
     status = "[green]PASSED[/green]" if pass_rate >= 0.8 else "[red]FAILED[/red]"
     console.print()
     console.print(Panel(
         f"任务: [bold]{task_id}[/bold]\n"
+        f"套件: {suite_type}\n"
         f"状态: {status}\n"
         f"试运行: {n_passed}/{n_total} 通过 (pass@1 = {pass_rate:.0%})\n"
         f"平均分: {avg_score:.1f}/{PASS_THRESHOLD}",
@@ -130,6 +136,9 @@ def _inspect_summary(data: dict[str, Any]) -> None:
     failed_trials = [t for t in trials if not t.get("success", False)]
     if failed_trials:
         _print_failure_analysis(failed_trials, avg_scores)
+    if data.get("failure_types"):
+        console.print()
+        console.print(f"[bold]主要失败类型:[/bold] {', '.join(data['failure_types'])}")
 
 
 def _inspect_trial(data: dict[str, Any]) -> None:
@@ -164,6 +173,9 @@ def _inspect_trial(data: dict[str, Any]) -> None:
     if outcome:
         console.print()
         _print_outcome_details(outcome)
+    if data.get("failure_analysis"):
+        console.print()
+        _print_failure_items(data["failure_analysis"])
 
 
 def _print_dimension_table(scores: dict[str, float]) -> None:
@@ -295,6 +307,25 @@ def _print_failure_analysis(
     exit_codes = [t.get("outcome", {}).get("exit_code", -1) for t in failed_trials]
     if all(c == exit_codes[0] for c in exit_codes):
         console.print(f"\n  所有失败 trial 的 exit code 均为 {exit_codes[0]}，问题可能是系统性的。")
+
+
+def _print_failure_items(items: list[dict[str, Any]]) -> None:
+    """打印结构化失败归因。"""
+    table = Table(title="失败归因", show_header=True, header_style="bold")
+    table.add_column("阶段", min_width=10)
+    table.add_column("类型", min_width=18)
+    table.add_column("建议", min_width=28)
+    table.add_column("回归", min_width=6)
+
+    for item in items:
+        table.add_row(
+            str(item.get("stage", "-")),
+            str(item.get("failure_type", "-")),
+            str(item.get("suggested_action", "-")),
+            "是" if item.get("should_enter_regression", False) else "否",
+        )
+
+    console.print(table)
 
 
 def _get_suggestions(scores: dict[str, float]) -> list[str]:

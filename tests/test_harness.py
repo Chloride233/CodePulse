@@ -14,6 +14,7 @@ import pytest
 from codepulse.data.models import (
     AgentConfig,
     Difficulty,
+    SuiteType,
     Task,
     TaskCategory,
     TaskSource,
@@ -290,6 +291,59 @@ class TestRunTask:
         # MockAgent produces 2 events (LLM_CALL + TOOL_CALL) and 150 tokens
         assert trials[0].outcome["transcript_events"] == 2
         assert trials[0].outcome["total_tokens"] == 150
+
+    def test_task_defaults_new_fields(self, sample_task: Task) -> None:
+        """新字段默认值必须兼容旧任务。"""
+        assert sample_task.suite_type == SuiteType.CAPABILITY
+        assert sample_task.acceptance_criteria == []
+        assert sample_task.baseline_id is None
+        assert sample_task.artifact_expectations == {}
+
+    def test_run_task_populates_failure_analysis(
+        self,
+        sample_task: Task,
+        mock_agent: MockAgent,
+    ) -> None:
+        """评分结果应被聚合为结构化 failure_analysis。"""
+        grader = MagicMock()
+        grader.name = "functional-low"
+        grader.grade = MagicMock(
+            return_value=GraderResult(
+                dimension=ScoreDimension.FUNCTIONAL,
+                score=0.4,
+                details={"pytest_passed": 1},
+                evidence=[{"kind": "pytest_pass_rate", "value": "1/3"}],
+                diagnosis="功能验证未完全通过",
+            )
+        )
+        harness = EvaluationHarness(sandbox=None, graders=[grader])
+        trials = harness.run_task(sample_task, mock_agent, n_trials=1)
+        assert trials[0].failure_analysis
+        assert trials[0].failure_analysis[0].failure_type == "functional_weakness"
+
+    def test_run_task_success_does_not_emit_unknown_failure(
+        self,
+        sample_task: Task,
+        mock_agent: MockAgent,
+    ) -> None:
+        """Successful trials should not get a fallback unknown_failure diagnosis."""
+        graders = []
+        for dimension in ScoreDimension:
+            grader = MagicMock()
+            grader.name = f"{dimension.value}-full"
+            grader.grade = MagicMock(
+                return_value=GraderResult(
+                    dimension=dimension,
+                    score=1.0,
+                    details={},
+                )
+            )
+            graders.append(grader)
+
+        harness = EvaluationHarness(sandbox=None, graders=graders)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=1)
+        assert trials[0].success is True
+        assert trials[0].failure_analysis == []
 
 
 # ---------------------------------------------------------------------------

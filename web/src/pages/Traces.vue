@@ -17,6 +17,7 @@ interface TraceSummary {
   total_tokens: number;
   total_duration: number;
   tool_call_count: number;
+  span_kinds?: string[];
 }
 
 interface TraceEvent {
@@ -25,6 +26,9 @@ interface TraceEvent {
   content: Record<string, unknown>;
   token_usage: Record<string, number>;
   duration: number;
+  span_kind?: string | null;
+  parent_id?: string | null;
+  span_id?: string | null;
 }
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -85,6 +89,10 @@ async function loadSession(sessionId: string) {
 
 function eventLabel(type: string): string {
   return EVENT_TYPE_LABELS[type] ?? type;
+}
+
+function spanLabel(spanKind?: string | null): string {
+  return spanKind ? spanKind.toUpperCase() : "EVENT";
 }
 
 function safeStringify(obj: unknown, maxLen = 150): string {
@@ -148,6 +156,9 @@ onMounted(fetchTraces);
               <span class="meta-dot"></span>
               {{ formatNumber(trace.total_tokens) }} token
             </span>
+            <span v-if="trace.span_kinds?.length" class="session-kinds">
+              {{ trace.span_kinds.join(" · ") }}
+            </span>
           </div>
           <div v-if="traces.length === 0" class="empty-list">
             暂无轨迹数据。
@@ -190,6 +201,9 @@ onMounted(fetchTraces);
                     </span>
                     <span class="event-duration" v-if="event.duration > 0">
                       {{ formatDuration(event.duration) }}
+                    </span>
+                    <span class="event-span-kind">
+                      {{ spanLabel(event.span_kind) }}
                     </span>
                     <span
                       class="event-tokens"
@@ -305,6 +319,13 @@ onMounted(fetchTraces);
   color: var(--apple-text-tertiary);
 }
 
+.session-kinds {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--apple-text-secondary);
+}
+
 .meta-dot {
   display: inline-block;
   width: 3px;
@@ -409,6 +430,15 @@ onMounted(fetchTraces);
   font-size: 11px;
   font-family: var(--apple-font-mono);
   color: var(--apple-text-secondary);
+}
+
+.event-span-kind {
+  font-size: 11px;
+  font-family: var(--apple-font-mono);
+  color: var(--apple-text-tertiary);
+  border: 1px solid var(--apple-border);
+  border-radius: 999px;
+  padding: 1px 6px;
 }
 
 .event-tokens {

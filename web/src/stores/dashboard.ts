@@ -21,6 +21,17 @@ export interface OverviewData {
     pass_rate: number;
     avg_tokens: number;
   }>;
+  weakest_dimension: string | null;
+  costliest_task: {
+    task_id?: string;
+    cost_usd?: number;
+  };
+  regression_risks: Array<{
+    task_id: string;
+    trial_id: string;
+    stage: string;
+    failure_type: string;
+  }>;
 }
 
 export const useDashboardStore = defineStore("dashboard", () => {

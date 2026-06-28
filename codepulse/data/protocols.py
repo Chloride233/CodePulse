@@ -7,7 +7,7 @@ signatures satisfies the protocol, keeping coupling minimal.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
@@ -67,11 +67,15 @@ class GraderResult:
         dimension: Which evaluation dimension was scored.
         score: Normalized score in [0, 1] where 1 is perfect.
         details: Free-form breakdown (e.g., test pass counts, error types).
+        evidence: Structured evidence for downstream diagnostics.
+        diagnosis: Human-readable diagnostic summary.
     """
 
     dimension: ScoreDimension
     score: float
-    details: dict[str, float | int | str | bool]
+    details: dict[str, object]
+    evidence: list[dict[str, object]] = field(default_factory=list)
+    diagnosis: str = ""
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.score <= 1.0:

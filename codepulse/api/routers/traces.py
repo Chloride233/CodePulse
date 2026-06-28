@@ -39,6 +39,11 @@ def list_traces(
             "total_tokens": total_tokens,
             "total_duration": round(total_duration, 3),
             "tool_call_count": tool_calls,
+            "span_kinds": sorted({
+                str(e.get("span_kind"))
+                for e in events
+                if e.get("span_kind")
+            }),
         })
 
     return result
@@ -68,6 +73,9 @@ def get_trace(
             content=e.get("content", {}),
             token_usage=e.get("token_usage", {}),
             duration=e.get("duration", 0.0),
+            span_kind=e.get("span_kind"),
+            parent_id=e.get("parent_id"),
+            span_id=e.get("span_id"),
         )
         for e in events
     ]

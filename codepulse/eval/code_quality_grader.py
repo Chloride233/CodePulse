@@ -73,4 +73,14 @@ class CodeQualityGrader:
             dimension=ScoreDimension.ROBUSTNESS,
             score=score,
             details=details,
+            evidence=[
+                {"kind": "ruff_violations", "value": ruff_violations},
+                {"kind": "mypy_errors", "value": mypy_errors},
+                {"kind": "bandit_high", "value": bandit_high},
+            ],
+            diagnosis=(
+                "静态检查存在问题，先清理 lint、类型或安全违规。"
+                if score < 1.0
+                else "静态质量检查通过。"
+            ),
         )

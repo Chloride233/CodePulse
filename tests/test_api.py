@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
+from codepulse.api.deps import load_task_trials
 from codepulse.api.main import create_app
 
 if TYPE_CHECKING:
@@ -39,6 +40,10 @@ def results_dir(tmp_path: Path) -> Path:
         "category": "bug_fix",
         "difficulty": "easy",
         "language": "python",
+        "suite_type": "regression",
+        "baseline_id": "base-v1",
+        "avg_cost_usd": 0.015,
+        "failure_types": ["functional_weakness"],
     }
     (task1_dir / "summary.json").write_text(json.dumps(summary1))
 
@@ -52,11 +57,18 @@ def results_dir(tmp_path: Path) -> Path:
             "total_tokens": 1000,
             "input_tokens": 600,
             "output_tokens": 400,
+            "reasoning_tokens": 50,
+            "tool_roundtrip_tokens": 120,
+            "retry_count": 1,
+            "cache_hit_tokens": 20,
             "total_duration": 5.0,
             "tool_call_count": 3,
             "self_correction_count": 0,
             "cost_usd": 0.01,
+            "cost_breakdown": {"input_cost": 0.006, "output_cost": 0.004},
         },
+        "tool_call_sequence": ["Read", "Write", "Bash"],
+        "failure_analysis": [],
     }
     trial2 = {
         "trial_id": "run-b",
@@ -68,25 +80,39 @@ def results_dir(tmp_path: Path) -> Path:
             "total_tokens": 2000,
             "input_tokens": 1200,
             "output_tokens": 800,
+            "reasoning_tokens": 100,
+            "tool_roundtrip_tokens": 200,
+            "retry_count": 2,
+            "cache_hit_tokens": 0,
             "total_duration": 10.0,
             "tool_call_count": 6,
             "self_correction_count": 2,
             "cost_usd": 0.02,
+            "cost_breakdown": {"input_cost": 0.012, "output_cost": 0.008},
         },
+        "tool_call_sequence": ["Read", "Write", "Bash", "Bash"],
+        "failure_analysis": [
+            {
+                "stage": "verification",
+                "failure_type": "functional_weakness",
+                "evidence": ["pytest_pass_rate=1/3"],
+                "suggested_action": "补强核心测试",
+                "should_enter_regression": True,
+            }
+        ],
     }
-    (task1_dir / "trial-run-a.jsonl").write_text(
-        json.dumps(trial1) + "\n" + json.dumps(trial2) + "\n"
-    )
+    (task1_dir / "run-a.json").write_text(json.dumps(trial1))
+    (task1_dir / "trial-run-b.jsonl").write_text(json.dumps(trial2) + "\n")
 
     # Trace for run-a (find_trace_files extracts session_id by stripping
     # "trial-" prefix and "-trace" suffix from the filename).
     trace_events = [
         {"timestamp": 1.0, "event_type": "llm_call", "content": {"model": "deepseek-chat"},
-         "token_usage": {"input": 300, "output": 200}, "duration": 2.0},
+         "token_usage": {"input": 300, "output": 200}, "duration": 2.0, "span_kind": "llm"},
         {"timestamp": 2.0, "event_type": "tool_call", "content": {"tool_name": "Bash"},
-         "token_usage": {}, "duration": 1.0},
+         "token_usage": {}, "duration": 1.0, "span_kind": "tool"},
         {"timestamp": 3.0, "event_type": "tool_result", "content": {"output": "ok"},
-         "token_usage": {}, "duration": 0.5},
+         "token_usage": {}, "duration": 0.5, "span_kind": "artifact"},
     ]
     (task1_dir / "trial-run-a-trace.jsonl").write_text(
         "\n".join(json.dumps(e) for e in trace_events) + "\n"
@@ -164,6 +190,9 @@ class TestOverviewEndpoint:
         assert data["avg_score"] > 0
         assert len(data["active_agents"]) == 1
         assert data["active_agents"][0]["name"] == "agent-1"
+        assert data["weakest_dimension"] is not None
+        assert "task_id" in data["costliest_task"]
+        assert isinstance(data["regression_risks"], list)
 
     def test_overview_empty_results(self, empty_client: TestClient) -> None:
         """Overview should return zeros when results dir is empty/missing."""
@@ -185,6 +214,14 @@ class TestOverviewEndpoint:
         assert data["total_tasks"] == 0
 
 
+class TestDepsLoadTaskTrials:
+    def test_loads_non_prefixed_json_trials(self, results_dir: Path) -> None:
+        """Trial loader should accept JSON files that do not start with trial-."""
+        trials = load_task_trials(results_dir)
+        assert "task-001" in trials
+        assert len(trials["task-001"]) == 2
+
+
 # ------------------------------------------------------------------
 # Evaluations (Tasks)
 # ------------------------------------------------------------------
@@ -201,6 +238,7 @@ class TestTasksEndpoints:
         assert len(tasks) == 1
         assert tasks[0]["task_id"] == "task-001"
         assert tasks[0]["n_trials"] == 2
+        assert tasks[0]["suite_type"] == "regression"
 
     def test_list_tasks_filter_by_source(self, client: TestClient) -> None:
         """List tasks should support source filter."""
@@ -233,6 +271,7 @@ class TestTasksEndpoints:
         assert len(data["trials"]) == 2
         assert data["trials"][0]["trial_id"] == "run-a"
         assert data["trials"][0]["success"] is True
+        assert data["baseline_id"] == "base-v1"
 
     def test_get_task_not_found(self, client: TestClient) -> None:
         """Get task detail should 404 for unknown task."""
@@ -302,6 +341,7 @@ class TestTracesEndpoints:
         assert len(traces) == 1
         assert traces[0]["session_id"] == "run-a"
         assert traces[0]["n_events"] == 3
+        assert "span_kinds" in traces[0]
 
     def test_list_traces_empty(self, empty_client: TestClient) -> None:
         """List traces should return empty list when no data."""
@@ -318,6 +358,7 @@ class TestTracesEndpoints:
         assert len(data["events"]) == 3
         assert data["total_tokens"] > 0
         assert data["tool_call_count"] == 1
+        assert "span_kind" in data["events"][0]
 
     def test_get_trace_not_found(self, client: TestClient) -> None:
         """Get trace detail should 404 for unknown session."""

@@ -37,12 +37,30 @@ class Difficulty(StrEnum):
     HARD = "hard"
 
 
+class SuiteType(StrEnum):
+    """评测套件类型。"""
+
+    CAPABILITY = "capability"
+    REGRESSION = "regression"
+
+
 class GraderType(StrEnum):
     """评分器类型。"""
 
     DETERMINISTIC = "deterministic"
     LLM_JUDGE = "llm_judge"
     HYBRID = "hybrid"
+
+
+@dataclass(frozen=True)
+class FailureAnalysis:
+    """结构化失败归因。"""
+
+    stage: str
+    failure_type: str
+    evidence: list[str] = field(default_factory=list)
+    suggested_action: str = ""
+    should_enter_regression: bool = False
 
 
 @dataclass(frozen=True)
@@ -79,6 +97,10 @@ class Task:
     ground_truth: dict[str, Any]
     graders: list[GraderConfig] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    suite_type: SuiteType = SuiteType.CAPABILITY
+    acceptance_criteria: list[str] = field(default_factory=list)
+    baseline_id: str | None = None
+    artifact_expectations: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -89,10 +111,15 @@ class TrialMetrics:
     input_tokens: int = 0
     output_tokens: int = 0
     cache_tokens: int = 0
+    reasoning_tokens: int = 0
+    tool_roundtrip_tokens: int = 0
+    retry_count: int = 0
+    cache_hit_tokens: int = 0
     total_duration: float = 0.0
     tool_call_count: int = 0
     self_correction_count: int = 0
     cost_usd: float = 0.0
+    cost_breakdown: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -107,3 +134,4 @@ class Trial:
     metrics: TrialMetrics = field(default_factory=TrialMetrics)
     success: bool = False
     tool_call_sequence: list[str] = field(default_factory=list)
+    failure_analysis: list[FailureAnalysis] = field(default_factory=list)
