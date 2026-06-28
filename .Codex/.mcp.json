@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "codebase-memory-mcp": {
+      "command": "C:\\Users\\杨\\AppData\\Local\\Programs\\codebase-memory-mcp\\codebase-memory-mcp.exe",
+      "env": {
+        "CBM_CACHE_DIR": "F:/CodePulse/.tmp/codebase-memory-cache"
+      }
+    }
+  }
+}

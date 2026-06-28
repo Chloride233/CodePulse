@@ -65,6 +65,25 @@ def aggregate_scores(dimension_scores: dict[ScoreDimension, float]) -> float:
     return round(total, 2)
 
 
+def weighted_total(str_scores: dict[str, float]) -> float:
+    """从字符串键的分数字典计算加权重总分。
+
+    Args:
+        str_scores: 维度名 → 比率（0-1）的映射。
+
+    Returns:
+        总分（0-100）。无法识别的维度名将被忽略。
+    """
+    dim_scores: dict[ScoreDimension, float] = {}
+    for dim_name, ratio in str_scores.items():
+        try:
+            dim = ScoreDimension(dim_name)
+            dim_scores[dim] = ratio
+        except ValueError:
+            continue
+    return aggregate_scores(dim_scores)
+
+
 def is_passed(total_score: float, threshold: int = PASS_THRESHOLD) -> bool:
     """判断是否通过。
 
@@ -76,3 +95,60 @@ def is_passed(total_score: float, threshold: int = PASS_THRESHOLD) -> bool:
         是否通过。
     """
     return total_score >= threshold
+
+
+# 稳定性容忍阈值配置
+# 关键决策类: 0% 容忍 — 一次失败即失败
+# 辅助分析类: ≤10% 容忍 — 90% 通过即可
+# 创意生成类: ≤40% 容忍 — 60% 通过即算成功
+STABILITY_TOLERANCE: dict[str, float] = {
+    "critical": 1.0,    # 必须 100% pass
+    "normal": 0.8,      # 80% pass
+    "tolerant": 0.6,    # 60% pass
+}
+
+
+def is_stable_pass(pass_rate: float, tolerance: str = "normal") -> bool:
+    """Check if pass rate meets stability tolerance threshold.
+
+    Args:
+        pass_rate: Fraction of trials that passed (0.0 to 1.0).
+        tolerance: Stability tier — "critical", "normal", or "tolerant".
+
+    Returns:
+        True if pass_rate meets the tolerance requirement.
+    """
+    threshold = STABILITY_TOLERANCE.get(tolerance, 0.8)
+    return pass_rate >= threshold
+
+
+def sequence_similarity(seq_a: list[str], seq_b: list[str]) -> float:
+    """计算两个序列的 LCS 相似度。
+
+    基于最长公共子序列（LCS）算法，衡量两个工具调用序列的匹配程度。
+    结果 ∈ [0, 1]，1 表示完全一致。
+
+    Args:
+        seq_a: 第一个序列（如基线工具调用行为）。
+        seq_b: 第二个序列（如当前 Trial 工具调用行为）。
+
+    Returns:
+        相似度得分（0-1）。
+    """
+    n, m = len(seq_a), len(seq_b)
+    if not n and not m:
+        return 1.0
+    if not n or not m:
+        return 0.0
+
+    # DP 表: dp[i][j] = LCS 长度 for seq_a[:i] and seq_b[:j]
+    dp: list[list[int]] = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            if seq_a[i - 1] == seq_b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+
+    lcs_len = dp[n][m]
+    return round(2.0 * lcs_len / (n + m), 4)

@@ -13,6 +13,8 @@ from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
 
+from codepulse.eval.scoring import PASS_THRESHOLD
+
 
 class AttributionType(StrEnum):
     """归因类型。"""
@@ -38,9 +40,6 @@ class AttributionReport:
     def total(self) -> int:
         """总样本数。"""
         return self.improvements + self.regressions + self.persistent_failures + self.stable_successes
-
-
-PASS_THRESHOLD = 80
 
 
 class SampleAttribution:

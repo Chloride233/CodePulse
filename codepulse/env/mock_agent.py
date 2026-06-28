@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from codepulse.observe.trace import EventType, TraceEvent, Transcript
+from codepulse.shared.trace_types import EventType, TraceEvent, Transcript
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task

@@ -69,7 +69,7 @@ def _make_task() -> Task:
         difficulty=Difficulty.EASY,
         language="python",
         input={"prompt": "fix the bug"},
-        ground_truth={"expected": "fixed"},
+        ground_truth={"expected_output": "fixed"},
     )
 
 

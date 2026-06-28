@@ -73,6 +73,9 @@ class SandboxManager:
 
         restored = manager.restore(snap)
         manager.destroy(restored)
+
+    工具绑定：:meth:`set_active_container` / :meth:`get_active_container`
+    允许工具系统在 Agent 执行期间访问当前容器，避免 monkey-patching。
     """
 
     def __init__(self, base_url: str | None = None) -> None:
@@ -89,6 +92,39 @@ class SandboxManager:
             self._client.ping()
         except Exception as exc:
             raise SandboxError(f"无法连接 Docker daemon: {exc}") from exc
+        self._active_container: Container | None = None
+
+    # ------------------------------------------------------------------
+    # 活跃容器绑定 — 工具系统通过此 API 访问当前容器
+    # ------------------------------------------------------------------
+
+    def set_active_container(self, container: Container) -> None:
+        """设置当前活跃容器，供工具系统使用。
+
+        在 Agent 执行前调用此方法绑定容器，执行后解绑。
+        避免工具代码直接 monkey-patch 私有属性。
+
+        Args:
+            container: 当前活跃的容器句柄。
+        """
+        self._active_container = container
+
+    def get_active_container(self) -> Container:
+        """获取当前活跃容器。
+
+        Returns:
+            当前活跃的容器句柄。
+
+        Raises:
+            SandboxError: 未设置活跃容器时调用。
+        """
+        if self._active_container is None:
+            raise SandboxError("未设置活跃容器，请先调用 set_active_container()")
+        return self._active_container
+
+    def clear_active_container(self) -> None:
+        """清除活跃容器绑定。"""
+        self._active_container = None
 
     def create(
         self,
@@ -151,13 +187,11 @@ class SandboxManager:
             SandboxError: 容器不存在或执行超时。
         """
         docker_container = self._get_container(container.id)
-        limits = container.resource_limits
 
         try:
             exit_code, output = docker_container.exec_run(
                 cmd=["sh", "-c", command],
                 demux=True,
-                timeout=limits.timeout_seconds,
             )
         except Exception as exc:
             raise SandboxError(f"命令执行失败: {exc}") from exc

@@ -266,7 +266,6 @@ class TestSandboxManagerExecute:
         mock_ctr.exec_run.assert_called_once_with(
             cmd=["sh", "-c", "echo hello world"],
             demux=True,
-            timeout=300,
         )
 
     def test_execute_with_stderr(self, manager, mock_docker, sample_container):

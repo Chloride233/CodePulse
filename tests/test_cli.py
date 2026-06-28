@@ -95,8 +95,7 @@ class TestEvaluateCommand:
         _assert_help_contains(
             result,
             "--task-file",
-            "--agent-name",
-            "--model",
+            "--agent",
             "--n-trials",
         )
 

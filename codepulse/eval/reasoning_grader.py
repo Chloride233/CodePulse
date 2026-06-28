@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from codepulse.eval.llm_judge import call_llm_with_retry
 from codepulse.eval.scoring import ScoreDimension
 
 if TYPE_CHECKING:
@@ -149,9 +150,7 @@ class ReasoningGrader:
         )
 
         try:
-            import litellm
-
-            response = litellm.completion(
+            raw = call_llm_with_retry(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -159,7 +158,8 @@ class ReasoningGrader:
                 ],
                 temperature=0.0,
             )
-            raw = response.choices[0].message.content or ""
+            if raw is None:
+                raise RuntimeError("LLM call failed after retries")
         except Exception:
             logger.exception("LLM call failed in ReasoningGrader")
             return GraderResult(

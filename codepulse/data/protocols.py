@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from codepulse.data.models import Task, Trial
     from codepulse.env.sandbox import SandboxManager
     from codepulse.eval.scoring import ScoreDimension
-    from codepulse.observe.trace import Transcript
+    from codepulse.shared.trace_types import Transcript
 
 
 @runtime_checkable

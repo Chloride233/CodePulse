@@ -1,0 +1,22 @@
+# CLI Agent 示例
+# 零侵入模式：Agent 不需要 import 任何 CodePulse 代码
+#
+# 使用方法：
+#   1. 编写你的 Agent 脚本（见下方注释）
+#   2. 运行: codepulse evaluate --task-file datasets/example.jsonl --agent agents/cli-agent.yaml
+#
+# 你的 Agent 脚本只需要：
+#   1. 读取 {task_file} 获取任务描述
+#   2. 在 /workspace/ 下写入解决方案
+#   3. 返回 exit code（0 = 成功）
+
+name: cli-agent
+type: cli
+description: "零侵入 CLI Agent，不依赖 CodePulse SDK"
+
+# {task_file} 会被替换为 /workspace/task.json
+command: "python /workspace/agent.py {task_file}"
+
+workdir: /workspace
+timeout: 300
+version: "1.0"

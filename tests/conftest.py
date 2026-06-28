@@ -30,5 +30,5 @@ def sample_task_data() -> dict:
         "difficulty": "easy",
         "language": "python",
         "input": {"description": "Fix the bug in function add()"},
-        "ground_truth": {"expected": "def add(a, b): return a + b"},
+        "ground_truth": {"expected_output": "def add(a, b): return a + b"},
     }

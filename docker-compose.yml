@@ -1,0 +1,18 @@
+services:
+  api:
+    build:
+      context: .
+      target: base
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./results:/app/results
+      - ./datasets:/app/datasets
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - CODEPULSE_RESULTS_DIR=/app/results
+    command: ["web", "--port", "8000", "--no-browser"]
+
+volumes:
+  results:
+  datasets:

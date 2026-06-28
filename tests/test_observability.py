@@ -43,7 +43,7 @@ def sample_task() -> Task:
         difficulty=Difficulty.EASY,
         language="python",
         input={"description": "Fix the bug"},
-        ground_truth={"expected": "correct output"},
+        ground_truth={"expected_output": "correct output"},
     )
 
 
@@ -421,3 +421,37 @@ class TestAgentComparatorGenerateReport:
 
         assert "fast-agent" in report
         assert "slow-agent" in report
+
+
+class TestTranscriptTokenBreakdown:
+    """Transcript.token_breakdown() 测试。"""
+
+    def test_token_breakdown_returns_steps(self) -> None:
+        from codepulse.shared.trace_types import EventType, TraceEvent, Transcript
+        t = Transcript(session_id="test-session")
+        t.add_event(TraceEvent(timestamp=1.0, event_type=EventType.LLM_CALL, content={},
+                                token_usage={"input": 100, "output": 50}))
+        t.add_event(TraceEvent(timestamp=2.0, event_type=EventType.TOOL_CALL, content={},
+                                token_usage={"output": 30}))
+        bk = t.token_breakdown()
+        assert len(bk) == 2
+        assert bk[0]["step"] == 0
+        assert bk[0]["event_type"] == "llm_call"
+        assert bk[0]["tokens"] == 150
+        assert bk[0]["duration_ms"] == 0
+        assert bk[1]["step"] == 1
+        assert bk[1]["event_type"] == "tool_call"
+        assert bk[1]["tokens"] == 30
+
+    def test_token_breakdown_empty(self) -> None:
+        from codepulse.shared.trace_types import Transcript
+        t = Transcript(session_id="empty")
+        assert t.token_breakdown() == []
+
+    def test_token_breakdown_no_usage(self) -> None:
+        from codepulse.shared.trace_types import EventType, TraceEvent, Transcript
+        t = Transcript(session_id="no-usage")
+        t.add_event(TraceEvent(timestamp=1.0, event_type=EventType.REFLECTION, content={}))
+        bk = t.token_breakdown()
+        assert len(bk) == 1
+        assert bk[0]["tokens"] == 0

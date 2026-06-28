@@ -1,0 +1,9 @@
+# Mock Agent
+# 不调用 LLM，不使用 Docker，用于测试评测管线
+
+name: mock-agent
+type: mock
+model: mock
+description: "Mock Agent，离线可用，用于测试管线"
+
+version: "1.0"

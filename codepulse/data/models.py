@@ -15,6 +15,8 @@ class TaskSource(StrEnum):
 
     SWE_BENCH = "swe-bench"
     AACR_BENCH = "aacr-bench"
+    HUMANEVAL = "humaneval"
+    MBPP = "mbpp"
     CUSTOM = "custom"
 
 
@@ -104,3 +106,4 @@ class Trial:
     scores: dict[str, float] = field(default_factory=dict)
     metrics: TrialMetrics = field(default_factory=TrialMetrics)
     success: bool = False
+    tool_call_sequence: list[str] = field(default_factory=list)

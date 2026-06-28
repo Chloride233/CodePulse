@@ -35,7 +35,7 @@ def sample_tasks() -> list[Task]:
             difficulty=Difficulty.EASY,
             language="python",
             input={"description": f"Task {i}"},
-            ground_truth={"expected": f"solution {i}"},
+            ground_truth={"expected_output": f"solution {i}"},
         )
         for i in range(2)
     ]
@@ -238,7 +238,7 @@ class TestValidationGateValidate:
                 difficulty=Difficulty.EASY,
                 language="python",
                 input={"description": f"Task {i}"},
-                ground_truth={"expected": f"solution {i}"},
+                ground_truth={"expected_output": f"solution {i}"},
             )
             for i in range(4)
         ]

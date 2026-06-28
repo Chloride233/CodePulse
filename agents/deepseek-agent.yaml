@@ -1,0 +1,27 @@
+# DeepSeek Coding Agent
+# 使用 DeepSeek 模型，通过工具调用完成编程任务
+
+name: deepseek-agent
+type: protocol
+model: deepseek/deepseek-chat
+description: "DeepSeek 编程 Agent，支持工具调用"
+
+# Protocol 模式配置
+agent_class: codepulse.agent.real_agent.RealAgent
+system_prompt: |
+  你是一个 Python 编程专家。请根据任务描述修复或编写代码。
+  使用 read_file 读取容器中的文件。
+  使用 write_file 将你的解决方案写入 /workspace/solution.py。
+  使用 execute 运行测试验证正确性。测试文件在 /workspace/test_solution.py。
+  如果测试失败，分析错误并修复。写入修复方案到 /workspace/solution.py。
+
+tools:
+  - read_file
+  - write_file
+  - execute
+
+max_iterations: 15
+temperature: 0.0
+max_tokens: 4096
+
+version: "1.0"

@@ -1,0 +1,69 @@
+/* ═══════════════════════════════════════════════════════════
+   Apple Design Tokens — colors, typography, spacing, radii
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Colors ──────────────────────────────────────────── */
+  --apple-bg:              #ffffff;
+  --apple-surface:         #f5f5f7;
+  --apple-text:            #1d1d1f;
+  --apple-text-secondary:  #6e6e73;
+  --apple-text-tertiary:   #86868b;
+  --apple-accent:          #0071e3;
+  --apple-accent-hover:    #0077ed;
+  --apple-accent-active:   #005cbf;
+  --apple-border:          #d2d2d7;
+  --apple-success:         #34c759;
+  --apple-error:           #ff3b30;
+  --apple-warning:         #ff9500;
+
+  /* ── Typography ──────────────────────────────────────── */
+  --apple-font-display:    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --apple-font-body:       -apple-system, BlinkMacSystemFont, "SF Pro Text",   "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --apple-font-mono:       "SF Mono", ui-monospace, "Cascadia Code", Menlo, Courier, monospace;
+  --apple-font-bold:       700;
+  --apple-font-medium:     500;
+  --apple-font-regular:    400;
+
+  /* ── Type scale ──────────────────────────────────────── */
+  --apple-text-xs:         11px;
+  --apple-text-sm:         13px;
+  --apple-text-base:       15px;
+  --apple-text-lg:         17px;
+  --apple-text-xl:         20px;
+  --apple-text-2xl:        24px;
+  --apple-text-3xl:        32px;
+  --apple-text-4xl:        56px;
+
+  /* ── Leading (line-height) ───────────────────────────── */
+  --apple-leading-tight:   1.08;
+  --apple-leading-body:    1.47;
+  --apple-leading-relaxed: 1.6;
+
+  /* ── Radii ───────────────────────────────────────────── */
+  --apple-radius:          12px;
+  --apple-radius-sm:       8px;
+  --apple-radius-lg:       18px;
+  --apple-radius-pill:     999px;
+
+  /* ── Sizing (iOS HIG controls) ───────────────────────── */
+  --apple-control:         40px;
+  --apple-control-sm:      32px;
+  --apple-control-lg:      48px;
+  --apple-content-width:   980px;
+}
+
+/* ── Dark Mode ────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --apple-bg:              #000000;
+    --apple-surface:         #1d1d1f;
+    --apple-text:            #f5f5f7;
+    --apple-text-secondary:  #a1a1a6;
+    --apple-text-tertiary:   #86868b;
+    --apple-accent:          #2997ff;
+    --apple-accent-hover:    #40a8ff;
+    --apple-accent-active:   #1a7de0;
+    --apple-border:          #38383d;
+  }
+}

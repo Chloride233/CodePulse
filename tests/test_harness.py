@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import copy
 from unittest.mock import MagicMock
 
 import pytest
@@ -50,8 +51,24 @@ def mock_agent() -> MockAgent:
 
 @pytest.fixture
 def mock_sandbox() -> MagicMock:
-    """Mock SandboxManager，避免调用真实 Docker daemon。"""
-    return MagicMock()
+    """Mock SandboxManager，避免调用真实 Docker daemon。
+
+    配置 create/destroy/execute 以支持新的 harness 流程。
+    """
+    sandbox = MagicMock()
+    # create 返回一个 mock container
+    mock_container = MagicMock()
+    mock_container.id = "test-container-id-123456"
+    sandbox.create.return_value = mock_container
+    # execute 返回成功结果
+    exec_result = MagicMock()
+    exec_result.exit_code = 0
+    exec_result.stdout = ""
+    exec_result.stderr = ""
+    sandbox.execute.return_value = exec_result
+    # _client 用于 SandboxUtils
+    sandbox._client = MagicMock()
+    return sandbox
 
 
 @pytest.fixture
@@ -239,13 +256,18 @@ class TestRunTask:
         sample_task: Task,
         mock_agent: MockAgent,
     ) -> None:
-        """Trial.outcome 必须包含 Transcript 摘要字段。"""
+        """Trial.outcome 必须包含 Transcript 摘要和执行结果字段。"""
         trials = harness_with_graders.run_task(sample_task, mock_agent, n_trials=1)
         outcome = trials[0].outcome
+        # Transcript 摘要字段
         assert "transcript_events" in outcome
         assert "total_tokens" in outcome
         assert "total_duration" in outcome
         assert "tool_call_count" in outcome
+        # 沙箱执行结果字段
+        assert "exit_code" in outcome
+        assert "stdout" in outcome
+        assert "stderr" in outcome
 
     def test_run_task_trial_has_scores(
         self,
@@ -524,3 +546,59 @@ class TestTrialSuccess:
         harness = EvaluationHarness(sandbox=mock_sandbox, graders=boundary_graders)
         trials = harness.run_task(sample_task, mock_agent, n_trials=1)
         assert trials[0].success is True
+
+
+class TestHarnessNoSandbox:
+    """sandbox=None 路径测试（mock agent 无需 Docker）。"""
+
+    def test_no_sandbox_creates_trials(self, sample_task: Task, mock_agent: MockAgent) -> None:
+        harness = EvaluationHarness(sandbox=None)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=3)
+        assert len(trials) == 3
+        assert all(t.success is False for t in trials)
+
+    def test_no_sandbox_fast(self, sample_task: Task, mock_agent: MockAgent) -> None:
+        import time
+        harness = EvaluationHarness(sandbox=None)
+        t0 = time.time()
+        harness.run_task(sample_task, mock_agent, n_trials=5)
+        assert time.time() - t0 < 2.0
+
+    def test_no_sandbox_max_workers_ignored(self, sample_task: Task, mock_agent: MockAgent) -> None:
+        harness = EvaluationHarness(sandbox=None)
+        trials = harness.run_task(sample_task, mock_agent, n_trials=3, max_workers=4)
+        assert len(trials) == 3
+
+
+class TestHarnessFallback:
+    """max_workers ≤ 1 时回退串行。"""
+
+    def test_max_workers_zero(self, sample_task: Task, mock_agent: MockAgent,
+                               mock_sandbox: MagicMock, passing_graders: list[MagicMock]) -> None:
+        h = EvaluationHarness(sandbox=mock_sandbox, graders=passing_graders)
+        assert len(h.run_task(sample_task, mock_agent, n_trials=2, max_workers=0)) == 2
+
+    def test_max_workers_one(self, sample_task: Task, mock_agent: MockAgent,
+                              mock_sandbox: MagicMock, passing_graders: list[MagicMock]) -> None:
+        h = EvaluationHarness(sandbox=mock_sandbox, graders=passing_graders)
+        assert len(h.run_task(sample_task, mock_agent, n_trials=2, max_workers=1)) == 2
+
+
+class TestHarnessNegativeTests:
+    """反向测试用例。"""
+
+    def test_extract_negative(self, sample_task: Task) -> None:
+        task = copy.deepcopy(sample_task)
+        task.ground_truth["negative_test_cases"] = ["assert False"]
+        h = EvaluationHarness(sandbox=None)
+        files = h._extract_task_files(task)
+        assert "test_negative.py" in files
+        assert "negative_test_1" in files["test_negative.py"]
+
+    def test_build_negative_code(self) -> None:
+        from codepulse.data.models import Difficulty, Task, TaskCategory, TaskSource
+        task = Task(task_id="t", source=TaskSource.CUSTOM, category=TaskCategory.BUG_FIX,
+                    difficulty=Difficulty.EASY, language="python", input={}, ground_truth={})
+        h = EvaluationHarness(sandbox=None)
+        code = h._build_negative_test_code(task, ["assert 1==0", "assert 2==2"])
+        assert "negative_test_1" in code and "assert 1==0" in code

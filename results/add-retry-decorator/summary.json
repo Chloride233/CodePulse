@@ -1,0 +1,32 @@
+{
+  "task_id": "add-retry-decorator",
+  "agent_name": "cli-agent",
+  "agent_type": "cli",
+  "model": "",
+  "n_total": 1,
+  "n_passed": 0,
+  "pass_rate": 0.0,
+  "avg_score": 0.0,
+  "avg_scores": {
+    "functional": 0.0
+  },
+  "trials": [
+    {
+      "trial_id": "add-retry-decorator-trial-0",
+      "task_id": "add-retry-decorator",
+      "success": false,
+      "scores": {
+        "functional": 0.0
+      },
+      "outcome": {
+        "exit_code": 1,
+        "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python\ncachedir: .pytest_cache\nrootdir: /workspace\ncollecting ... collected 2 items\n\ntest_solution.py::test_case_1 FAILED                                     [ 50%]\ntest_solution.py::test_case_2 FAILED                                     [100%]\n\n=================================== FAILURES ===================================\n_________________________________ test_case_1 __________________________________\ntest_solution.py:12: in test_case_1\n    @retry(max_retries=3, delay=0.01)\n     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: retry() got an unexpected keyword argument 'max_retries'\n_________________________________ test_case_2 __________________________________\ntest_solution.py:22: in test_case_2\n    @retry(max_retries=3, delay=0.01)\n     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: retry() got an unexpected keyword argument 'max_retries'\n=========================== short test summary info ============================\nFAILED test_solution.py::test_case_1 - TypeError: retry() got an unexpected k...\nFAILED test_solution.py::test_case_2 - TypeError: retry() got an unexpected k...\n============================== 2 failed in 0.01s ===============================\n",
+        "stderr": "",
+        "total_duration": 0.24860024452209473,
+        "total_tokens": 0,
+        "transcript_events": 0,
+        "tool_call_count": 0
+      }
+    }
+  ]
+}

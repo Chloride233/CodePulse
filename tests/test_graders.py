@@ -137,9 +137,10 @@ class TestPytestGrader:
     ) -> None:
         grader = PytestGrader()
         result = grader.grade(sample_task, passing_trial)
-        assert "stdout" in result.details
-        assert "stderr" in result.details
-        assert "has_test_patch" in result.details
+        assert result.details["stdout"] == "all tests passed"
+        assert result.details["pytest_total"] == 0
+        assert result.details["pytest_passed"] == 0
+        assert result.details["scoring_mode"] == "exit_code"
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,11 @@
-"""Pytest execution grader — functional correctness via exit code.
+"""Pytest execution grader — functional correctness via exit code and partial scoring.
 
-Evaluates whether an agent's patch passes the task's test suite by inspecting
-the pytest process exit code.  This is the MVP heuristic; a future iteration
-will parse pytest's structured output (JSON report) for per-test granularity.
+Evaluates whether an agent's solution passes the task's test suite.
+Supports two scoring modes:
+
+1. **Exit code mode** (default): pass/fail based on pytest exit code.
+2. **Partial scoring mode**: when pytest JSON report data is available,
+   computes pass rate as ratio of passed-to-total tests.
 """
 
 from __future__ import annotations
@@ -17,51 +20,73 @@ if TYPE_CHECKING:
 
 
 class PytestGrader:
-    """Grade functional correctness by checking the pytest exit code.
+    """Grade functional correctness by checking pytest results.
 
     Attributes:
         name: Identifier used in scoring reports.
+        use_partial_scoring: Whether to use partial scoring when JSON
+            report data is available. If False, always uses exit code.
     """
 
     name: str = "pytest"
 
+    def __init__(self, use_partial_scoring: bool = True) -> None:
+        self.use_partial_scoring = use_partial_scoring
+
     def grade(self, task: Task, trial: Trial) -> GraderResult:
         """Evaluate a trial based on pytest execution outcome.
 
-        Scoring heuristic (MVP):
-        - ``exit_code == 0`` means all tests passed → score 1.0
-        - Any other value (or missing) → score 0.0
-
-        Future work will parse ``pytest --json-report`` output to compute the
-        ratio of passed-to-total tests, giving partial credit.
-
-        Args:
-            task: The original task definition, including ``ground_truth``.
-            trial: The agent's execution trial containing ``outcome``.
-
-        Returns:
-            :class:`GraderResult` with dimension ``FUNCTIONAL`` and a details
-            dict carrying raw execution diagnostics.
+        Scoring:
+        - Positive tests (pytest): ``score = pytest_passed / pytest_total`` (partial)
+          or ``1.0 if exit_code == 0`` (exit-code mode)
+        - Negative tests (negative_test_failures): If negative tests passed
+          incorrectly (false positive), score is penalized.
         """
-        # Deferred import avoids circular dependency at module level.
         from codepulse.data.protocols import GraderResult
 
         outcome: dict[str, object] = trial.outcome or {}
 
         exit_code_raw = outcome.get("exit_code")
-        exit_code: int = int(exit_code_raw) if exit_code_raw is not None and isinstance(exit_code_raw, (int, str)) else -1
-        score = 1.0 if exit_code == 0 else 0.0
+        exit_code: int = (
+            int(exit_code_raw)
+            if exit_code_raw is not None and isinstance(exit_code_raw, (int, str))
+            else -1
+        )
 
-        # Extract optional diagnostics for downstream observability.
+        # Positive tests score
+        pytest_total_raw = outcome.get("pytest_total", 0)
+        pytest_passed_raw = outcome.get("pytest_passed", 0)
+        pytest_total = int(pytest_total_raw) if isinstance(pytest_total_raw, (int, str)) else 0
+        pytest_passed = int(pytest_passed_raw) if isinstance(pytest_passed_raw, (int, str)) else 0
+
+        if self.use_partial_scoring and pytest_total > 0:
+            base_score = round(pytest_passed / pytest_total, 4)
+        else:
+            base_score = 1.0 if exit_code == 0 else 0.0
+
+        # Negative tests penalty
+        neg_raw = outcome.get("negative_test_failures", 1)
+        neg_failures = int(neg_raw) if isinstance(neg_raw, (int, str)) else 1
+        # neg_failures = 0 means at least one negative test passed (false positive)
+        # Penalty: 0.3 per missed negative test
+        neg_penalty = 0.0
+        if neg_failures == 0:
+            neg_penalty = 0.3
+
+        score = max(0.0, base_score - neg_penalty)
+
         stdout = str(outcome.get("stdout", ""))
         stderr = str(outcome.get("stderr", ""))
-        test_patch = task.ground_truth.get("test_patch", "")
 
         details: dict[str, float | int | str | bool] = {
             "exit_code": exit_code,
-            "stdout": stdout[:4096],  # truncate to avoid memory bloat
+            "stdout": stdout[:4096],
             "stderr": stderr[:4096],
-            "has_test_patch": bool(test_patch),
+            "pytest_total": pytest_total,
+            "pytest_passed": pytest_passed,
+            "scoring_mode": "partial" if (self.use_partial_scoring and pytest_total > 0) else "exit_code",
+            "negative_test_failures": neg_failures,
+            "neg_penalty": neg_penalty,
         }
 
         return GraderResult(

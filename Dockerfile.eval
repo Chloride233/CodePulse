@@ -1,0 +1,4 @@
+FROM python:3.11-slim
+
+# Install evaluation dependencies
+RUN pip install --no-cache-dir pytest ruff mypy bandit

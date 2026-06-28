@@ -1,0 +1,15 @@
+# CodePulse 项目配置
+
+agent:
+  model: deepseek-chat
+  max_tokens: 4096
+  temperature: 0.0
+  max_iterations: 20
+
+sandbox:
+  image: python:3.11-slim
+  cpu_count: 2
+  memory_mb: 2048
+  timeout_seconds: 300
+
+results_dir: results

@@ -35,7 +35,7 @@ def sample_task() -> Task:
         difficulty=Difficulty.MEDIUM,
         language="python",
         input={"description": "Fix the login bug"},
-        ground_truth={"expected": "fixed"},
+        ground_truth={"expected_output": "fixed"},
     )
 
 
