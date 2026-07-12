@@ -17,6 +17,7 @@ import click
 
 from codepulse.benchmark import BenchmarkRegistry
 from codepulse.benchmark.downloader import BenchmarkDownloader, DownloadError
+from codepulse.benchmark.pilot import load_pilot_manifest, validate_pilot_manifest
 from codepulse.config import DEFAULT_RESULTS_DIR
 from codepulse.data.aacr_bench import AacrBenchLoader
 from codepulse.data.custom_loader import CustomDatasetLoader
@@ -145,6 +146,36 @@ def benchmark_group() -> None:
     Lists known benchmarks (SWE-bench, HumanEval, MBPP, AACR-Bench),
     checks download status, and runs evaluations against your agents.
     """
+
+
+@benchmark_group.command(name="preflight")
+@click.option(
+    "--manifest",
+    "manifest_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to the frozen pilot JSON manifest.",
+)
+@click.option(
+    "--repo-root",
+    default=".",
+    show_default=True,
+    type=click.Path(exists=True, file_okay=False),
+    help="Repository root used to resolve manifest file paths.",
+)
+def benchmark_preflight(manifest_path: str, repo_root: str) -> None:
+    """Validate every no-cost reproducibility gate before a pilot run."""
+    try:
+        manifest = load_pilot_manifest(manifest_path)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    errors = validate_pilot_manifest(manifest, repo_root)
+    if errors:
+        for error in errors:
+            click.echo(f"FAIL: {error}", err=True)
+        raise click.ClickException(f"Pilot preflight failed with {len(errors)} error(s)")
+    click.echo("Pilot preflight passed: manifest is frozen and file hashes match.")
 
 
 # ---------------------------------------------------------------------------
@@ -401,5 +432,4 @@ def benchmark_run(
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
-
 

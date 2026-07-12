@@ -117,6 +117,18 @@ HumanEval/15, HumanEval/16, HumanEval/17, HumanEval/18, HumanEval/19
 - [ ] 成本采集和中止逻辑通过无付费 mock 测试。
 - [ ] 预算获得人工确认。
 
+运行清单使用 JSON，顶层必须包含 `protocol_version`、`benchmark`、`task_ids`、`n_trials`、`seed`、`agents`、`dataset`、`dependencies`、`codepulse_commit`、`environment` 和 `budget`。每个 Agent 必须记录 profile 路径及 SHA-256、Provider、不可变模型版本和 Provider 实际返回的模型版本；数据集、20 任务清单和 lockfile 必须同时记录路径与 SHA-256。
+
+任何付费调用前先执行纯离线门禁：
+
+```bash
+codepulse benchmark preflight \
+  --manifest experiments/pilot-v1/manifest.json \
+  --repo-root .
+```
+
+命令必须输出 `Pilot preflight passed` 才能进入 smoke test。它会拒绝可漂移模型别名、错误任务范围、非 3 次运行、缺失或不匹配的文件哈希、非完整 Git SHA、未以 digest 固定的镜像，以及偏离协议的资源和预算配置。preflight 通过只证明配置冻结，不代表实验已经运行。
+
 正式产出包括运行清单、120 条原始 Trial JSONL、失败复核记录，以及包含 pass@1、pass@3、pass^3、Token、成本、P50/P95 耗时和失败分布的 Markdown/HTML 报告。本协议只锁定实验设计；不会在本次文档变更中启动任何实验。
 
 ## 7. pilot 后决策
@@ -126,5 +138,7 @@ HumanEval/15, HumanEval/16, HumanEval/17, HumanEval/18, HumanEval/19
 ## 8. 简历证据记录
 
 当前可核验的证据仅限实验设计阶段：为 20 个 HumanEval 任务、2 个 Agent、每任务 3 次运行（计划 120 个 Trial）制定了可复现实验协议，统一定义 pass@1、pass@3、pass^3、Token、成本、P50/P95 耗时和 7 类失败归因，并设置 USD 20 总预算及模型、数据、Prompt、依赖和容器哈希门禁。
+
+已实现可复现门禁命令 `codepulse benchmark preflight`，用确定性测试证明合法 manifest 可通过，并能拒绝可漂移模型版本与被篡改的 profile 哈希；该能力不产生模型调用费用。
 
 在 120 条真实 Trial 和报告落盘前，不把该计划规模、对比结果或指标写成已完成实验成果。后续运行证据必须在此补充实验 ID、CodePulse commit、运行清单路径、实际规模、核心结果、报告路径和复现命令。
