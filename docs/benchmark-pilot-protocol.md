@@ -58,7 +58,7 @@ python scripts/download_humaneval.py --no-download
 | 工具 | 工具名称、实现版本、权限列表 |
 | CodePulse | Git commit SHA；工作区必须干净 |
 | 数据 | HumanEval 源文件 SHA-256、20 任务清单 SHA-256 |
-| 环境 | `python:3.11-slim` 镜像 digest、2 CPU、2048 MB、无网络、每 Trial 300 秒 |
+| 环境 | `python:3.11-slim@sha256:e031123e3d85762b141ad1cbc56452ba69c6e722ebf2f042cc0dc86c47c0d8b3`、2 CPU、2048 MB、无网络、每 Trial 300 秒 |
 | 依赖 | Python、pytest 及评测依赖的精确版本和 lockfile SHA-256 |
 
 不接受 `latest` 或无法验证底层版本的模型别名。仓库当前的 `deepseek/deepseek-chat` 只能作为候选；若 Provider 不能证明其在 120 次 Trial 内指向同一版本，则不得用于本 pilot。第二个真实 Agent profile 尚未入库，因此协议锁定不代表已经满足开跑条件。
@@ -126,7 +126,7 @@ python scripts/download_humaneval.py --no-download
 
 - [ ] 两个真实 Agent profile 已确定并提交，模型为可验证的固定版本。
 - [ ] Prompt、profile、数据文件、任务清单和 lockfile 的 SHA-256 已写入运行清单。
-- [ ] Docker 镜像以 digest 固定，容器内测试命令已离线验证。
+- [x] Docker 基础镜像以 digest 固定，评测镜像已在无网络、2 CPU、2048 MB 限制下验证。
 - [ ] 成本采集和中止逻辑通过无付费 mock 测试。
 - [ ] 预算获得人工确认。
 
@@ -141,6 +141,8 @@ codepulse benchmark preflight \
 ```
 
 命令必须输出 `Pilot preflight passed` 才能进入 smoke test。它会拒绝可漂移模型别名、错误任务范围、非 3 次运行、缺失或不匹配的文件哈希、非完整 Git SHA、未以 digest 固定的镜像，以及偏离协议的资源和预算配置。preflight 通过只证明配置冻结，不代表实验已经运行。
+
+本地评测镜像 `codepulse-eval:pilot-v1` 构建 ID 为 `sha256:fcb59a48cd9017b030ebb32f2a7cddfba839b26c7137d3be16b60f986a919396`。离线容器实测版本为 Python 3.11.15、pytest 9.1.1、ruff 0.15.21、mypy 2.2.0 和 bandit 1.9.4；这些工具版本已固定在 `Dockerfile.eval`。该 ID 只作为当前机器构建证据，正式 manifest 仍须记录可由运行环境解析的镜像 digest。
 
 正式产出包括运行清单、120 条原始 Trial JSONL、失败复核记录，以及包含 pass@1、pass@3、pass^3、Token、成本、P50/P95 耗时和失败分布的 Markdown/HTML 报告。本协议只锁定实验设计；不会在本次文档变更中启动任何实验。
 
