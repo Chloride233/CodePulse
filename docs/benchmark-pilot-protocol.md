@@ -32,6 +32,19 @@ HumanEval/15, HumanEval/16, HumanEval/17, HumanEval/18, HumanEval/19
 
 数据源必须是 OpenAI HumanEval 官方发布版。下载后生成只含上述任务、顺序不变的 JSONL 清单，并在首次运行前记录源文件与清单的 SHA-256。任一哈希变化均视为任务集变化，必须中止而非继续混跑。
 
+`pilot-v1` 已固定并提交以下数据文件：
+
+| 文件 | SHA-256 |
+|---|---|
+| `datasets/humaneval/HumanEval.jsonl.gz` | `b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef` |
+| `datasets/humaneval/pilot-v1.jsonl` | `fd18c50d5e6aa3a7908cbc71b009fcb2bc00f1e1ba3cea104cada60f1979f294` |
+
+清单可由官方源文件确定性重建：
+
+```bash
+python scripts/download_humaneval.py --no-download
+```
+
 ## 3. Agent 与冻结项
 
 两个 Agent 均使用 CodePulse 的标准 Agent profile 接入，并使用完全相同的任务文本、工具权限和资源限制。Agent 的具体选择在首次付费调用前写入实验运行清单；以下字段缺一不可，写入后整个 pilot 禁止修改：
