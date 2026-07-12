@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,65 @@ PILOT_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(20)]
 MUTABLE_MODEL_NAMES = {"latest", "deepseek-chat", "deepseek/deepseek-chat"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+INFRA_FAILURES = {"provider_error", "agent_error", "sandbox_error"}
+
+
+@dataclass
+class PilotBudgetGuard:
+    """Track pilot cost and infrastructure stop conditions across trials."""
+
+    planned_trials: int = 120
+    total_limit_usd: float = 20.0
+    per_agent_limit_usd: float = 10.0
+    per_trial_limit_usd: float = 0.2
+    total_cost_usd: float = 0.0
+    completed_trials: int = 0
+    infrastructure_failures: int = 0
+    consecutive_infrastructure_failures: int = 0
+    agent_costs_usd: dict[str, float] = field(default_factory=dict)
+
+    def record_trial(
+        self,
+        agent_name: str,
+        cost_usd: float | None,
+        failure_type: str | None = None,
+    ) -> list[str]:
+        """Record one trial and return every triggered stop reason."""
+        self.completed_trials += 1
+        reasons: list[str] = []
+
+        if cost_usd is None:
+            reasons.append("cost_unavailable")
+        elif cost_usd < 0:
+            reasons.append("cost_invalid")
+        else:
+            self.total_cost_usd += cost_usd
+            agent_total = self.agent_costs_usd.get(agent_name, 0.0) + cost_usd
+            self.agent_costs_usd[agent_name] = agent_total
+            if cost_usd >= self.per_trial_limit_usd:
+                reasons.append("per_trial_budget_reached")
+            if agent_total >= self.per_agent_limit_usd:
+                reasons.append("per_agent_budget_reached")
+            if self.total_cost_usd >= self.total_limit_usd:
+                reasons.append("total_budget_reached")
+            projected_cost = self.total_cost_usd / self.completed_trials * self.planned_trials
+            if projected_cost > self.total_limit_usd:
+                reasons.append("projected_budget_exceeded")
+
+        if failure_type in INFRA_FAILURES:
+            self.infrastructure_failures += 1
+            self.consecutive_infrastructure_failures += 1
+        else:
+            self.consecutive_infrastructure_failures = 0
+        if self.consecutive_infrastructure_failures >= 3:
+            reasons.append("consecutive_infrastructure_failures")
+        if (
+            self.completed_trials >= 10
+            and self.infrastructure_failures / self.completed_trials > 0.1
+        ):
+            reasons.append("infrastructure_failure_rate_exceeded")
+
+        return reasons
 
 
 def load_pilot_manifest(path: str | Path) -> dict[str, Any]:

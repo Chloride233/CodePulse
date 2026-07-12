@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 from click.testing import CliRunner
 
 from codepulse.benchmark.cli import benchmark_group
-from codepulse.benchmark.pilot import PILOT_TASK_IDS, sha256_file, validate_pilot_manifest
+from codepulse.benchmark.pilot import (
+    PILOT_TASK_IDS,
+    PilotBudgetGuard,
+    sha256_file,
+    validate_pilot_manifest,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -102,3 +107,57 @@ def test_pilot_preflight_cli_valid_manifest_passes(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Pilot preflight passed" in result.output
+
+
+def test_pilot_budget_guard_cost_limits_and_projection_stop() -> None:
+    guard = PilotBudgetGuard()
+
+    reasons = guard.record_trial("agent-a", 0.18)
+
+    assert "projected_budget_exceeded" in reasons
+    assert "per_trial_budget_reached" not in reasons
+    assert guard.total_cost_usd == 0.18
+
+
+def test_pilot_budget_guard_missing_cost_stops() -> None:
+    guard = PilotBudgetGuard()
+
+    assert guard.record_trial("agent-a", None) == ["cost_unavailable"]
+
+
+def test_pilot_budget_guard_hard_cost_limits_stop() -> None:
+    guard = PilotBudgetGuard(
+        planned_trials=3,
+        total_limit_usd=0.3,
+        per_agent_limit_usd=0.2,
+        per_trial_limit_usd=0.1,
+    )
+
+    first = guard.record_trial("agent-a", 0.1)
+    second = guard.record_trial("agent-a", 0.1)
+    third = guard.record_trial("agent-b", 0.1)
+
+    assert "per_trial_budget_reached" in first
+    assert "per_agent_budget_reached" in second
+    assert "total_budget_reached" in third
+
+
+def test_pilot_budget_guard_three_consecutive_infra_failures_stop() -> None:
+    guard = PilotBudgetGuard()
+
+    guard.record_trial("agent-a", 0.01, "provider_error")
+    guard.record_trial("agent-b", 0.01, "agent_error")
+    reasons = guard.record_trial("agent-a", 0.01, "sandbox_error")
+
+    assert "consecutive_infrastructure_failures" in reasons
+
+
+def test_pilot_budget_guard_infra_failure_rate_after_ten_trials_stop() -> None:
+    guard = PilotBudgetGuard()
+    for _ in range(8):
+        guard.record_trial("agent-a", 0.01)
+    guard.record_trial("agent-a", 0.01, "provider_error")
+
+    reasons = guard.record_trial("agent-b", 0.01, "sandbox_error")
+
+    assert "infrastructure_failure_rate_exceeded" in reasons

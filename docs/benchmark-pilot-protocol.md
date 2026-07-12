@@ -127,7 +127,7 @@ python scripts/download_humaneval.py --no-download
 - [ ] 两个真实 Agent profile 已确定并提交，模型为可验证的固定版本。
 - [ ] Prompt、profile、数据文件、任务清单和 lockfile 的 SHA-256 已写入运行清单。
 - [x] Docker 基础镜像以 digest 固定，评测镜像已在无网络、2 CPU、2048 MB 限制下验证。
-- [ ] 成本采集和中止逻辑通过无付费 mock 测试。
+- [x] 成本采集字段和中止逻辑通过无付费 mock 测试。
 - [ ] 预算获得人工确认。
 
 运行清单使用 JSON，顶层必须包含 `protocol_version`、`benchmark`、`task_ids`、`n_trials`、`seed`、`agents`、`dataset`、`dependencies`、`codepulse_commit`、`environment` 和 `budget`。每个 Agent 必须记录 profile 路径及 SHA-256、Provider、不可变模型版本和 Provider 实际返回的模型版本；数据集、20 任务清单和 lockfile 必须同时记录路径与 SHA-256。
