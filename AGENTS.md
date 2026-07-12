@@ -142,3 +142,14 @@ PRD 位于 `F:\Resume\06-岗位研究\DeepSeek-Code-Agent数据工程师\PRD-Cod
 - 每个 Phase 结束有明确里程碑
 - 早部署常交付，每个 PR 都可运行
 - 为故障设计，每个模块有错误处理和重试逻辑
+
+## 当前证据路线
+
+按顺序推进以下阶段；阶段之间不得跳过，除非前一阶段已满足 Issue 验收标准：
+
+1. Phase 1：[可复现多 Agent Benchmark 基线](https://github.com/Chloride233/CodePulse/issues/2)
+2. Phase 2：[LLM-as-Judge 人工校准](https://github.com/Chloride233/CodePulse/issues/1)
+3. Phase 3：[自进化收益与回归门禁](https://github.com/Chloride233/CodePulse/issues/3)
+4. Phase 4：[一键演示与作品级交付](https://github.com/Chloride233/CodePulse/issues/4)
+
+新功能必须服务于当前 Phase 的验收项。每个阶段结束时必须保留可复现命令、测试或实验报告以及量化结果。设计、计划和未运行的能力不得写成已实现结果。
