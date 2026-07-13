@@ -159,3 +159,27 @@ V4 Flash 当前价格证据（单位：CNY/百万 Token）为：平时缓存命�
 已实现可复现门禁命令 `codepulse benchmark preflight`，用确定性测试证明合法 manifest 可通过，并能拒绝可漂移模型版本与被篡改的 profile 哈希；该能力不产生模型调用费用。
 
 在 120 条真实 Trial 和报告落盘前，不把该计划规模、对比结果或指标写成已完成实验成果。后续运行证据必须在此补充实验 ID、CodePulse commit、运行清单路径、实际规模、核心结果、报告路径和复现命令。
+
+### 2026-07-13 实测结果
+
+- 实验 ID：`20260713-v1`
+- 执行 commit：`7c74282597be0d988ea99482d037a7096021d3d4`
+- 实际规模：20 任务 × 2 Agent × 3 次 = 120 Trial，全部完成，0 个中止原因
+- Provider 返回模型版本：`deepseek-v4-flash`，全程一致
+- Direct：pass@1 96.7%、pass@3 100%、pass^3 90%；平均 2,522 Token；P50/P95 3.634/6.211 秒；高峰成本上界 CNY 0.356820；2 次 `wrong_answer`
+- Iterative：pass@1/pass@3/pass^3 均 100%；平均 4,735.8 Token；P50/P95 5.535/10.012 秒；高峰成本上界 CNY 0.642084；0 次失败
+- 合计高峰成本上界：CNY 0.998904，仅使用 CNY 10 预算的 10.0%
+- 原始记录：`results/pilot-v1/runs/20260713-v1/trials.jsonl`
+- 报告：`results/pilot-v1/runs/20260713-v1/report.md`、`report.html`
+
+复现并自动生成 Markdown/HTML 报告：
+
+```bash
+set -a; source .env.local; set +a
+python -m codepulse.cli benchmark pilot-run \
+  --manifest experiments/pilot-v1/manifest.json \
+  --output-dir results/pilot-v1/runs/<new-experiment-id> \
+  --repo-root .
+```
+
+扩展决策：pilot 成本证明 200 任务 × 3 Agent × 3 次在费用上可行，按本次高峰均价线性估算约 CNY 14.98；但当前证据目标只要求低成本 pilot，暂不立即扩展，先合入并审查本报告及两个 Direct 失败样本，再为扩展单独冻结任务集、第三 Agent 和预算。

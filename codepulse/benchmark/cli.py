@@ -25,6 +25,7 @@ from codepulse.benchmark.pilot import (
     load_pilot_manifest,
     validate_pilot_manifest,
 )
+from codepulse.benchmark.pilot_report import write_pilot_reports
 from codepulse.config import DEFAULT_RESULTS_DIR
 from codepulse.data.aacr_bench import AacrBenchLoader
 from codepulse.data.custom_loader import CustomDatasetLoader
@@ -310,6 +311,8 @@ def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> 
     (output / "run-summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    if not stopped_reasons:
+        write_pilot_reports(output)
     click.echo(json.dumps(summary, ensure_ascii=False))
 
 
