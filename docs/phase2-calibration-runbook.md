@@ -93,6 +93,26 @@ explicitly missing; they must not be converted to score zero.
 
 ## 5. Analyze And Close Issue #1
 
+After both human rounds and the Judge observations validate, generate the numeric
+analysis and Markdown report in one deterministic step:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study analyze-diagnostic \
+  --packets-1 results/phase2/diagnostic-study-v1/review-packets-round-1.jsonl \
+  --mapping-1 results/phase2/diagnostic-study-v1/review-mapping-round-1.private.jsonl \
+  --responses-1 results/phase2/diagnostic-study-v1/human-review-round-1.jsonl \
+  --packets-2 results/phase2/diagnostic-study-v1/review-packets-round-2.jsonl \
+  --mapping-2 results/phase2/diagnostic-study-v1/review-mapping-round-2.private.jsonl \
+  --responses-2 results/phase2/diagnostic-study-v1/human-review-round-2.jsonl \
+  --judge-observations results/phase2/diagnostic-study-v1/judge-observations.jsonl \
+  --functional-result results/phase2/judge-calibration-before-after.json \
+  --output-json results/phase2/calibration-analysis.json \
+  --output-report results/phase2/calibration-report.md
+```
+
+When the two human scores disagree, add `--adjudications` with a separate JSONL file.
+The analyzer never averages disagreements or overwrites either blind round.
+
 The final report must contain:
 
 - 100-record Judge-versus-deterministic-oracle functional agreement.

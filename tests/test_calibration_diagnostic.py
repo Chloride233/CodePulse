@@ -18,6 +18,10 @@ from codepulse.eval.calibration_diagnostic import (
     validate_diagnostic_packets,
     validate_diagnostic_responses,
 )
+from codepulse.eval.calibration_diagnostic_analysis import (
+    analyze_diagnostic_study,
+    render_diagnostic_report,
+)
 from codepulse.eval.calibration_diagnostic_judge import (
     compact_diagnostic_evidence,
     run_diagnostic_judge,
@@ -474,3 +478,279 @@ def test_diagnostic_judge_cli_runs_and_writes_observations(tmp_path: Path) -> No
 
     run.assert_called_once_with(packets, model="judge-a")
     assert len(output.read_text(encoding="utf-8").splitlines()) == 20
+
+
+def test_diagnostic_analysis_aligns_rounds_and_judge_variants() -> None:
+    packets_1, mapping_1 = build_diagnostic_packets(
+        _trials(), round_number=1, seed=7
+    )
+    packets_2, mapping_2 = build_diagnostic_packets(
+        _trials(), round_number=2, seed=7
+    )
+    scores = {f"HumanEval/{index}--r0--private-agent": index % 5 + 1 for index in range(10)}
+    responses_1 = _completed_diagnostic_responses(packets_1, mapping_1, scores)
+    responses_2 = _completed_diagnostic_responses(packets_2, mapping_2, scores)
+    observations = _diagnostic_observations(packets_1, mapping_1, scores)
+
+    analysis = analyze_diagnostic_study(
+        functional_result=_functional_result(),
+        packets_1=packets_1,
+        mapping_1=mapping_1,
+        responses_1=responses_1,
+        packets_2=packets_2,
+        mapping_2=mapping_2,
+        responses_2=responses_2,
+        judge_observations=observations,
+    )
+
+    assert analysis["status"] == "complete"
+    assert analysis["functional_calibration"]["after"]["exact_agreement"] == 1.0
+    assert analysis["sample_size"] == 10
+    assert analysis["reviewer_mode"] == "intra_rater"
+    assert analysis["human_agreement"]["exact_agreement"] == 1.0
+    assert analysis["human_agreement"]["pearson"] == 1.0
+    assert analysis["judge_human_agreement"]["length_full"]["exact_agreement"] == 1.0
+    assert analysis["judge_human_agreement"]["length_compact"]["mean_absolute_error"] == 0.8
+    assert analysis["length_bias"]["mean_full_minus_compact"] == 0.8
+    assert analysis["position_bias"]["status"] == "not_identifiable"
+    assert analysis["model_self_preference"]["status"] == "not_identifiable"
+    assert analysis["calibration"]["status"] == "estimated"
+    assert analysis["calibration"]["score_distributions"]["human"]
+
+
+def test_diagnostic_analysis_keeps_disagreements_and_missing_judge_incomplete() -> None:
+    packets_1, mapping_1 = build_diagnostic_packets(
+        _trials(), round_number=1, seed=7
+    )
+    packets_2, mapping_2 = build_diagnostic_packets(
+        _trials(), round_number=2, seed=7
+    )
+    scores = {f"HumanEval/{index}--r0--private-agent": index % 5 + 1 for index in range(10)}
+    responses_1 = _completed_diagnostic_responses(packets_1, mapping_1, scores)
+    responses_2 = _completed_diagnostic_responses(packets_2, mapping_2, scores)
+    responses_2[0]["score"] = 5 if responses_2[0]["score"] != 5 else 4
+    observations = _diagnostic_observations(packets_1, mapping_1, scores)
+    observations[0].update(
+        status="missing",
+        score=None,
+        reasoning=None,
+        raw_response=None,
+        error="provider timeout",
+    )
+
+    analysis = analyze_diagnostic_study(
+        functional_result=_functional_result(),
+        packets_1=packets_1,
+        mapping_1=mapping_1,
+        responses_1=responses_1,
+        packets_2=packets_2,
+        mapping_2=mapping_2,
+        responses_2=responses_2,
+        judge_observations=observations,
+    )
+
+    assert analysis["status"] == "incomplete"
+    assert analysis["unresolved_human_disagreements"] == 1
+    assert analysis["missing_judge_observations"] == 1
+    assert any(case["kind"] == "human_disagreement" for case in analysis["hard_cases"])
+    assert any(case["kind"] == "judge_missing" for case in analysis["hard_cases"])
+
+    disputed_trial = str(mapping_2[0]["trial_id"])
+    round_1_packet = next(
+        packet for packet in mapping_1 if packet["trial_id"] == disputed_trial
+    )
+    resolved = analyze_diagnostic_study(
+        functional_result=_functional_result(),
+        packets_1=packets_1,
+        mapping_1=mapping_1,
+        responses_1=responses_1,
+        packets_2=packets_2,
+        mapping_2=mapping_2,
+        responses_2=responses_2,
+        judge_observations=observations,
+        adjudications=[
+            {
+                "trial_id": disputed_trial,
+                "packet_id": round_1_packet["packet_id"],
+                "score": responses_1[
+                    next(
+                        index
+                        for index, response in enumerate(responses_1)
+                        if response["packet_id"] == round_1_packet["packet_id"]
+                    )
+                ]["score"],
+                "rationale": "The complete Trace supports the Round 1 score.",
+                "adjudicated_at": "2026-07-13T01:00:00Z",
+            }
+        ],
+    )
+    assert resolved["unresolved_human_disagreements"] == 0
+
+
+def test_diagnostic_analysis_requires_completed_functional_evidence() -> None:
+    result = _functional_result()
+    result["sample_size"] = 99
+
+    with pytest.raises(ValueError, match="at least 100"):
+        analyze_diagnostic_study(
+            functional_result=result,
+            packets_1=[],
+            mapping_1=[],
+            responses_1=[],
+            packets_2=[],
+            mapping_2=[],
+            responses_2=[],
+            judge_observations=[],
+        )
+
+
+def test_diagnostic_report_states_metrics_limits_and_usage_boundaries() -> None:
+    report = render_diagnostic_report(
+        {
+            "status": "complete",
+            "sample_size": 10,
+            "functional_calibration": _functional_result(),
+            "reviewer_mode": "intra_rater",
+            "human_agreement": {"n": 10, "exact_agreement": 0.9, "cohens_kappa": 0.8, "pearson": 0.9, "mean_absolute_error": 0.1},
+            "judge_human_agreement": {
+                "length_full": {"n": 10, "exact_agreement": 0.8, "cohens_kappa": 0.7, "pearson": 0.85, "mean_absolute_error": 0.2},
+                "length_compact": {"n": 10, "exact_agreement": 0.7, "cohens_kappa": 0.6, "pearson": 0.75, "mean_absolute_error": 0.3},
+            },
+            "missing_judge_observations": 0,
+            "position_bias": {"status": "not_identifiable"},
+            "length_bias": {"n": 10, "mean_full_minus_compact": 0.1, "length_residual_correlation": 0.2},
+            "model_self_preference": {"status": "not_identifiable"},
+            "calibration": {"before": {"mean_absolute_error": 0.3}, "after": {"mean_absolute_error": 0.2}},
+            "hard_cases": [],
+        }
+    )
+
+    assert "intra-rater" in report
+    assert "91.0%" in report
+    assert "100.0%" in report
+    assert "Pearson" in report
+    assert "not_identifiable" in report
+    assert "No significance claim" in report
+    assert "Deterministic Grader" in report
+    assert "LLM Judge" in report
+    assert "Human calibration" in report
+
+
+def test_diagnostic_analysis_cli_writes_json_and_report(tmp_path: Path) -> None:
+    inputs = {
+        name: tmp_path / f"{name}.jsonl"
+        for name in (
+            "packets-1",
+            "mapping-1",
+            "responses-1",
+            "packets-2",
+            "mapping-2",
+            "responses-2",
+            "judge-observations",
+        )
+    }
+    for path in inputs.values():
+        path.write_text("", encoding="utf-8")
+    output_json = tmp_path / "analysis.json"
+    output_report = tmp_path / "report.md"
+    functional_result = tmp_path / "functional-result.json"
+    functional_result.write_text(json.dumps(_functional_result()), encoding="utf-8")
+    argv = ["calibration_study", "analyze-diagnostic"]
+    for name, path in inputs.items():
+        argv.extend((f"--{name}", str(path)))
+    argv.extend(
+        (
+            "--functional-result",
+            str(functional_result),
+            "--output-json",
+            str(output_json),
+            "--output-report",
+            str(output_report),
+        )
+    )
+
+    with (
+        patch.object(sys, "argv", argv),
+        patch(
+            "codepulse.eval.calibration_study.analyze_diagnostic_study",
+            return_value={"status": "complete"},
+        ) as analyze,
+        patch(
+            "codepulse.eval.calibration_study.render_diagnostic_report",
+            return_value="# diagnostic report\n",
+        ),
+    ):
+        main()
+
+    analyze.assert_called_once()
+    assert json.loads(output_json.read_text(encoding="utf-8"))["status"] == "complete"
+    assert output_report.read_text(encoding="utf-8") == "# diagnostic report\n"
+
+
+def _completed_diagnostic_responses(
+    packets: list[dict[str, object]],
+    mapping: list[dict[str, object]],
+    scores: dict[str, int],
+) -> list[dict[str, object]]:
+    trial_by_packet = {
+        str(row["packet_id"]): str(row["trial_id"]) for row in mapping
+    }
+    responses = build_diagnostic_response_template(packets, "human-a")
+    for response in responses:
+        response["score"] = scores[trial_by_packet[str(response["packet_id"])]]
+        response["rationale"] = "Observable process evidence supports this score."
+        response["reviewed_at"] = "2026-07-13T00:00:00Z"
+    return responses
+
+
+def _diagnostic_observations(
+    packets: list[dict[str, object]],
+    mapping: list[dict[str, object]],
+    scores: dict[str, int],
+) -> list[dict[str, object]]:
+    trial_by_packet = {
+        str(row["packet_id"]): str(row["trial_id"]) for row in mapping
+    }
+    observations = []
+    for packet in packets:
+        full_score = scores[trial_by_packet[str(packet["packet_id"])]]
+        for variant, score, length in (
+            ("length_full", full_score, 1000),
+            ("length_compact", max(1, full_score - 1), 500),
+        ):
+            observations.append(
+                {
+                    "packet_id": packet["packet_id"],
+                    "packet_sha256": packet["packet_sha256"],
+                    "judge_model": "judge-a",
+                    "variant": variant,
+                    "prompt_version": "diagnostic-process-judge-v1",
+                    "evidence_chars": length,
+                    "status": "ok",
+                    "score": score,
+                    "reasoning": "Observable process evidence supports this score.",
+                    "raw_response": json.dumps({"score": score, "reasoning": "evidence"}),
+                    "error": None,
+                }
+            )
+    return observations
+
+
+def _functional_result() -> dict[str, object]:
+    return {
+        "status": "functional_oracle_complete_diagnostics_pending",
+        "sample_size": 100,
+        "comparison_reference": "deterministic functional success flag",
+        "before": {
+            "observations": 100,
+            "missing": 0,
+            "exact_agreement": 0.91,
+            "cohens_kappa": 0.2936,
+        },
+        "after": {
+            "observations": 100,
+            "missing": 0,
+            "exact_agreement": 1.0,
+            "cohens_kappa": 1.0,
+        },
+    }

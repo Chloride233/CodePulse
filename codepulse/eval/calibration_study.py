@@ -15,6 +15,10 @@ from codepulse.eval.calibration_diagnostic import (
     prepare_diagnostic_review_files,
     validate_diagnostic_responses,
 )
+from codepulse.eval.calibration_diagnostic_analysis import (
+    analyze_diagnostic_study,
+    render_diagnostic_report,
+)
 from codepulse.eval.calibration_diagnostic_judge import (
     run_diagnostic_judge,
     validate_diagnostic_judge_observations,
@@ -76,6 +80,20 @@ def main() -> None:
     analyze.add_argument("--output-report", required=True)
     analyze.add_argument("--force", action="store_true")
 
+    analyze_diagnostic = subparsers.add_parser("analyze-diagnostic")
+    analyze_diagnostic.add_argument("--packets-1", required=True)
+    analyze_diagnostic.add_argument("--mapping-1", required=True)
+    analyze_diagnostic.add_argument("--responses-1", required=True)
+    analyze_diagnostic.add_argument("--packets-2", required=True)
+    analyze_diagnostic.add_argument("--mapping-2", required=True)
+    analyze_diagnostic.add_argument("--responses-2", required=True)
+    analyze_diagnostic.add_argument("--judge-observations", required=True)
+    analyze_diagnostic.add_argument("--adjudications")
+    analyze_diagnostic.add_argument("--functional-result", required=True)
+    analyze_diagnostic.add_argument("--output-json", required=True)
+    analyze_diagnostic.add_argument("--output-report", required=True)
+    analyze_diagnostic.add_argument("--force", action="store_true")
+
     judge = subparsers.add_parser("judge")
     judge.add_argument("--packets", required=True)
     judge.add_argument("--output", required=True)
@@ -133,6 +151,10 @@ def main() -> None:
 
     if args.command == "analyze":
         _run_analysis(args)
+        return
+
+    if args.command == "analyze-diagnostic":
+        _run_diagnostic_analysis(args)
         return
 
     if args.command == "judge-diagnostic":
@@ -200,8 +222,42 @@ def _run_analysis(args: argparse.Namespace) -> None:
     print(json.dumps({"status": analysis["status"]}, ensure_ascii=False))
 
 
+def _run_diagnostic_analysis(args: argparse.Namespace) -> None:
+    output_json = Path(args.output_json)
+    output_report = Path(args.output_report)
+    existing = [path for path in (output_json, output_report) if path.exists()]
+    if existing and not args.force:
+        raise FileExistsError(f"refusing to overwrite existing artifact: {existing[0]}")
+    analysis = analyze_diagnostic_study(
+        functional_result=_load_json_object(args.functional_result),
+        packets_1=load_jsonl(Path(args.packets_1)),
+        mapping_1=load_jsonl(Path(args.mapping_1)),
+        responses_1=load_jsonl(Path(args.responses_1)),
+        packets_2=load_jsonl(Path(args.packets_2)),
+        mapping_2=load_jsonl(Path(args.mapping_2)),
+        responses_2=load_jsonl(Path(args.responses_2)),
+        judge_observations=load_jsonl(Path(args.judge_observations)),
+        adjudications=_optional_jsonl(args.adjudications),
+    )
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    output_report.parent.mkdir(parents=True, exist_ok=True)
+    output_json.write_text(
+        json.dumps(analysis, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    output_report.write_text(render_diagnostic_report(analysis), encoding="utf-8")
+    print(json.dumps({"status": analysis["status"]}, ensure_ascii=False))
+
+
 def _optional_jsonl(path: str | None) -> list[dict[str, Any]] | None:
     return load_jsonl(Path(path)) if path else None
+
+
+def _load_json_object(path: str) -> dict[str, Any]:
+    value = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"expected JSON object: {path}")
+    return value
 
 
 if __name__ == "__main__":
