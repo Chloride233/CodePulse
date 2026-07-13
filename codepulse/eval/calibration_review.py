@@ -25,6 +25,7 @@ JUDGE_VARIANTS = {
     "length_full",
     "length_compact",
 }
+FUNCTIONAL_JUDGE_PROMPT_VERSION = "functional-evidence-judge-v2"
 _FORBIDDEN_REVIEW_KEYS = {
     "agent_name",
     "human_review_round_1",
@@ -53,6 +54,10 @@ You audit deterministic execution evidence. Choose exactly one label:
 - insufficient_evidence: evidence is missing or contradictory.
 
 Do not infer code quality, reasoning quality, robustness, or user experience.
+An artifact_status that reports missing final code or a missing full transcript is
+expected for this functional-only sample. It limits non-functional review but does
+not contradict an otherwise complete official verification result. Judge pass/fail
+support from the verification fields alone.
 Return JSON only: {"label":"<label>","reasoning":"<evidence-grounded reason>"}
 """
 
@@ -311,6 +316,7 @@ def run_functional_judge(
             "packet_sha256": packet["packet_sha256"],
             "judge_model": model,
             "variant": "identity_blind",
+            "prompt_version": FUNCTIONAL_JUDGE_PROMPT_VERSION,
         }
         try:
             parsed = json.loads(raw) if raw is not None else None

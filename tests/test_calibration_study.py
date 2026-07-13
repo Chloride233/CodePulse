@@ -372,12 +372,15 @@ def test_calibration_functional_judge_persists_malformed_raw_response() -> None:
             '{"label":"supported_pass","reasoning":"Tests passed."}',
             "not json",
         ],
-    ):
+    ) as mock_call:
         observations = run_functional_judge(packets, model="judge-a")
 
     assert observations[0]["status"] == "ok"
+    assert observations[0]["prompt_version"] == "functional-evidence-judge-v2"
     assert observations[1]["status"] == "missing"
     assert observations[1]["raw_response"] == "not json"
+    system_prompt = mock_call.call_args_list[0].kwargs["messages"][0]["content"]
+    assert "not contradict an otherwise complete official verification result" in system_prompt
     assert validate_judge_observations(packets, observations) == []
 
 

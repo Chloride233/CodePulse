@@ -1,6 +1,6 @@
 # Phase 2 Calibration Sampling Protocol
 
-Status: **sample extracted; annotation not started**  
+Status: **Judge calibration complete; human annotation not started**
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)  
 Sample version: `calibration-sample-v1`
 
@@ -48,3 +48,8 @@ The approved functional-evidence rubric is now published at
 `docs/phase2-human-rubric.md`. The existing sample remains ineligible for process or
 alignment scores; `docs/phase2-calibration-runbook.md` defines the separate diagnostic
 capture and two-round review workflow.
+
+The completed Judge before/after evidence is stored in
+`results/phase2/judge-calibration-before-after.json` and `.md`. Agreement in that
+report uses deterministic functional evidence as the reference and is not represented
+as human agreement.
