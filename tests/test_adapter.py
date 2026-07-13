@@ -335,6 +335,34 @@ class TestRunProtocolAgent:
         assert result.metadata["failure_type"] == "provider_auth_error"
         assert result.stderr == "authentication failed"
 
+    def test_provider_authentication_message_is_classified_when_wrapped(self):
+        sandbox = MagicMock()
+        container = MagicMock()
+        task = _make_task("proto-wrapped-auth-error")
+        profile = AgentProfile(
+            name="proto",
+            type="protocol",
+            agent_class="module.Agent",
+        )
+        transcript = Transcript(session_id="session-wrapped-auth")
+        transcript.add_event(
+            TraceEvent(
+                timestamp=1.0,
+                event_type=EventType.ERROR,
+                content={
+                    "error": 'BadRequestError: {"type":"authentication_error"}',
+                    "error_type": "BadRequestError",
+                },
+            )
+        )
+        agent = MagicMock()
+        agent.run.return_value = transcript
+
+        with patch("codepulse.agent.adapter._load_agent_class", return_value=agent):
+            result = _run_protocol_agent(profile, task, sandbox, container)
+
+        assert result.metadata["failure_type"] == "provider_auth_error"
+
 
 def test_adapter_evidence_capture_survives_container_teardown() -> None:
     sandbox = MagicMock()

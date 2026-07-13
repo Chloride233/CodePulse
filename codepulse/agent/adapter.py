@@ -389,7 +389,7 @@ def _run_protocol_agent(
     if error_event is not None:
         failure_type = (
             "provider_auth_error"
-            if error_event.content.get("error_type") == "AuthenticationError"
+            if _is_provider_auth_error(error_event.content)
             else "provider_error"
         )
 
@@ -412,6 +412,22 @@ def _run_protocol_agent(
                 "provider_model_versions", []
             )
         },
+    )
+
+
+def _is_provider_auth_error(content: dict[str, Any]) -> bool:
+    """Recognize authentication failures across provider exception wrappers."""
+    error_type = str(content.get("error_type", "")).lower()
+    error = str(content.get("error", "")).lower()
+    return "authentication" in error_type or any(
+        marker in error
+        for marker in (
+            "authentication_error",
+            "authentication fails",
+            "invalid api key",
+            "api key is invalid",
+            "unauthorized",
+        )
     )
 
 
