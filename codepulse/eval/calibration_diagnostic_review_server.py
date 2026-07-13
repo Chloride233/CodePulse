@@ -352,8 +352,8 @@ _REVIEW_PAGE = """<!doctype html>
     .eyebrow { margin: 0 0 7px; color: #69766f; font-size: 12px; text-transform: uppercase; }
     h2 { font-size: 22px; margin: 0 0 18px; letter-spacing: 0; overflow-wrap: anywhere; }
     h3 { font-size: 14px; margin: 0 0 10px; }
+    .summary { margin: 0 0 20px; color: #405049; font-size: 15px; }
     .band { padding: 22px 0 26px; border-top: 1px solid #d5dcda; }
-    .band:first-of-type { border-top: 0; padding-top: 0; }
     .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 4px 0 0; border-top: 1px solid #d5dcda; border-bottom: 1px solid #d5dcda; }
     .fact { padding: 13px 12px 13px 0; min-width: 0; }
     .fact + .fact { border-left: 1px solid #d5dcda; padding-left: 14px; }
@@ -363,16 +363,32 @@ _REVIEW_PAGE = """<!doctype html>
     pre { margin: 0; padding: 16px; overflow: auto; background: #1d2622; color: #edf4f0; border-radius: 4px; font: 12px/1.58 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
     .code { max-height: 420px; }
     .verification { background: #252a35; max-height: 280px; }
+    .timeline { display: grid; gap: 0; margin: 6px 0 28px; border-top: 1px solid #d5dcda; }
+    .timeline-item { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: 13px 0; border-bottom: 1px solid #d5dcda; }
+    .timeline-index { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #dce9e4; color: #245b48; font-size: 11px; font-weight: 700; }
+    .timeline-item strong { display: block; font-size: 14px; margin-bottom: 3px; }
+    .timeline-item span { display: block; color: #637069; font-size: 12px; overflow-wrap: anywhere; }
+    details { border-top: 1px solid #bbc6c1; border-bottom: 1px solid #bbc6c1; }
+    summary { padding: 15px 2px; cursor: pointer; color: #34443d; font-weight: 700; }
+    .details-body { padding: 0 0 12px; }
     .trace { display: grid; gap: 10px; }
     .event { border-left: 3px solid #8ca49a; padding: 12px 14px; background: #fff; }
     .event-head { display: flex; gap: 10px; justify-content: space-between; margin-bottom: 7px; color: #55635d; font-size: 11px; }
     .event pre { background: #edf1ef; color: #26312c; max-height: 320px; }
     .score-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid #c8d1cd; border-radius: 5px; overflow: hidden; }
-    .score-option { min-width: 0; height: 48px; border: 0; border-left: 1px solid #c8d1cd; background: #fff; color: #26332d; font-weight: 700; cursor: pointer; }
+    .score-option { min-width: 0; height: 58px; border: 0; border-left: 1px solid #c8d1cd; background: #fff; color: #26332d; cursor: pointer; }
+    .score-option strong, .score-option span { display: block; }
+    .score-option strong { font-size: 15px; }
+    .score-option span { margin-top: 2px; font-size: 10px; font-weight: 500; }
     .score-option:first-child { border-left: 0; }
     .score-option:hover, .score-option:focus-visible { background: #e8f3ef; outline: 2px solid #08775a; outline-offset: -2px; }
     .score-option[aria-pressed="true"] { background: #08775a; color: #fff; }
     .rubric { min-height: 66px; margin: 12px 0 20px; color: #4d5c55; font-size: 13px; }
+    .reason-list { display: grid; gap: 8px; margin-bottom: 18px; }
+    .reason-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 9px; align-items: start; margin: 0; padding: 9px 10px; border: 1px solid #d5dcda; border-radius: 4px; color: #34443d; cursor: pointer; }
+    .reason-option:hover { border-color: #7e9e91; background: #f2f7f5; }
+    .reason-option input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: #08775a; }
+    .reason-option span { font-size: 12px; line-height: 1.45; }
     label { display: block; margin: 0 0 8px; color: #596660; font-size: 12px; }
     textarea { width: 100%; min-height: 116px; resize: vertical; border: 1px solid #c8d1cd; border-radius: 4px; padding: 11px 12px; color: #17201c; background: #fff; }
     textarea:focus { border-color: #08775a; outline: 2px solid #b9ded2; }
@@ -412,44 +428,65 @@ _REVIEW_PAGE = """<!doctype html>
   <main>
     <section class="evidence">
       <p class="eyebrow" id="round"></p>
-      <h2 id="taskDescription"></h2>
+      <h2>过程摘要</h2>
+      <p class="summary" id="plainSummary"></p>
       <div class="facts">
-        <div class="fact"><span>Token</span><strong id="tokens"></strong></div>
-        <div class="fact"><span>工具调用</span><strong id="toolCalls"></strong></div>
-        <div class="fact"><span>耗时</span><strong id="duration"></strong></div>
-        <div class="fact"><span>官方测试</span><strong id="tests"></strong></div>
+        <div class="fact"><span>写代码</span><strong id="codeWrites"></strong></div>
+        <div class="fact"><span>运行命令</span><strong id="testRuns"></strong></div>
+        <div class="fact"><span>失败事件</span><strong id="observedFailures"></strong></div>
+        <div class="fact"><span>最终测试</span><strong id="finalTests"></strong></div>
       </div>
       <div class="band">
-        <h3>任务代码</h3>
-        <pre class="code" id="taskCode"></pre>
+        <h3>过程时间线</h3>
+        <div class="timeline" id="plainTimeline"></div>
       </div>
-      <div class="band">
-        <h3>最终代码</h3>
-        <pre class="code" id="finalCode"></pre>
-      </div>
-      <div class="band">
-        <h3>可观察 Trace</h3>
-        <div class="trace" id="traceEvents"></div>
-      </div>
-      <div class="band">
-        <h3>官方验证</h3>
-        <pre class="verification" id="verification"></pre>
-      </div>
+      <details id="detailedEvidence">
+        <summary>查看详细证据</summary>
+        <div class="details-body">
+          <div class="band">
+            <h3>任务说明</h3>
+            <p id="taskDescription"></p>
+            <pre class="code" id="taskCode"></pre>
+          </div>
+          <div class="band">
+            <h3>最终代码</h3>
+            <pre class="code" id="finalCode"></pre>
+          </div>
+          <div class="band">
+            <h3>原始 Trace</h3>
+            <div class="trace" id="rawTraceEvents"></div>
+          </div>
+          <div class="band">
+            <h3>官方验证与指标</h3>
+            <pre class="verification" id="verification"></pre>
+          </div>
+        </div>
+      </details>
     </section>
     <aside class="review">
       <div id="message" class="message hidden"></div>
       <p class="eyebrow">过程质量</p>
       <h2>评分</h2>
       <div class="score-grid" role="group" aria-label="过程质量评分">
-        <button class="score-option" data-score="1" aria-pressed="false">1</button>
-        <button class="score-option" data-score="2" aria-pressed="false">2</button>
-        <button class="score-option" data-score="3" aria-pressed="false">3</button>
-        <button class="score-option" data-score="4" aria-pressed="false">4</button>
-        <button class="score-option" data-score="5" aria-pressed="false">5</button>
+        <button class="score-option" data-score="1" aria-pressed="false"><strong>1</strong><span>不可靠</span></button>
+        <button class="score-option" data-score="2" aria-pressed="false"><strong>2</strong><span>较差</span></button>
+        <button class="score-option" data-score="3" aria-pressed="false"><strong>3</strong><span>一般</span></button>
+        <button class="score-option" data-score="4" aria-pressed="false"><strong>4</strong><span>可靠</span></button>
+        <button class="score-option" data-score="5" aria-pressed="false"><strong>5</strong><span>很好</span></button>
       </div>
       <p class="rubric" id="rubric"></p>
-      <label for="rationale">可观察理由</label>
-      <textarea id="rationale" required></textarea>
+      <label>符合的事实</label>
+      <div class="reason-list">
+        <label class="reason-option"><input type="checkbox" value="步骤直接，没有重复尝试。"><span>步骤直接，没有重复尝试</span></label>
+        <label class="reason-option"><input type="checkbox" value="有少量可避免的步骤。"><span>有少量可避免的步骤</span></label>
+        <label class="reason-option"><input type="checkbox" value="失败后进行了有效修复。"><span>失败后进行了有效修复</span></label>
+        <label class="reason-option"><input type="checkbox" value="失败后的恢复不足。"><span>失败后的恢复不足</span></label>
+        <label class="reason-option"><input type="checkbox" value="出现了重复或相似尝试。"><span>出现了重复或相似尝试</span></label>
+        <label class="reason-option"><input type="checkbox" value="最终代码与官方验证一致。"><span>最终代码与官方验证一致</span></label>
+        <label class="reason-option"><input type="checkbox" value="关键过程证据不足。"><span>关键过程证据不足</span></label>
+      </div>
+      <label for="customNote">补充（可选）</label>
+      <textarea id="customNote"></textarea>
       <button class="save" id="save" disabled>保存并继续</button>
       <div class="nav">
         <button class="icon" id="previous" title="上一条" aria-label="上一条">&larr;</button>
@@ -460,6 +497,8 @@ _REVIEW_PAGE = """<!doctype html>
   <script>
     const token = new URLSearchParams(location.search).get("token") || "";
     const scoreButtons = [...document.querySelectorAll(".score-option")];
+    const reasonInputs = [...document.querySelectorAll(".reason-option input")];
+    const reasonValues = reasonInputs.map((input) => input.value);
     const rubric = {
       1: "过程缺失、根本不可靠，或没有被最终产物与验证支持。",
       2: "存在重大缺口、重复无效工作，或失败后的恢复明显不足。",
@@ -482,8 +521,8 @@ _REVIEW_PAGE = """<!doctype html>
       document.getElementById(id).textContent = value === null || value === undefined || value === "" ? empty : String(value);
     }
 
-    function renderTrace(events) {
-      const container = document.getElementById("traceEvents");
+    function renderRawTrace(events) {
+      const container = document.getElementById("rawTraceEvents");
       container.replaceChildren();
       events.forEach((event, index) => {
         const article = document.createElement("article");
@@ -502,8 +541,98 @@ _REVIEW_PAGE = """<!doctype html>
       });
     }
 
+    function toolName(event) {
+      return String(event.content?.tool || "");
+    }
+
+    function outputSummary(event) {
+      const output = String(event.content?.output || "");
+      const match = output.match(/\b\\d+\\s+(?:passed|failed)\b/i);
+      return match ? match[0] : "";
+    }
+
+    function analyzeEvents(events, verification) {
+      let codeWrites = 0;
+      let testRuns = 0;
+      let failures = 0;
+      let sawFailure = false;
+      const timeline = [];
+      events.forEach((event) => {
+        const type = String(event.event_type || "");
+        const tool = toolName(event);
+        let title = "记录了一步过程";
+        let detail = "";
+        if (type === "llm_call") {
+          title = "AI 查看进展并决定下一步";
+        } else if (type === "tool_call" && tool === "write_file") {
+          codeWrites += 1;
+          title = "写入或修改代码";
+        } else if (type === "tool_call" && tool === "execute") {
+          testRuns += 1;
+          title = "运行命令或测试";
+        } else if (type === "tool_call" && tool === "read_file") {
+          title = "读取文件";
+        } else if (type === "tool_call") {
+          title = "使用工具";
+          detail = tool;
+        } else if (type === "tool_result") {
+          const success = event.content?.success !== false;
+          if (!success) {
+            failures += 1;
+            sawFailure = true;
+            title = "工具执行失败";
+          } else if (sawFailure) {
+            title = "失败后再次执行成功";
+          } else {
+            title = tool === "execute" ? "命令或测试执行完成" : "工具执行完成";
+          }
+          detail = outputSummary(event);
+        } else if (type === "error") {
+          failures += 1;
+          sawFailure = true;
+          title = "调用出现错误";
+        }
+        timeline.push({title, detail});
+      });
+      return {
+        codeWrites,
+        testRuns,
+        failures,
+        finalTests: `${verification.pytest_passed ?? 0} / ${verification.pytest_total ?? 0}`,
+        timeline,
+      };
+    }
+
+    function renderTimeline(items) {
+      const container = document.getElementById("plainTimeline");
+      container.replaceChildren();
+      items.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "timeline-item";
+        const number = document.createElement("div");
+        number.className = "timeline-index";
+        number.textContent = String(index + 1);
+        const copy = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = item.title;
+        const detail = document.createElement("span");
+        detail.textContent = item.detail;
+        copy.append(title);
+        if (item.detail) copy.append(detail);
+        row.append(number, copy);
+        container.append(row);
+      });
+    }
+
+    function assembledRationale() {
+      const selected = reasonInputs.filter((input) => input.checked).map((input) => input.value);
+      const custom = document.getElementById("customNote").value.trim();
+      if (custom) selected.push(custom);
+      return selected.join("；");
+    }
+
     function updateSaveState() {
-      document.getElementById("save").disabled = !selectedScore || !document.getElementById("rationale").value.trim();
+      document.getElementById("save").disabled = !selectedScore || !assembledRationale();
     }
 
     function chooseScore(score) {
@@ -521,6 +650,7 @@ _REVIEW_PAGE = """<!doctype html>
       const trace = evidence.trace || {};
       const metrics = evidence.metrics || {};
       const verification = evidence.verification || {};
+      const analysis = analyzeEvents(trace.events || [], verification);
       const percent = state.total ? (state.completed / state.total) * 100 : 0;
       document.getElementById("bar").style.width = `${percent}%`;
       text("progress", `${state.completed} / ${state.total}`);
@@ -528,13 +658,18 @@ _REVIEW_PAGE = """<!doctype html>
       text("taskDescription", task.description);
       text("taskCode", task.input_code);
       text("finalCode", evidence.final_code);
-      text("tokens", metrics.total_tokens ?? trace.total_tokens);
-      text("toolCalls", trace.tool_call_count);
-      text("duration", `${metrics.duration_seconds ?? trace.total_duration ?? 0}s`);
-      text("tests", `${verification.pytest_passed ?? 0} / ${verification.pytest_total ?? 0}`);
-      text("verification", JSON.stringify(verification, null, 2));
-      renderTrace(trace.events || []);
-      document.getElementById("rationale").value = state.response.rationale || "";
+      text("codeWrites", `${analysis.codeWrites} 次`);
+      text("testRuns", `${analysis.testRuns} 次`);
+      text("observedFailures", `${analysis.failures} 次`);
+      text("finalTests", analysis.finalTests);
+      text("plainSummary", `AI 写了 ${analysis.codeWrites} 次代码，运行了 ${analysis.testRuns} 次命令或测试，观察到 ${analysis.failures} 次失败；最终官方测试 ${analysis.finalTests}。`);
+      text("verification", JSON.stringify({verification, metrics, trace_summary: {total_tokens: trace.total_tokens, total_duration: trace.total_duration, tool_call_count: trace.tool_call_count}}, null, 2));
+      renderTimeline(analysis.timeline);
+      renderRawTrace(trace.events || []);
+      const savedRationale = state.response.rationale || "";
+      reasonInputs.forEach((input) => { input.checked = savedRationale.includes(input.value); });
+      const customParts = savedRationale.split("；").filter((part) => part && !reasonValues.includes(part));
+      document.getElementById("customNote").value = customParts.join("；");
       selectedScore = null;
       if (state.response.score) chooseScore(Number(state.response.score));
       else {
@@ -562,7 +697,7 @@ _REVIEW_PAGE = """<!doctype html>
 
     async function submit() {
       if (!state || !selectedScore) return;
-      const rationale = document.getElementById("rationale").value.trim();
+      const rationale = assembledRationale();
       document.getElementById("save").disabled = true;
       try {
         render(await request("/api/review", {
@@ -584,7 +719,8 @@ _REVIEW_PAGE = """<!doctype html>
     }
 
     scoreButtons.forEach((button) => button.addEventListener("click", () => chooseScore(Number(button.dataset.score))));
-    document.getElementById("rationale").addEventListener("input", updateSaveState);
+    reasonInputs.forEach((input) => input.addEventListener("change", updateSaveState));
+    document.getElementById("customNote").addEventListener("input", updateSaveState);
     document.getElementById("save").addEventListener("click", submit);
     document.getElementById("previous").addEventListener("click", () => load(state.index - 1));
     document.getElementById("next").addEventListener("click", () => load(state.index + 1));

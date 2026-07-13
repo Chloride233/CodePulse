@@ -297,12 +297,16 @@ def test_diagnostic_review_server_opens_and_closes_cleanly() -> None:
     server.server_close.assert_called_once()
 
 
-def test_diagnostic_review_page_has_full_evidence_and_five_scores() -> None:
-    assert 'id="taskDescription"' in _REVIEW_PAGE
-    assert 'id="finalCode"' in _REVIEW_PAGE
-    assert 'id="traceEvents"' in _REVIEW_PAGE
-    assert 'id="verification"' in _REVIEW_PAGE
+def test_diagnostic_review_page_has_plain_summary_and_collapsed_evidence() -> None:
+    assert 'id="codeWrites"' in _REVIEW_PAGE
+    assert 'id="testRuns"' in _REVIEW_PAGE
+    assert 'id="observedFailures"' in _REVIEW_PAGE
+    assert 'id="finalTests"' in _REVIEW_PAGE
+    assert 'id="plainTimeline"' in _REVIEW_PAGE
+    assert '<details id="detailedEvidence">' in _REVIEW_PAGE
+    assert 'id="rawTraceEvents"' in _REVIEW_PAGE
     assert _REVIEW_PAGE.count('class="score-option"') == 5
+    assert _REVIEW_PAGE.count('class="reason-option"') == 7
 
 
 def test_diagnostic_review_server_rejects_invalid_session_token() -> None:
