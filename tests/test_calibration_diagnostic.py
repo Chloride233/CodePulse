@@ -731,19 +731,35 @@ def test_diagnostic_report_states_metrics_limits_and_usage_boundaries() -> None:
                 "length_compact": {"n": 10, "exact_agreement": 0.7, "cohens_kappa": 0.6, "pearson": 0.75, "mean_absolute_error": 0.3},
             },
             "missing_judge_observations": 0,
-            "position_bias": {"status": "not_identifiable"},
+            "position_bias": {
+                "status": "not_identifiable",
+                "reason": "a single candidate provides no order-swapped comparison",
+            },
             "length_bias": {"n": 10, "mean_full_minus_compact": 0.1, "length_residual_correlation": 0.2},
-            "model_self_preference": {"status": "not_identifiable"},
+            "model_self_preference": {
+                "status": "not_identifiable",
+                "reason": "crossed model families are unavailable",
+            },
             "calibration": {"before": {"mean_absolute_error": 0.3}, "after": {"mean_absolute_error": 0.2}},
-            "hard_cases": [],
+            "hard_cases": [
+                {"kind": "length_sensitive", "packet_id": "packet-1"},
+                {"kind": "judge_human_disagreement", "packet_id": "packet-2"},
+            ],
         }
     )
 
-    assert "intra-rater" in report
+    assert "Reviewer mode: **intra-rater**" in report
+    assert "Intra-rater repeatability sample count: 10" in report
+    assert "Human-human" not in report
+    assert "Compact Judge-human Pearson: 0.75" in report
+    assert "Compact Judge-human mean absolute error: 0.3" in report
     assert "91.0%" in report
     assert "100.0%" in report
     assert "Pearson" in report
     assert "not_identifiable" in report
+    assert "a single candidate provides no order-swapped comparison" in report
+    assert "judge human disagreement: 1" in report
+    assert "length sensitive: 1" in report
     assert "No significance claim" in report
     assert "Deterministic Grader" in report
     assert "LLM Judge" in report

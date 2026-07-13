@@ -213,6 +213,16 @@ def render_diagnostic_report(analysis: dict[str, Any]) -> str:
     after = calibration.get("after", {})
     hard_cases = analysis.get("hard_cases", [])
     reviewer_mode = str(analysis.get("reviewer_mode", "unknown")).replace("_", "-")
+    repeatability_label = (
+        "Intra-rater repeatability"
+        if reviewer_mode == "intra-rater"
+        else "Inter-rater agreement"
+    )
+    hard_case_counts = Counter(str(case.get("kind", "unknown")) for case in hard_cases)
+    hard_case_lines = [
+        f"- {kind.replace('_', ' ')}: {count}"
+        for kind, count in sorted(hard_case_counts.items())
+    ] or ["- None."]
     lines = [
         "# Phase 2 LLM-as-Judge Calibration Report",
         "",
@@ -234,26 +244,42 @@ def render_diagnostic_report(analysis: dict[str, Any]) -> str:
         "",
         "## Agreement",
         "",
-        f"- Human-human exact agreement: {_display(human.get('exact_agreement'))}",
-        f"- Human-human Cohen's kappa: {_display(human.get('cohens_kappa'))}",
-        f"- Human-human Pearson: {_display(human.get('pearson'))}",
-        f"- Human-human mean absolute error: {_display(human.get('mean_absolute_error'))}",
+        f"- {repeatability_label} sample count: {_display(human.get('n'))}",
+        f"- {repeatability_label} exact agreement: {_display(human.get('exact_agreement'))}",
+        f"- {repeatability_label} within one point: {_display(human.get('within_one_point'))}",
+        f"- {repeatability_label} Cohen's kappa: {_display(human.get('cohens_kappa'))}",
+        f"- {repeatability_label} Pearson: {_display(human.get('pearson'))}",
+        f"- {repeatability_label} mean absolute error: {_display(human.get('mean_absolute_error'))}",
+        f"- Full Judge-human sample count: {_display(full.get('n'))}",
         f"- Full Judge-human exact agreement: {_display(full.get('exact_agreement'))}",
+        f"- Full Judge-human within one point: {_display(full.get('within_one_point'))}",
         f"- Full Judge-human Cohen's kappa: {_display(full.get('cohens_kappa'))}",
         f"- Full Judge-human Pearson: {_display(full.get('pearson'))}",
         f"- Full Judge-human mean absolute error: {_display(full.get('mean_absolute_error'))}",
         f"- Compact Judge-human sample count: {_display(compact.get('n'))}",
+        f"- Compact Judge-human exact agreement: {_display(compact.get('exact_agreement'))}",
+        f"- Compact Judge-human within one point: {_display(compact.get('within_one_point'))}",
+        f"- Compact Judge-human Cohen's kappa: {_display(compact.get('cohens_kappa'))}",
+        f"- Compact Judge-human Pearson: {_display(compact.get('pearson'))}",
+        f"- Compact Judge-human mean absolute error: {_display(compact.get('mean_absolute_error'))}",
         f"- Missing Judge observations: {analysis.get('missing_judge_observations', 0)}",
         "",
         "## Bias Diagnostics",
         "",
         f"- Position bias: {_display(analysis.get('position_bias', {}).get('status'))}",
+        f"- Position bias reason: {_display(analysis.get('position_bias', {}).get('reason'))}",
         f"- Length full-minus-compact delta: {_display(length.get('mean_full_minus_compact'))}",
         f"- Length/residual Pearson: {_display(length.get('length_residual_correlation'))}",
         f"- Model self-preference: {_display(analysis.get('model_self_preference', {}).get('status'))}",
-        f"- Hard cases: {len(hard_cases)}",
+        f"- Model self-preference reason: {_display(analysis.get('model_self_preference', {}).get('reason'))}",
         "",
         "No significance claim is made from this small diagnostic batch.",
+        "",
+        "## Hard Cases",
+        "",
+        f"Total: **{len(hard_cases)}**",
+        "",
+        *hard_case_lines,
         "",
         "## Held-out Calibration",
         "",
