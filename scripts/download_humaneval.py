@@ -20,15 +20,18 @@ OFFICIAL_URL = (
 PILOT_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(20)]
 
 
-def convert_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert the fixed pilot subset to CodePulse's flat JSONL schema."""
+def convert_records(
+    records: Iterable[dict[str, Any]], *, task_ids: list[str] | None = None
+) -> list[dict[str, Any]]:
+    """Convert a fixed HumanEval subset to CodePulse's flat JSONL schema."""
+    selected_ids = PILOT_TASK_IDS if task_ids is None else task_ids
     by_id = {record.get("task_id"): record for record in records}
-    missing = [task_id for task_id in PILOT_TASK_IDS if task_id not in by_id]
+    missing = [task_id for task_id in selected_ids if task_id not in by_id]
     if missing:
-        raise ValueError(f"Official HumanEval source is missing pilot tasks: {missing}")
+        raise ValueError(f"Official HumanEval source is missing tasks: {missing}")
 
     converted: list[dict[str, Any]] = []
-    for task_id in PILOT_TASK_IDS:
+    for task_id in selected_ids:
         record = by_id[task_id]
         prompt = _required_text(record, "prompt", task_id)
         canonical_solution = _required_text(record, "canonical_solution", task_id)
@@ -53,9 +56,16 @@ def convert_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def prepare_pilot_dataset(source_path: Path, output_path: Path) -> int:
     """Read official gzip JSONL and write the fixed 20-task pilot JSONL."""
+    return prepare_humaneval_dataset(source_path, output_path, PILOT_TASK_IDS)
+
+
+def prepare_humaneval_dataset(
+    source_path: Path, output_path: Path, task_ids: list[str]
+) -> int:
+    """Read official gzip JSONL and write an explicit HumanEval subset."""
     with gzip.open(source_path, "rt", encoding="utf-8") as source_file:
         records = [json.loads(line) for line in source_file if line.strip()]
-    converted = convert_records(records)
+    converted = convert_records(records, task_ids=task_ids)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as output_file:
         for record in converted:
@@ -83,13 +93,22 @@ def main() -> None:
         default=Path("datasets/humaneval/pilot-v1.jsonl"),
     )
     parser.add_argument("--no-download", action="store_true")
+    parser.add_argument("--start-task", type=int, default=0)
+    parser.add_argument("--task-count", type=int, default=20)
     args = parser.parse_args()
+
+    if args.start_task < 0 or args.task_count < 1:
+        raise ValueError("start-task must be non-negative and task-count must be positive")
 
     if not args.source.exists():
         if args.no_download:
             raise FileNotFoundError(args.source)
         download_official_dataset(args.source)
-    task_count = prepare_pilot_dataset(args.source, args.output)
+    task_ids = [
+        f"HumanEval/{task_id}"
+        for task_id in range(args.start_task, args.start_task + args.task_count)
+    ]
+    task_count = prepare_humaneval_dataset(args.source, args.output, task_ids)
     print(f"Prepared {task_count} tasks at {args.output}")
 
 

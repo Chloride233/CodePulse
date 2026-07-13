@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING
 import pytest
 
 from codepulse.data.custom_loader import CustomDatasetLoader
-from scripts.download_humaneval import PILOT_TASK_IDS, convert_records, prepare_pilot_dataset
+from scripts.download_humaneval import (
+    PILOT_TASK_IDS,
+    convert_records,
+    prepare_humaneval_dataset,
+    prepare_pilot_dataset,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -44,6 +49,14 @@ def test_humaneval_convert_records_missing_task_rejected() -> None:
         convert_records(_records()[:-1])
 
 
+def test_humaneval_convert_records_accepts_explicit_task_ids() -> None:
+    task_ids = ["HumanEval/3", "HumanEval/1"]
+
+    converted = convert_records(_records(), task_ids=task_ids)
+
+    assert [record["task_id"] for record in converted] == task_ids
+
+
 def test_humaneval_prepare_output_loads_in_codepulse(tmp_path: Path) -> None:
     source_path = tmp_path / "HumanEval.jsonl.gz"
     output_path = tmp_path / "pilot-v1.jsonl"
@@ -57,3 +70,17 @@ def test_humaneval_prepare_output_loads_in_codepulse(tmp_path: Path) -> None:
     assert [task.task_id for task in tasks] == PILOT_TASK_IDS
     assert all(task.input["input_code"] for task in tasks)
     assert all(task.ground_truth["test_cases"] for task in tasks)
+
+
+def test_humaneval_prepare_explicit_subset_loads_in_codepulse(tmp_path: Path) -> None:
+    source_path = tmp_path / "HumanEval.jsonl.gz"
+    output_path = tmp_path / "subset.jsonl"
+    with gzip.open(source_path, "wt", encoding="utf-8") as source_file:
+        for record in _records():
+            source_file.write(json.dumps(record) + "\n")
+
+    task_ids = ["HumanEval/7", "HumanEval/9"]
+    assert prepare_humaneval_dataset(source_path, output_path, task_ids) == 2
+
+    tasks = CustomDatasetLoader().load(str(output_path))
+    assert [task.task_id for task in tasks] == task_ids

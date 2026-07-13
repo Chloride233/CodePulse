@@ -9,6 +9,7 @@ from click.testing import CliRunner
 
 from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.pilot import (
+    DIAGNOSTIC_HARD_TASK_IDS,
     DIAGNOSTIC_TASK_IDS,
     PILOT_TASK_IDS,
     PilotBudgetGuard,
@@ -113,6 +114,30 @@ def test_phase2_diagnostic_pool_preflight_accepts_diverse_candidate_manifest(
             "budget": {
                 "total_cny": 4.0,
                 "per_agent_cny": 2.0,
+                "per_trial_cny": 0.1,
+            },
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase2_hard_diagnostic_preflight_accepts_iterative_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    manifest.update(
+        {
+            "protocol_version": "phase2-diagnostic-v3",
+            "task_ids": DIAGNOSTIC_HARD_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260713,
+            "agents": agents[:1],
+            "budget": {
+                "total_cny": 4.0,
+                "per_agent_cny": 4.0,
                 "per_trial_cny": 0.1,
             },
         }
