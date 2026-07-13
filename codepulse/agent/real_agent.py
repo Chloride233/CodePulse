@@ -230,6 +230,19 @@ class RealAgent:
                 result_content = tool_result.to_content()
                 if len(result_content) > 100_000:
                     result_content = result_content[:100_000] + "\n... (truncated)"
+                transcript.add_event(
+                    TraceEvent(
+                        timestamp=time.time(),
+                        event_type=EventType.TOOL_RESULT,
+                        content={
+                            "tool": func_name,
+                            "tool_call_id": tool_call_id,
+                            "success": tool_result.success,
+                            "output": result_content,
+                            "error": tool_result.error,
+                        },
+                    )
+                )
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call_id,

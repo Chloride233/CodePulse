@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -467,6 +469,8 @@ def run_adapter_trials(
     harness: Any,  # EvaluationHarness (避免循环导入)
     n_trials: int,
     sandbox_image: str = "codepulse-eval",
+    *,
+    capture_evidence: bool = False,
 ) -> list[Any]:
     """使用适配器模式执行多次 trial。
 
@@ -479,6 +483,7 @@ def run_adapter_trials(
         harness: EvaluationHarness 实例。
         n_trials: 试运行次数。
         sandbox_image: 沙箱镜像。
+        capture_evidence: Whether to retain full observable evidence before teardown.
 
     Returns:
         Trial 对象列表。
@@ -540,6 +545,8 @@ def run_adapter_trials(
 
             # 运行验证（pytest）
             _run_verification(task, sandbox, container, trial)
+            if capture_evidence:
+                trial.outcome["evidence"] = _build_trial_evidence(task, result, trial)
 
             # 评分
             dimension_scores = harness.grade(task, trial)
@@ -566,6 +573,72 @@ def run_adapter_trials(
         trials.append(trial)
 
     return trials
+
+
+def _build_trial_evidence(
+    task: Task,
+    result: AgentResult,
+    trial: Any,
+) -> dict[str, Any]:
+    """Build a hash-addressed evidence block while sandbox data is available."""
+    verification_keys = (
+        "exit_code",
+        "stdout",
+        "stderr",
+        "pytest_total",
+        "pytest_passed",
+    )
+    payload: dict[str, Any] = {
+        "schema_version": "calibration-evidence-v1",
+        "task": {
+            "task_id": task.task_id,
+            "language": task.language,
+            "description": task.input.get("description", ""),
+            "input_code": task.input.get("input_code", ""),
+            "expected_output": task.ground_truth.get("expected_output", ""),
+            "test_cases": task.ground_truth.get("test_cases", []),
+        },
+        "output_files": dict(sorted(result.output_files.items())),
+        "transcript": _serialize_transcript(result.transcript),
+        "verification": {
+            key: trial.outcome[key]
+            for key in verification_keys
+            if key in trial.outcome
+        },
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return {**payload, "sha256": hashlib.sha256(encoded).hexdigest()}
+
+
+def _serialize_transcript(transcript: Transcript | None) -> dict[str, Any] | None:
+    """Serialize the observable Transcript without provider-hidden reasoning."""
+    if transcript is None:
+        return None
+    return {
+        "session_id": transcript.session_id,
+        "agent_config": transcript.agent_config,
+        "events": [
+            {
+                "timestamp": event.timestamp,
+                "event_type": event.event_type.value,
+                "content": event.content,
+                "token_usage": event.token_usage,
+                "duration": event.duration,
+                "span_kind": event.span_kind.value if event.span_kind else None,
+                "parent_id": event.parent_id,
+                "span_id": event.span_id,
+            }
+            for event in transcript.events
+        ],
+        "total_tokens": transcript.total_tokens,
+        "total_duration": transcript.total_duration,
+        "tool_call_count": transcript.tool_call_count,
+    }
 
 
 def _is_success(

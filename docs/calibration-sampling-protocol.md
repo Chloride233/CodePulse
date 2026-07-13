@@ -43,3 +43,8 @@ python -m codepulse.eval.calibration_sampling \
 Every LLM Judge and human review score is `null`; extraction does not count as annotation. Phase 1 preserved deterministic test evidence and aggregate metrics but not final code or full transcripts. Therefore this sample is currently eligible only for functional-evidence calibration and is explicitly ineligible for process-quality or experience-alignment judgment.
 
 Before starting the rubric and two-pass review, CodePulse must capture the missing judge inputs or create a new evidence batch. Pytest logs must not be presented to reviewers as a substitute for agent reasoning or final code.
+
+The approved functional-evidence rubric is now published at
+`docs/phase2-human-rubric.md`. The existing sample remains ineligible for process or
+alignment scores; `docs/phase2-calibration-runbook.md` defines the separate diagnostic
+capture and two-round review workflow.

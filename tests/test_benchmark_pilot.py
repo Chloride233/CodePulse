@@ -119,6 +119,13 @@ def test_pilot_preflight_cli_valid_manifest_passes(tmp_path: Path) -> None:
     assert "Pilot preflight passed" in result.output
 
 
+def test_pilot_run_cli_exposes_opt_in_evidence_capture() -> None:
+    result = CliRunner().invoke(benchmark_group, ["pilot-run", "--help"])
+
+    assert result.exit_code == 0
+    assert "--capture-evidence" in result.output
+
+
 def test_pilot_budget_guard_cost_limits_and_projection_stop() -> None:
     guard = PilotBudgetGuard()
 

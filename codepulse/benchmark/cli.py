@@ -199,7 +199,17 @@ def benchmark_preflight(manifest_path: str, repo_root: str) -> None:
     type=click.Path(file_okay=False),
 )
 @click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
-def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> None:
+@click.option(
+    "--capture-evidence",
+    is_flag=True,
+    help="Persist full observable Trace and output files before sandbox teardown.",
+)
+def benchmark_pilot_run(
+    manifest_path: str,
+    output_dir: str,
+    repo_root: str,
+    capture_evidence: bool,
+) -> None:
     """Run the frozen two-Agent pilot in deterministic interleaved order."""
     from codepulse.agent.adapter import AgentProfile, run_adapter_trials
     from codepulse.env.sandbox import SandboxManager
@@ -254,6 +264,7 @@ def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> 
                 harness,
                 1,
                 sandbox_image=image,
+                capture_evidence=capture_evidence,
             )[0]
             trial.trial_id = f"{task_id}--r{repetition}--{agent_name}"
             versions = trial.outcome.get("provider_model_versions", [])
