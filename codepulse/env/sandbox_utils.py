@@ -10,12 +10,24 @@ import json
 import logging
 import tarfile
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from codepulse.env.sandbox import Container, SandboxManager
 
 logger = logging.getLogger(__name__)
+
+
+def _workspace_relative_path(path: str) -> str:
+    """Normalize a relative or /workspace path and reject traversal."""
+    normalized = path.strip()
+    if normalized.startswith("/workspace/"):
+        normalized = normalized.removeprefix("/workspace/")
+    candidate = PurePosixPath(normalized)
+    if not normalized or candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"Path must stay inside /workspace: {path}")
+    return candidate.as_posix()
 
 
 @dataclass(frozen=True)
@@ -63,6 +75,8 @@ class SandboxUtils:
         Raises:
             SandboxError: 写入失败。
         """
+        relative_path = _workspace_relative_path(path)
+
         # 确保工作目录存在
         self._sandbox.execute(container, "mkdir -p /workspace")
 
@@ -70,7 +84,7 @@ class SandboxUtils:
         tar_data = io.BytesIO()
         with tarfile.open(fileobj=tar_data, mode="w") as tar:
             content_bytes = content.encode("utf-8")
-            info = tarfile.TarInfo(name=path)
+            info = tarfile.TarInfo(name=relative_path)
             info.size = len(content_bytes)
             tar.addfile(info, io.BytesIO(content_bytes))
 
@@ -100,7 +114,8 @@ class SandboxUtils:
         Raises:
             SandboxError: 读取失败。
         """
-        result = self._sandbox.execute(container, f"cat /workspace/{path}")
+        relative_path = _workspace_relative_path(path)
+        result = self._sandbox.execute(container, f"cat /workspace/{relative_path}")
         if result.exit_code != 0:
             from codepulse.env.sandbox import SandboxError
 

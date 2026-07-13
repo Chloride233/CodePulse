@@ -55,6 +55,26 @@ class TestSandboxUtilsWriteFile:
         # 验证 put_archive 被调用
         mock_docker_container.put_archive.assert_called_once()
 
+    @patch("codepulse.env.sandbox_utils.tarfile")
+    def test_write_file_normalizes_absolute_workspace_path(
+        self, mock_tarfile: MagicMock
+    ) -> None:
+        sandbox = MagicMock()
+        container = MagicMock(id="test-container")
+        sandbox._client.containers.get.return_value = MagicMock()
+
+        SandboxUtils(sandbox).write_file(
+            container, "/workspace/solution.py", "return True"
+        )
+
+        mock_tarfile.TarInfo.assert_called_once_with(name="solution.py")
+
+    def test_write_file_rejects_parent_traversal(self) -> None:
+        with pytest.raises(ValueError, match="inside /workspace"):
+            SandboxUtils(MagicMock()).write_file(
+                MagicMock(), "../secret.txt", "secret"
+            )
+
 
 class TestSandboxUtilsReadFile:
     """Tests for SandboxUtils.read_file."""
