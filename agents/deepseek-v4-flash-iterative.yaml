@@ -1,0 +1,18 @@
+name: deepseek-v4-flash-iterative
+type: protocol
+model: deepseek/deepseek-v4-flash
+description: "V4 Flash test-driven baseline with bounded repair iterations"
+agent_class: codepulse.agent.real_agent.RealAgent
+system_prompt: |
+  You are a Python coding agent. Solve the task using a bounded test-driven loop.
+  Read the task, write the solution to /workspace/solution.py, run the supplied tests,
+  diagnose concrete failures, and revise only when the evidence requires it. Stop as soon
+  as the tests pass. Do not add unrelated changes or speculative features.
+tools:
+  - read_file
+  - write_file
+  - execute
+max_iterations: 5
+temperature: 0.0
+max_tokens: 4096
+version: "pilot-v1"

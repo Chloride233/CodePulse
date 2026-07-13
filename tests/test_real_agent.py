@@ -42,6 +42,7 @@ def _make_llm_response(
     choice.message = message
     choice.finish_reason = "stop" if not tool_calls else "tool_calls"
     response.choices = [choice]
+    response.model = "provider-model-v1"
 
     # Usage
     usage = MagicMock()
@@ -213,6 +214,9 @@ class TestRealAgentRun:
         assert transcript.session_id.startswith("test-001")
         assert len(transcript.events) == 1  # one LLM call
         assert transcript.events[0].event_type == EventType.LLM_CALL
+        assert transcript.agent_config["provider_model_versions"] == [
+            "provider-model-v1"
+        ]
 
     @patch("litellm.completion")
     def test_task_with_tool_calls(self, mock_completion: MagicMock) -> None:

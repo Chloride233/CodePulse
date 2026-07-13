@@ -1,0 +1,11 @@
+{
+  "status": "completed",
+  "completed_trials": 120,
+  "planned_trials": 120,
+  "total_cost_cny_peak": 0.998904,
+  "agent_costs_cny_peak": {
+    "deepseek-v4-flash-iterative": 0.6420840000000002,
+    "deepseek-v4-flash-direct": 0.35681999999999997
+  },
+  "stop_reasons": []
+}

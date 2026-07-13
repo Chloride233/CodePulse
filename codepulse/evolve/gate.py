@@ -175,7 +175,7 @@ class ValidationGate:
         improvement_rate = round(improved_count / n_tasks, 4)
         regression_rate = round(regressed_count / n_tasks, 4)
         improved = (
-            candidate_score >= baseline_score
+            candidate_score > baseline_score
             and p0_regressions == 0
             and cost_violations == 0
             and regression_suite_failures == 0

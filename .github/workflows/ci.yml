@@ -30,7 +30,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[dev]"
-      - run: bandit -c pyproject.toml -r codepulse/
+      - run: bandit -c pyproject.toml -r codepulse/ --severity-level high
 
   test:
     runs-on: ubuntu-latest

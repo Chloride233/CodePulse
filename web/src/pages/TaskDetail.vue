@@ -93,14 +93,15 @@ const dimAverages = computed(() => {
   return result;
 });
 
-function dimBarWidth(dim: string): string {
-  const avg = dimAverages.value[dim] ?? 0;
+function dimBarWidth(dim: string | number): string {
+  const avg = dimAverages.value[String(dim)] ?? 0;
   return `${avg * 100}%`;
 }
 
-function dimScoreDisplay(dim: string): string {
-  const avg = dimAverages.value[dim] ?? 0;
-  const max = DIMENSION_MAX[dim] ?? 10;
+function dimScoreDisplay(dim: string | number): string {
+  const key = String(dim);
+  const avg = dimAverages.value[key] ?? 0;
+  const max = DIMENSION_MAX[key] ?? 10;
   return `${(avg * max).toFixed(1)}/${max}`;
 }
 

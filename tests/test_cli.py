@@ -10,7 +10,7 @@ from __future__ import annotations
 import click
 from click.testing import CliRunner
 
-from codepulse.cli import cli
+from codepulse.cli import _result_filename, cli
 
 # ------------------------------------------------------------------
 # Helpers
@@ -104,6 +104,9 @@ class TestEvaluateCommand:
         runner = CliRunner()
         result = runner.invoke(cli, ["evaluate"])
         assert result.exit_code != 0
+
+    def test_result_filename_sanitizes_humaneval_trial_id(self) -> None:
+        assert _result_filename("HumanEval/0-trial-0") == "HumanEval__0-trial-0.json"
 
 
 # ------------------------------------------------------------------

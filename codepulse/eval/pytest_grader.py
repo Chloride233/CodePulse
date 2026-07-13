@@ -78,7 +78,7 @@ class PytestGrader:
         stdout = str(outcome.get("stdout", ""))
         stderr = str(outcome.get("stderr", ""))
 
-        details: dict[str, float | int | str | bool] = {
+        details: dict[str, object] = {
             "exit_code": exit_code,
             "stdout": stdout[:4096],
             "stderr": stderr[:4096],

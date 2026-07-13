@@ -1,0 +1,17 @@
+name: deepseek-v4-flash-direct
+type: protocol
+model: deepseek/deepseek-v4-flash
+description: "V4 Flash direct solution baseline with minimal iteration"
+agent_class: codepulse.agent.real_agent.RealAgent
+system_prompt: |
+  You are a Python coding agent. Solve the task with the smallest correct implementation.
+  Read the provided task, write the final answer to /workspace/solution.py, and run the
+  supplied tests once when possible. Do not add unrelated changes or speculative features.
+tools:
+  - read_file
+  - write_file
+  - execute
+max_iterations: 2
+temperature: 0.0
+max_tokens: 4096
+version: "pilot-v1"

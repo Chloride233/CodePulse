@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from codepulse.eval.scoring import PASS_THRESHOLD
+from codepulse.eval.scoring import PASS_THRESHOLD, ScoreDimension
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task
@@ -391,6 +391,11 @@ def _run_protocol_agent(
         cost_usd=transcript.agent_config.get("cost_usd", 0.0),
         duration=transcript.total_duration,
         output_files=output_files,
+        metadata={
+            "provider_model_versions": transcript.agent_config.get(
+                "provider_model_versions", []
+            )
+        },
     )
 
 
@@ -519,6 +524,9 @@ def run_adapter_trials(
                     "tool_call_count": result.transcript.tool_call_count
                     if result.transcript
                     else 0,
+                    "provider_model_versions": result.metadata.get(
+                        "provider_model_versions", []
+                    ),
                 },
                 metrics=TrialMetrics(
                     total_tokens=result.token_usage.get("input", 0)
@@ -537,7 +545,7 @@ def run_adapter_trials(
             dimension_scores = harness.grade(task, trial)
             total_score = harness.compute_total_score(dimension_scores)
             trial.scores = {dim.value: score for dim, score in dimension_scores.items()}
-            trial.success = total_score >= PASS_THRESHOLD
+            trial.success = _is_success(dimension_scores, total_score)
 
         except Exception:
             logger.exception("Trial %s 执行失败", trial_id)
@@ -558,6 +566,15 @@ def run_adapter_trials(
         trials.append(trial)
 
     return trials
+
+
+def _is_success(
+    dimension_scores: dict[ScoreDimension, float], total_score: float
+) -> bool:
+    """Use official-test success when functional is the only active grader."""
+    if set(dimension_scores) == {ScoreDimension.FUNCTIONAL}:
+        return dimension_scores[ScoreDimension.FUNCTIONAL] >= 1.0
+    return total_score >= PASS_THRESHOLD
 
 
 def _inject_task_files(
@@ -584,8 +601,6 @@ def _run_verification(
     task: Any, sandbox: SandboxManager, container: Any, trial: Any
 ) -> None:
     """在容器中运行验证测试（pytest）。"""
-    import json as _json
-
     from codepulse.env.sandbox_utils import SandboxUtils
 
     test_cases = task.ground_truth.get("test_cases", [])
@@ -625,19 +640,14 @@ def _run_verification(
         # Parse pytest output for pass/fail counts
         stdout = result.stdout or ""
         import re as _re
-        summary_line = ""
-        for line in stdout.split("\n"):
-            if "passed" in line and "failed" in line:
-                summary_line = line
-                break
-        if summary_line:
-            passed_m = _re.search(r"(\d+)\s+passed", summary_line)
-            failed_m = _re.search(r"(\d+)\s+failed", summary_line)
-            if passed_m:
-                trial.outcome["pytest_passed"] = int(passed_m.group(1))
-            if failed_m:
-                trial.outcome["pytest_failed"] = int(failed_m.group(1))
-            trial.outcome["pytest_total"] = int(passed_m.group(1)) + int(failed_m.group(1)) if passed_m and failed_m else 0
+        passed_m = _re.search(r"(\d+)\s+passed", stdout)
+        failed_m = _re.search(r"(\d+)\s+failed", stdout)
+        if passed_m or failed_m:
+            passed = int(passed_m.group(1)) if passed_m else 0
+            failed = int(failed_m.group(1)) if failed_m else 0
+            trial.outcome["pytest_passed"] = passed
+            trial.outcome["pytest_failed"] = failed
+            trial.outcome["pytest_total"] = passed + failed
         trial.outcome["exit_code"] = result.exit_code
         trial.outcome["stdout"] = (result.stdout or "")[:4096]
         trial.outcome["stderr"] = (result.stderr or "")[:4096]
