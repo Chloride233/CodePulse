@@ -268,7 +268,9 @@ def benchmark_pilot_run(
             )[0]
             trial.trial_id = f"{task_id}--r{repetition}--{agent_name}"
             versions = trial.outcome.get("provider_model_versions", [])
-            failure_type = "agent_error" if "error" in trial.outcome else None
+            failure_type = trial.outcome.get("failure_type")
+            if not isinstance(failure_type, str):
+                failure_type = "agent_error" if "error" in trial.outcome else None
             peak_cost = deepseek_v4_flash_cost_cny(
                 trial.metrics.input_tokens,
                 trial.metrics.output_tokens,
@@ -282,7 +284,7 @@ def benchmark_pilot_run(
                 "off_peak",
             )
             stopped_reasons = guard.record_trial(agent_name, peak_cost, failure_type)
-            if versions != [expected_models[agent_name]]:
+            if versions and versions != [expected_models[agent_name]]:
                 stopped_reasons.append("model_version_drift")
             record = {
                 "trial_id": trial.trial_id,

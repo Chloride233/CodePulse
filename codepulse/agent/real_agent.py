@@ -140,7 +140,11 @@ class RealAgent:
                 error_event = TraceEvent(
                     timestamp=time.time(),
                     event_type=EventType.ERROR,
-                    content={"error": str(exc), "iteration": iteration},
+                    content={
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "iteration": iteration,
+                    },
                 )
                 transcript.add_event(error_event)
                 logger.error("LLM 调用失败 (iteration %d): %s", iteration, exc)

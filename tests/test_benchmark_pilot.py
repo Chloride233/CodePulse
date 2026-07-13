@@ -200,6 +200,14 @@ def test_pilot_budget_guard_three_consecutive_infra_failures_stop() -> None:
     assert "consecutive_infrastructure_failures" in reasons
 
 
+def test_pilot_budget_guard_provider_authentication_stops_immediately() -> None:
+    guard = PilotBudgetGuard()
+
+    reasons = guard.record_trial("agent-a", 0.0, "provider_auth_error")
+
+    assert reasons == ["provider_authentication_failed"]
+
+
 def test_pilot_budget_guard_infra_failure_rate_after_ten_trials_stop() -> None:
     guard = PilotBudgetGuard()
     for _ in range(8):

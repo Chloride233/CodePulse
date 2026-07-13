@@ -15,7 +15,12 @@ DIAGNOSTIC_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(10)]
 MUTABLE_MODEL_NAMES = {"latest", "deepseek-chat", "deepseek/deepseek-chat"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
-INFRA_FAILURES = {"provider_error", "agent_error", "sandbox_error"}
+INFRA_FAILURES = {
+    "provider_auth_error",
+    "provider_error",
+    "agent_error",
+    "sandbox_error",
+}
 V4_FLASH_PRICING_CNY = {
     "off_peak": {"cache_hit": 0.02, "cache_miss": 1.0, "output": 2.0},
     "peak": {"cache_hit": 0.04, "cache_miss": 2.0, "output": 4.0},
@@ -109,6 +114,8 @@ class PilotBudgetGuard:
             self.consecutive_infrastructure_failures += 1
         else:
             self.consecutive_infrastructure_failures = 0
+        if failure_type == "provider_auth_error":
+            reasons.append("provider_authentication_failed")
         if self.consecutive_infrastructure_failures >= 3:
             reasons.append("consecutive_infrastructure_failures")
         if (

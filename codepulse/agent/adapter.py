@@ -381,9 +381,22 @@ def _run_protocol_agent(
     output_files = _collect_output_files(sandbox, container, "/workspace")
     sandbox.clear_active_container()
 
+    error_event = next(
+        (event for event in reversed(transcript.events) if event.event_type == "error"),
+        None,
+    )
+    failure_type = None
+    if error_event is not None:
+        failure_type = (
+            "provider_auth_error"
+            if error_event.content.get("error_type") == "AuthenticationError"
+            else "provider_error"
+        )
+
     return AgentResult(
         task_id=task.task_id,
-        exit_code=0,
+        exit_code=-1 if failure_type else 0,
+        stderr=str(error_event.content.get("error", "")) if error_event else "",
         transcript=transcript,
         token_usage={
             "input": transcript.agent_config.get("input_tokens", 0),
@@ -394,6 +407,7 @@ def _run_protocol_agent(
         duration=transcript.total_duration,
         output_files=output_files,
         metadata={
+            "failure_type": failure_type,
             "provider_model_versions": transcript.agent_config.get(
                 "provider_model_versions", []
             )
@@ -532,6 +546,7 @@ def run_adapter_trials(
                     "provider_model_versions": result.metadata.get(
                         "provider_model_versions", []
                     ),
+                    "failure_type": result.metadata.get("failure_type"),
                 },
                 metrics=TrialMetrics(
                     total_tokens=result.token_usage.get("input", 0)

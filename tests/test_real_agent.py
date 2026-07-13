@@ -294,6 +294,7 @@ class TestRealAgentRun:
         error_events = [e for e in transcript.events if e.event_type == EventType.ERROR]
         assert len(error_events) == 1
         assert "API error" in error_events[0].content["error"]
+        assert error_events[0].content["error_type"] == "RuntimeError"
 
     @patch("litellm.completion")
     def test_transcript_metrics(self, mock_completion: MagicMock) -> None:
