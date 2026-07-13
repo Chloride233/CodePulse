@@ -1,6 +1,6 @@
 # Phase 2 Judge Calibration: Before And After
 
-Status: **Judge complete; human review pending**
+Status: **Functional oracle calibration complete; diagnostic study pending**
 
 ## Evidence
 
@@ -31,8 +31,9 @@ disappeared on the full rerun; both real failures remained `supported_fail`.
 - Deterministic Graders remain authoritative for executable functional checks.
 - LLM Judges need dimension-specific evidence boundaries; generic artifact-completeness
   cautions can cause false abstention even when official functional evidence is valid.
-- This comparison does not replace human calibration. Both human rounds are still
-  blank and must be completed before Issue #1's agreement acceptance item is met.
+- Human annotation is not required for this functional sample because the reference
+  label is completely determined by official verification. Human calibration is
+  reserved for the pending full-evidence qualitative diagnostic batch.
 - Position and length diagnostics have not run. Model self-preference is not
   identifiable with the single available model family.
 

@@ -29,13 +29,6 @@ from codepulse.eval.calibration_review import (
 )
 
 ROOT = Path(__file__).parents[1]
-FUNCTIONAL_LABELS_FOR_TEST = (
-    "supported_pass",
-    "supported_fail",
-    "insufficient_evidence",
-)
-
-
 def _records() -> list[dict[str, object]]:
     return [
         {
@@ -322,13 +315,13 @@ def test_calibration_rubric_and_runbook_publish_required_boundaries() -> None:
         encoding="utf-8"
     )
 
-    assert all(label in rubric for label in FUNCTIONAL_LABELS_FOR_TEST)
-    assert "does not contain final code or a full Trace" in rubric
-    assert "process quality" in rubric
-    assert "calibration_study prepare" in runbook
-    assert "calibration_study judge" in runbook
-    assert "calibration_study analyze" in runbook
-    assert "not completed" in runbook
+    assert "diagnostic-process-v1" in rubric
+    assert "100-record functional sample is not a human task" in rubric
+    assert "Process-Quality Score" in rubric
+    assert "deterministic oracle" in runbook
+    assert "20 human decisions, not 200" in runbook
+    assert "--capture-evidence" in runbook
+    assert "not yet implemented" in runbook
 
 
 def test_calibration_prepare_writes_two_blind_rounds_and_manifest(tmp_path: Path) -> None:

@@ -265,7 +265,7 @@ class Trial:
 - `rubric_grader`：Rubric 评分（1-5 分），有明确的评分标准
 - `code_quality_grader`：代码质量（命名、结构、注释、可维护性）
 - `reasoning_grader`：推理合理性（逻辑链是否完整）
-- `calibrator`：人工校准（100-200 样本，≥85% 一致性）
+- `calibrator`：按维度校准（功能维度使用确定性 oracle；定性维度使用完整证据人工双轮复核）
 
 **人工 Grader（P2，校准用）：**
 - 新评测集的 Ground Truth 标注（前 20-50 个参考解）
@@ -728,7 +728,7 @@ class ExperienceEvolution:
 | 风险 | 概率 | 影响 | 对策 |
 |------|------|------|------|
 | SWE-bench 任务太难 | 中 | 低 | 选 Verified 版本；同时用 AACR-Bench 平衡 |
-| LLM-as-Judge 不稳定 | 中 | 中 | 多次运行取平均；人工校准 100-200 样本 |
+| LLM-as-Judge 不稳定 | 中 | 中 | 多次运行取平均；仅对完整证据定性维度做人工双轮校准 |
 | SkillOpt 实现复杂度超预期 | 中 | 高 | 先实现 Forward + Validation Gate，再加 Backward |
 | 自进化效果不明显 | 低 | 高 | 选简单任务先验证；分析失败原因作为产出 |
 | 项目太大做不完 | 中 | 高 | Phase 1-3 是 MVP，Phase 4-6 是加分项 |

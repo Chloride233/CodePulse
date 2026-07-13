@@ -20,7 +20,6 @@ from codepulse.eval.calibration_review import (
     validate_review_responses,
     write_jsonl,
 )
-from codepulse.eval.calibration_review_server import run_review_server
 
 
 def main() -> None:
@@ -39,10 +38,6 @@ def main() -> None:
     validate = subparsers.add_parser("validate")
     validate.add_argument("--packets", required=True)
     validate.add_argument("--responses", required=True)
-
-    review = subparsers.add_parser("review")
-    review.add_argument("--packets", required=True)
-    review.add_argument("--responses", required=True)
 
     analyze = subparsers.add_parser("analyze")
     analyze.add_argument("--packets-1", required=True)
@@ -87,10 +82,6 @@ def main() -> None:
         print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False))
         if errors:
             raise SystemExit(1)
-        return
-
-    if args.command == "review":
-        run_review_server(args.packets, args.responses)
         return
 
     if args.command == "analyze":

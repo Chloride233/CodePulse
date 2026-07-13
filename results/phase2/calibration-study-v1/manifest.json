@@ -1,12 +1,12 @@
 {
   "protocol_version": "calibration-study-v1",
-  "status": "judge_complete_human_pending",
+  "status": "functional_oracle_complete_diagnostics_pending",
   "source": "results/phase2/calibration-sample-v1.jsonl",
   "source_sha256": "df237645d1fd04c1128c09fa0410d5186a9b9686ea7634e677f104091da983b6",
   "sample_size": 100,
   "seed": 20260713,
   "rubric_version": "functional-evidence-v1",
-  "reviewer_mode": "intra_rater",
+  "reviewer_mode": "not_applicable_to_functional_sample",
   "artifact_hashes": {
     "review-packets-round-1.jsonl": "1f3a658b605e6bbe7f1940a781e1566608163d22a24d7781fb5360e21f26222a",
     "review-packets-round-2.jsonl": "68a4c1c5d99fd0738c1bd4739475ba34f27a87a9ca6071068a5d9a3bc177ddd9",
@@ -23,5 +23,7 @@
     "v1": 0,
     "v2": 0
   },
-  "human_review_status": "not_started"
+  "comparison_reference": "deterministic_functional_oracle",
+  "human_review_status": "not_applicable_to_functional_sample",
+  "human_review_scope": "full_evidence_diagnostic_batch_only"
 }

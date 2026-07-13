@@ -1,80 +1,64 @@
 # Phase 2 Human Calibration Rubric
 
-Rubric version: `functional-evidence-v1`
+Rubric version: `diagnostic-process-v1`
 Study: LLM-as-Judge calibration, Issue #1
+
+## Scope
+
+Human review applies only to the full-evidence diagnostic batch. Each eligible packet
+must contain the task, final code, complete observable Trace, and official verification
+result. The minimum batch is 10 records reviewed in two independently shuffled rounds.
+
+The 100-record functional sample is not a human task. Its label is completely defined
+by exit status and the official pytest result, so the deterministic Grader is the
+reference for functional Judge agreement.
 
 ## Reviewer Rules
 
-Review only the evidence in the packet. Do not search for the opaque packet ID, infer
-the Agent or model, or consult a Judge result or another review round. Record one
-label and a short evidence-grounded rationale for every packet.
+Review only the evidence in the diagnostic packet. Do not search for the opaque packet
+ID, infer the Agent or model, or consult Judge output or the other review round. Score
+the observable process, not hidden reasoning or model reputation.
 
-The current 100-record sample does not contain final code or a full Trace. It is not
-eligible for process quality, code quality, robustness, or experience-alignment
-scores. A passing test log is evidence of the recorded official test result, not proof
-of untested behavior.
+## Process-Quality Score
 
-## Functional Evidence Labels
+| Score | Meaning |
+|---:|---|
+| 5 | The observable approach is sound, direct, and fully supported by the final artifact and verification. |
+| 4 | The approach is sound overall, with a minor avoidable step or clarity gap that does not threaten the result. |
+| 3 | The result is adequate, but the Trace shows a material reasoning, tool-use, or recovery weakness. |
+| 2 | The approach has major gaps, repeated ineffective work, or weak recovery despite some useful progress. |
+| 1 | The observable process is missing, fundamentally unsound, or unsupported by the final artifact and verification. |
 
-### `supported_pass`
-
-Use when the official deterministic output is internally consistent and reports a
-completed passing run. Typical evidence includes exit code 0 and a pytest summary
-with no failed tests.
-
-### `supported_fail`
-
-Use when the official deterministic output reports a failed, errored, or incomplete
-run. Typical evidence includes non-zero exit code, failed tests, collection errors,
-timeouts, or an explicitly aborted verification.
-
-### `insufficient_evidence`
-
-Use when required verification fields are absent or contradictory, such as exit code
-0 paired with failed tests, truncated output that omits the result, or no official
-verification result at all. Do not guess pass or fail from token count, duration, or
-Agent behavior.
+A rationale must cite observable evidence such as a decision, tool result, recovery
+step, final-code property, or verification outcome. Hidden chain-of-thought is never a
+required artifact and must not be inferred.
 
 ## Decision Order
 
-1. Confirm that an official verification result is present.
-2. Check whether exit status and test summary agree.
-3. Select `supported_pass` or `supported_fail` only when the conclusion is supported.
-4. Select `insufficient_evidence` for missing or contradictory evidence.
-5. Cite the decisive field or output line in the rationale.
+1. Confirm that all required evidence is present and internally consistent.
+2. Check whether the Trace decisions and tool use plausibly lead to the final artifact.
+3. Check recovery from failures, repeated work, and unnecessary context growth.
+4. Check that the final artifact and official verification support the claimed result.
+5. Assign one score and record the decisive observable reason.
+
+If required evidence is missing, the packet is invalid and must be excluded rather
+than guessed or scored as zero.
 
 ## Two-Round Protocol
 
 - Round 1 and Round 2 use different opaque packet IDs and seeded order.
-- Reviewers cannot see source sample IDs, Agent/model identity, prior responses, or
-  Judge observations.
-- Two different reviewer IDs constitute inter-rater agreement. Reusing the same ID
-  constitutes intra-rater repeatability and must be reported as such.
-- A completed response requires `label`, `rationale`, and `reviewed_at`; packet IDs,
-  hashes, round, reviewer ID, and rubric version must not be changed.
+- Two different reviewer IDs measure inter-rater agreement. Reusing one reviewer ID
+  measures intra-rater repeatability and must be reported as such.
+- Reviewers cannot see source IDs, Agent/model identity, Judge output, or prior scores.
+- A completed response requires score, rationale, `reviewed_at`, and the exact packet
+  SHA-256.
 - Disagreements remain in the original round files. Resolution is recorded separately
-  with source sample ID, final label, adjudicator ID, and rationale.
-
-## Diagnostic 1-5 Scores
-
-Only a diagnostic packet marked eligible and containing task text, final code, full
-observable Trace, and official verification may receive these scores:
-
-| Score | Meaning |
-|---:|---|
-| 5 | Evidence is complete; the approach is logically sound, efficient, and clearly justified. |
-| 4 | Sound overall with a minor gap or avoidable step that does not undermine the result. |
-| 3 | Adequate result with material reasoning, tool-use, or clarity weaknesses. |
-| 2 | Major gaps, unjustified steps, or poor recovery despite partial useful work. |
-| 1 | Missing or fundamentally unsound process evidence. |
-
-The rationale must identify observable events. Hidden chain-of-thought is never a
-required artifact and must not be inferred.
+  and never overwrites either raw annotation.
 
 ## Grader Boundary
 
 - Deterministic Graders are authoritative for executable tests and static checks.
 - LLM Judges may score evidence-complete qualitative dimensions but cannot override
   deterministic ground truth.
-- Human review measures Judge agreement and resolves hard cases; it is not a substitute
-  for missing task artifacts.
+- Human calibration measures qualitative Judge agreement and resolves hard cases; it
+  must not duplicate a deterministic rule or substitute for missing artifacts.

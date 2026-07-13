@@ -1,103 +1,79 @@
 # Phase 2 Calibration Runbook
 
-Status: implementation ready; live Judge and human review not completed
+Status: functional calibration complete; full-evidence diagnostic study pending
 Rubric: [`phase2-human-rubric.md`](phase2-human-rubric.md)
 
-## 1. Prepare Two Blind Review Rounds
+## 1. Functional Calibration
 
-Use distinct reviewer IDs for inter-rater agreement. Use the same reviewer ID for both
-rounds only when intentionally measuring intra-rater repeatability.
+The 100-record stratified sample contains only official functional verification. Its
+reference label is derived deterministically from exit status and pytest output; no
+human annotation is required or methodologically useful for this dimension.
 
-```bash
-python -m codepulse.eval.calibration_study prepare \
-  --input results/phase2/calibration-sample-v1.jsonl \
-  --output-dir results/phase2/calibration-study-v1 \
-  --seed 20260713 \
-  --reviewer-1 REVIEWER_ID_1 \
-  --reviewer-2 REVIEWER_ID_2
-```
+The completed DeepSeek runs are recorded in:
 
-This writes two packet files, two private mapping files, two unscored human response
-templates, and a manifest. It refuses to overwrite an existing study.
+- `results/phase2/judge-calibration-before-after.json`
+- `results/phase2/judge-calibration-before-after.md`
+- `results/phase2/calibration-study-v1/judge-observations-v1.jsonl`
+- `results/phase2/calibration-study-v1/judge-observations-v2.jsonl`
 
-## 2. Run The Functional Evidence Judge
+The v2 Judge reached 100/100 exact agreement with the deterministic oracle. This does
+not establish reliability for process quality or experience alignment.
 
-The Judge sees the same identity-blind evidence as the human reviewer. A provider
-failure or malformed response is stored as a missing observation, never score zero.
+## 2. Capture The Diagnostic Batch
 
-```bash
-python -m codepulse.eval.calibration_study judge \
-  --packets results/phase2/calibration-study-v1/review-packets-round-1.jsonl \
-  --output results/phase2/calibration-study-v1/judge-observations.jsonl \
-  --model PINNED_JUDGE_MODEL
-```
+Create a frozen manifest for 10 tasks, one candidate model family, and one trial per
+task. The manifest must record task IDs, profile and prompt hashes, provider model
+version, environment digest, seed, and budget. Do not reuse the 120-trial Phase 1
+manifest.
 
-Record the immutable provider model version in the experiment notes before accepting
-the output. A mutable alias does not satisfy the study protocol.
-
-## 3. Complete And Validate Human Reviews
-
-Start the local browser reviewer for Round 1:
-
-```bash
-python -m codepulse.eval.calibration_study review \
-  --packets results/phase2/calibration-study-v1/review-packets-round-1.jsonl \
-  --responses results/phase2/calibration-study-v1/human-review-round-1.jsonl
-```
-
-Each explicit choice saves `label`, `rationale`, and `reviewed_at` immediately. Stop
-with Ctrl+C and run the same command later to resume at the first incomplete packet.
-The page is loopback-only and never loads private mappings, Judge results, or the other
-review round.
-
-When Round 1 reaches 100/100, validate it independently:
-
-```bash
-python -m codepulse.eval.calibration_study validate \
-  --packets results/phase2/calibration-study-v1/review-packets-round-1.jsonl \
-  --responses results/phase2/calibration-study-v1/human-review-round-1.jsonl
-```
-
-Repeat both commands with the Round 2 packet and response filenames. Complete Round 2
-independently, without consulting Round 1. Resolve disagreements in a separate
-`adjudication.jsonl`; never edit either raw round to force agreement.
-
-## 4. Capture Diagnostic Evidence
-
-The existing Phase 1 run lacks full artifacts. A new run must opt in explicitly:
+Run the new manifest with evidence capture enabled:
 
 ```bash
 codepulse benchmark pilot-run \
-  --manifest experiments/pilot-v1/manifest.json \
+  --manifest experiments/phase2-diagnostic-v1/manifest.json \
   --output-dir results/phase2/diagnostic-run-v1 \
   --capture-evidence
 ```
 
-Do not overwrite or merge with the Phase 1 baseline. Diagnostic score, position-pair,
-length-pair, and crossed model-family JSONL files must be derived from this new
-evidence. If a second candidate/Judge family is unavailable, record model self-
-preference as `not_identifiable` with that reason.
+Every accepted record must contain task text, final code, complete normalized Trace,
+official test result, token counts, and immutable hashes. Stop if any required artifact
+is missing; a partial packet is not eligible for human or Judge scoring.
 
-## 5. Analyze And Render The Report
+## 3. Run Two Human Rounds
 
-```bash
-python -m codepulse.eval.calibration_study analyze \
-  --packets-1 results/phase2/calibration-study-v1/review-packets-round-1.jsonl \
-  --mapping-1 results/phase2/calibration-study-v1/review-mapping-round-1.private.jsonl \
-  --responses-1 results/phase2/calibration-study-v1/human-review-round-1.jsonl \
-  --packets-2 results/phase2/calibration-study-v1/review-packets-round-2.jsonl \
-  --mapping-2 results/phase2/calibration-study-v1/review-mapping-round-2.private.jsonl \
-  --responses-2 results/phase2/calibration-study-v1/human-review-round-2.jsonl \
-  --judge-observations results/phase2/calibration-study-v1/judge-observations.jsonl \
-  --adjudications results/phase2/calibration-study-v1/adjudication.jsonl \
-  --score-rows results/phase2/calibration-study-v1/score-rows.jsonl \
-  --position-pairs results/phase2/calibration-study-v1/position-pairs.jsonl \
-  --length-pairs results/phase2/calibration-study-v1/length-pairs.jsonl \
-  --self-preference-rows results/phase2/calibration-study-v1/self-preference-rows.jsonl \
-  --output-json results/phase2/calibration-analysis.json \
-  --output-report results/phase2/calibration-report.md
-```
+Generate two independently shuffled, identity-blind rounds from the 10 eligible
+records. Review only process quality using `diagnostic-process-v1`. One reviewer may
+complete both rounds, but the result must be reported as intra-rater repeatability.
 
-The command reports `complete` only when the full Issue #1 evidence gate passes.
-Generated templates, mocked tests, and an `incomplete` report are implementation
-evidence, not completed calibration results.
+This step requires 20 human decisions, not 200. Do not expose Judge output or the first
+round while the second round is in progress. Preserve disagreements and adjudicate
+them in a separate file.
+
+The diagnostic packet generator and validator are not yet implemented. Empty
+templates or functional-only packets do not satisfy this step.
+
+## 4. Run Judge Bias Diagnostics
+
+For each eligible record, run the qualitative Judge with the same rubric and persist
+raw responses. Generate paired variants for:
+
+- Position: candidate A/B order swapped when two candidates are available.
+- Length: full Trace versus a deterministic compact projection.
+- Identity: candidate and provider identifiers removed.
+
+With one candidate/Judge family, report model self-preference as `not_identifiable`.
+Do not manufacture a proxy from prompt profiles belonging to the same model family.
+
+## 5. Analyze And Close Issue #1
+
+The final report must contain:
+
+- 100-record Judge-versus-deterministic-oracle functional agreement.
+- Diagnostic human-human and Judge-human agreement with sample counts.
+- Pearson correlation and absolute error for 1-5 diagnostic scores.
+- Position and length results, plus explicit self-preference identifiability.
+- Hard cases, adjudications, and held-out correction results when correction is fitted.
+- Clear boundaries for deterministic Graders, LLM Judges, and human calibration.
+
+Phase 3 must not start until these artifacts exist. Code, prompts, empty templates, or
+mocked tests are implementation evidence, not completed calibration evidence.
