@@ -11,6 +11,10 @@ from codepulse.eval.calibration_analysis import (
     analyze_calibration_study,
     render_calibration_report,
 )
+from codepulse.eval.calibration_diagnostic import (
+    prepare_diagnostic_review_files,
+    validate_diagnostic_responses,
+)
 from codepulse.eval.calibration_review import (
     load_jsonl,
     prepare_review_files,
@@ -35,9 +39,21 @@ def main() -> None:
     prepare.add_argument("--reviewer-2", required=True)
     prepare.add_argument("--force", action="store_true")
 
+    prepare_diagnostic = subparsers.add_parser("prepare-diagnostic")
+    prepare_diagnostic.add_argument("--input", required=True)
+    prepare_diagnostic.add_argument("--output-dir", required=True)
+    prepare_diagnostic.add_argument("--seed", type=int, default=20260713)
+    prepare_diagnostic.add_argument("--reviewer-1", required=True)
+    prepare_diagnostic.add_argument("--reviewer-2", required=True)
+    prepare_diagnostic.add_argument("--force", action="store_true")
+
     validate = subparsers.add_parser("validate")
     validate.add_argument("--packets", required=True)
     validate.add_argument("--responses", required=True)
+
+    validate_diagnostic = subparsers.add_parser("validate-diagnostic")
+    validate_diagnostic.add_argument("--packets", required=True)
+    validate_diagnostic.add_argument("--responses", required=True)
 
     analyze = subparsers.add_parser("analyze")
     analyze.add_argument("--packets-1", required=True)
@@ -75,10 +91,31 @@ def main() -> None:
         print(json.dumps(manifest, ensure_ascii=False))
         return
 
+    if args.command == "prepare-diagnostic":
+        manifest = prepare_diagnostic_review_files(
+            args.input,
+            args.output_dir,
+            seed=args.seed,
+            reviewer_1=args.reviewer_1,
+            reviewer_2=args.reviewer_2,
+            force=args.force,
+        )
+        print(json.dumps(manifest, ensure_ascii=False))
+        return
+
     if args.command == "validate":
         packets = load_jsonl(Path(args.packets))
         responses = load_jsonl(Path(args.responses))
         errors = validate_review_responses(packets, responses)
+        print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False))
+        if errors:
+            raise SystemExit(1)
+        return
+
+    if args.command == "validate-diagnostic":
+        packets = load_jsonl(Path(args.packets))
+        responses = load_jsonl(Path(args.responses))
+        errors = validate_diagnostic_responses(packets, responses)
         print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False))
         if errors:
             raise SystemExit(1)

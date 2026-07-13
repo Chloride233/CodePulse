@@ -45,12 +45,28 @@ Generate two independently shuffled, identity-blind rounds from the 10 eligible
 records. Review only process quality using `diagnostic-process-v1`. One reviewer may
 complete both rounds, but the result must be reported as intra-rater repeatability.
 
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study prepare-diagnostic \
+  --input results/phase2/diagnostic-run-v1-retry-1/trials.jsonl \
+  --output-dir results/phase2/diagnostic-study-v1 \
+  --reviewer-1 Chloride233 \
+  --reviewer-2 Chloride233
+```
+
 This step requires 20 human decisions, not 200. Do not expose Judge output or the first
 round while the second round is in progress. Preserve disagreements and adjudicate
 them in a separate file.
 
-The diagnostic packet generator and validator are not yet implemented. Empty
-templates or functional-only packets do not satisfy this step.
+After each round is complete, validate it independently:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study validate-diagnostic \
+  --packets results/phase2/diagnostic-study-v1/review-packets-round-1.jsonl \
+  --responses results/phase2/diagnostic-study-v1/human-review-round-1.jsonl
+```
+
+Repeat with the Round 2 filenames. Empty templates or functional-only packets do not
+satisfy this step.
 
 ## 4. Run Judge Bias Diagnostics
 

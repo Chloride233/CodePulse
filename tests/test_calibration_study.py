@@ -321,7 +321,8 @@ def test_calibration_rubric_and_runbook_publish_required_boundaries() -> None:
     assert "deterministic oracle" in runbook
     assert "20 human decisions, not 200" in runbook
     assert "--capture-evidence" in runbook
-    assert "not yet implemented" in runbook
+    assert "prepare-diagnostic" in runbook
+    assert "validate-diagnostic" in runbook
 
 
 def test_calibration_prepare_writes_two_blind_rounds_and_manifest(tmp_path: Path) -> None:
