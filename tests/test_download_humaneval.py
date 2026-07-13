@@ -36,6 +36,7 @@ def test_humaneval_convert_records_fixed_order_and_flat_schema() -> None:
     assert len(converted) == 20
     assert "input" not in converted[0]
     assert converted[0]["metadata"] == {"entry_point": "task_0"}
+    assert converted[0]["test_cases"][0].endswith("check(task_0)")
 
 
 def test_humaneval_convert_records_missing_task_rejected() -> None:

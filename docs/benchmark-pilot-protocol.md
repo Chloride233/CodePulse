@@ -37,7 +37,7 @@ HumanEval/15, HumanEval/16, HumanEval/17, HumanEval/18, HumanEval/19
 | 文件 | SHA-256 |
 |---|---|
 | `datasets/humaneval/HumanEval.jsonl.gz` | `b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef` |
-| `datasets/humaneval/pilot-v1.jsonl` | `fd18c50d5e6aa3a7908cbc71b009fcb2bc00f1e1ba3cea104cada60f1979f294` |
+| `datasets/humaneval/pilot-v1.jsonl` | `cc5632e3416390c706da7002f2237dc5aba295bd2d50114d5238e0149d090b1d` |
 
 清单可由官方源文件确定性重建：
 

@@ -44,7 +44,7 @@ def convert_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
                 "description": prompt.strip(),
                 "input_code": prompt,
                 "expected_output": canonical_solution,
-                "test_cases": [tests],
+                "test_cases": [f"{tests.rstrip()}\ncheck({entry_point})"],
                 "metadata": {"entry_point": entry_point},
             }
         )
