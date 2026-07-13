@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -26,8 +27,8 @@ from codepulse.data.custom_loader import CustomDatasetLoader
 from codepulse.env.sandbox import SandboxError, SandboxManager
 from codepulse.eval.harness import EvaluationHarness
 from codepulse.eval.scoring import weighted_total
-from codepulse.output.report import ReportGenerator
 from codepulse.observe.metrics import compute_pass_metrics
+from codepulse.output.report import ReportGenerator
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task
@@ -358,7 +359,7 @@ def _save_task_results(
         }
         trial_dicts.append(trial_data)
 
-        trial_path = task_dir / f"{trial.trial_id}.json"
+        trial_path = task_dir / _result_filename(trial.trial_id)
         trial_path.write_text(json.dumps(trial_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # 计算平均分
@@ -414,6 +415,12 @@ def _save_task_results(
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return summary
+
+
+def _result_filename(trial_id: str) -> str:
+    """Convert a benchmark trial ID into one safe JSON filename."""
+    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "__", trial_id).strip("._")
+    return f"{safe_id or 'trial'}.json"
 
 
 
