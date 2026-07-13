@@ -11,6 +11,7 @@ from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.pilot import (
     PILOT_TASK_IDS,
     PilotBudgetGuard,
+    build_pilot_schedule,
     deepseek_v4_flash_cost_cny,
     sha256_file,
     validate_pilot_manifest,
@@ -182,3 +183,18 @@ def test_v4_flash_pricing_peak_is_double_off_peak() -> None:
 
 def test_v4_flash_pricing_cache_hit_uses_lower_rate() -> None:
     assert deepseek_v4_flash_cost_cny(5_000, 1_000, 5_000, "off_peak") == 0.0021
+
+
+def test_pilot_schedule_is_seeded_and_interleaves_agents() -> None:
+    schedule = build_pilot_schedule(
+        ["HumanEval/0", "HumanEval/1"], ["direct", "iterative"], 2, 20260712
+    )
+
+    assert schedule == build_pilot_schedule(
+        ["HumanEval/0", "HumanEval/1"], ["direct", "iterative"], 2, 20260712
+    )
+    assert len(schedule) == 8
+    for offset in range(0, len(schedule), 2):
+        pair = schedule[offset : offset + 2]
+        assert pair[0][:2] == pair[1][:2]
+        assert {pair[0][2], pair[1][2]} == {"direct", "iterative"}

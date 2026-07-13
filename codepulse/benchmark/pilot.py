@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +19,20 @@ V4_FLASH_PRICING_CNY = {
     "off_peak": {"cache_hit": 0.02, "cache_miss": 1.0, "output": 2.0},
     "peak": {"cache_hit": 0.04, "cache_miss": 2.0, "output": 4.0},
 }
+
+
+def build_pilot_schedule(
+    task_ids: list[str], agent_names: list[str], n_trials: int, seed: int
+) -> list[tuple[str, int, str]]:
+    """Build task -> repetition -> seeded Agent order for the pilot."""
+    rng = random.Random(seed)
+    schedule: list[tuple[str, int, str]] = []
+    for task_id in task_ids:
+        for repetition in range(n_trials):
+            order = agent_names.copy()
+            rng.shuffle(order)
+            schedule.extend((task_id, repetition, name) for name in order)
+    return schedule
 
 
 def deepseek_v4_flash_cost_cny(

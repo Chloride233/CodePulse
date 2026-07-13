@@ -121,6 +121,7 @@ class RealAgent:
         total_input = 0
         total_output = 0
         total_cache = 0
+        provider_model_versions: set[str] = set()
 
         start_time = time.time()
 
@@ -148,6 +149,9 @@ class RealAgent:
             llm_duration = time.time() - llm_start
             choice = response.choices[0]
             message = choice.message
+            provider_model = str(getattr(response, "model", "") or "")
+            if provider_model:
+                provider_model_versions.add(provider_model)
 
             # 提取 token 使用
             usage = self._extract_usage(response)
@@ -162,6 +166,7 @@ class RealAgent:
                 content={
                     "iteration": iteration,
                     "model": self._model,
+                    "provider_model": provider_model,
                     "content": message.content or "",
                     "has_tool_calls": bool(getattr(message, "tool_calls", None)),
                 },
@@ -243,6 +248,9 @@ class RealAgent:
         transcript.agent_config["input_tokens"] = total_input
         transcript.agent_config["output_tokens"] = total_output
         transcript.agent_config["cache_tokens"] = total_cache
+        transcript.agent_config["provider_model_versions"] = sorted(
+            provider_model_versions
+        )
 
         return transcript
 

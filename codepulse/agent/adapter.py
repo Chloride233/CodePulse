@@ -391,6 +391,11 @@ def _run_protocol_agent(
         cost_usd=transcript.agent_config.get("cost_usd", 0.0),
         duration=transcript.total_duration,
         output_files=output_files,
+        metadata={
+            "provider_model_versions": transcript.agent_config.get(
+                "provider_model_versions", []
+            )
+        },
     )
 
 
@@ -519,6 +524,9 @@ def run_adapter_trials(
                     "tool_call_count": result.transcript.tool_call_count
                     if result.transcript
                     else 0,
+                    "provider_model_versions": result.metadata.get(
+                        "provider_model_versions", []
+                    ),
                 },
                 metrics=TrialMetrics(
                     total_tokens=result.token_usage.get("input", 0)

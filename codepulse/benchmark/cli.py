@@ -10,6 +10,7 @@ Provides:
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,13 @@ import click
 
 from codepulse.benchmark import BenchmarkRegistry
 from codepulse.benchmark.downloader import BenchmarkDownloader, DownloadError
-from codepulse.benchmark.pilot import load_pilot_manifest, validate_pilot_manifest
+from codepulse.benchmark.pilot import (
+    PilotBudgetGuard,
+    build_pilot_schedule,
+    deepseek_v4_flash_cost_cny,
+    load_pilot_manifest,
+    validate_pilot_manifest,
+)
 from codepulse.config import DEFAULT_RESULTS_DIR
 from codepulse.data.aacr_bench import AacrBenchLoader
 from codepulse.data.custom_loader import CustomDatasetLoader
@@ -176,6 +183,134 @@ def benchmark_preflight(manifest_path: str, repo_root: str) -> None:
             click.echo(f"FAIL: {error}", err=True)
         raise click.ClickException(f"Pilot preflight failed with {len(errors)} error(s)")
     click.echo("Pilot preflight passed: manifest is frozen and file hashes match.")
+
+
+@benchmark_group.command(name="pilot-run")
+@click.option(
+    "--manifest",
+    "manifest_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False),
+)
+@click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
+def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> None:
+    """Run the frozen two-Agent pilot in deterministic interleaved order."""
+    from codepulse.agent.adapter import AgentProfile, run_adapter_trials
+    from codepulse.env.sandbox import SandboxManager
+    from codepulse.eval.pytest_grader import PytestGrader
+
+    root = Path(repo_root)
+    manifest = load_pilot_manifest(manifest_path)
+    errors = validate_pilot_manifest(manifest, root)
+    if errors:
+        raise click.ClickException("Pilot preflight failed: " + "; ".join(errors))
+
+    output = Path(output_dir)
+    trials_path = output / "trials.jsonl"
+    if trials_path.exists():
+        raise click.ClickException(f"Refusing to merge with existing run: {trials_path}")
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    tasks = CustomDatasetLoader().load(str(root / manifest["dataset"]["task_path"]))
+    tasks_by_id = {task.task_id: task for task in tasks}
+    profiles = {
+        item["name"]: AgentProfile.from_yaml(root / item["profile_path"])
+        for item in manifest["agents"]
+    }
+    expected_models = {
+        item["name"]: item["provider_model_version"] for item in manifest["agents"]
+    }
+    schedule = build_pilot_schedule(
+        manifest["task_ids"], list(profiles), manifest["n_trials"], manifest["seed"]
+    )
+    budget = manifest["budget"]
+    guard = PilotBudgetGuard(
+        planned_trials=len(schedule),
+        total_limit_cny=budget["total_cny"],
+        per_agent_limit_cny=budget["per_agent_cny"],
+        per_trial_limit_cny=budget["per_trial_cny"],
+    )
+    sandbox = SandboxManager()
+    harness = EvaluationHarness(sandbox=sandbox, graders=[PytestGrader()])
+    image = manifest["environment"]["image_digest"]
+    stopped_reasons: list[str] = []
+
+    with trials_path.open("a", encoding="utf-8") as trial_file:
+        for index, (task_id, repetition, agent_name) in enumerate(schedule, start=1):
+            click.echo(f"[{index}/{len(schedule)}] {task_id} r{repetition} {agent_name}")
+            trial = run_adapter_trials(
+                profiles[agent_name],
+                tasks_by_id[task_id],
+                sandbox,
+                harness,
+                1,
+                sandbox_image=image,
+            )[0]
+            trial.trial_id = f"{task_id}--r{repetition}--{agent_name}"
+            versions = trial.outcome.get("provider_model_versions", [])
+            failure_type = "agent_error" if "error" in trial.outcome else None
+            peak_cost = deepseek_v4_flash_cost_cny(
+                trial.metrics.input_tokens,
+                trial.metrics.output_tokens,
+                trial.metrics.cache_tokens,
+                "peak",
+            )
+            off_peak_cost = deepseek_v4_flash_cost_cny(
+                trial.metrics.input_tokens,
+                trial.metrics.output_tokens,
+                trial.metrics.cache_tokens,
+                "off_peak",
+            )
+            stopped_reasons = guard.record_trial(agent_name, peak_cost, failure_type)
+            if versions != [expected_models[agent_name]]:
+                stopped_reasons.append("model_version_drift")
+            record = {
+                "trial_id": trial.trial_id,
+                "task_id": task_id,
+                "repetition": repetition,
+                "agent_name": agent_name,
+                "provider_model_versions": versions,
+                "success": trial.success,
+                "outcome": trial.outcome,
+                "scores": trial.scores,
+                "metrics": {
+                    "input_tokens": trial.metrics.input_tokens,
+                    "output_tokens": trial.metrics.output_tokens,
+                    "cache_tokens": trial.metrics.cache_tokens,
+                    "total_tokens": trial.metrics.total_tokens,
+                    "duration_seconds": trial.metrics.total_duration,
+                    "cost_cny_off_peak": off_peak_cost,
+                    "cost_cny_peak": peak_cost,
+                },
+                "failure_type": failure_type,
+                "stop_reasons": stopped_reasons,
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+            trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+            trial_file.flush()
+            if stopped_reasons:
+                break
+
+    summary = {
+        "status": "aborted" if stopped_reasons else "completed",
+        "completed_trials": guard.completed_trials,
+        "planned_trials": len(schedule),
+        "total_cost_cny_peak": round(guard.total_cost_cny, 6),
+        "agent_costs_cny_peak": guard.agent_costs_cny,
+        "stop_reasons": stopped_reasons,
+    }
+    (output / "run-summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    click.echo(json.dumps(summary, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------
@@ -432,4 +567,3 @@ def benchmark_run(
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
-
