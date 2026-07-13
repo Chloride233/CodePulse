@@ -57,6 +57,20 @@ This step requires 20 human decisions, not 200. Do not expose Judge output or th
 round while the second round is in progress. Preserve disagreements and adjudicate
 them in a separate file.
 
+Open only the current blind round in the loopback browser reviewer. It saves scores,
+rationales, and timestamps directly to the matching response file and resumes at the
+first incomplete item:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study review-diagnostic \
+  --packets results/phase2/diagnostic-study-v1/review-packets-round-1.jsonl \
+  --responses results/phase2/diagnostic-study-v1/human-review-round-1.jsonl
+```
+
+Finish and validate Round 1 before starting a separate server with the Round 2 paths.
+The reviewer never loads private mappings, Judge observations, or the other round's
+responses.
+
 After each round is complete, validate it independently:
 
 ```bash

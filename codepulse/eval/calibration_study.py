@@ -23,6 +23,9 @@ from codepulse.eval.calibration_diagnostic_judge import (
     run_diagnostic_judge,
     validate_diagnostic_judge_observations,
 )
+from codepulse.eval.calibration_diagnostic_review_server import (
+    run_diagnostic_review_server,
+)
 from codepulse.eval.calibration_review import (
     load_jsonl,
     prepare_review_files,
@@ -106,6 +109,10 @@ def main() -> None:
     judge_diagnostic.add_argument("--model", required=True)
     judge_diagnostic.add_argument("--force", action="store_true")
 
+    review_diagnostic = subparsers.add_parser("review-diagnostic")
+    review_diagnostic.add_argument("--packets", required=True)
+    review_diagnostic.add_argument("--responses", required=True)
+
     args = parser.parse_args()
     if args.command == "prepare":
         manifest = prepare_review_files(
@@ -174,6 +181,10 @@ def main() -> None:
         output.parent.mkdir(parents=True, exist_ok=True)
         write_jsonl(output, observations)
         print(json.dumps({"observations": len(observations)}, ensure_ascii=False))
+        return
+
+    if args.command == "review-diagnostic":
+        run_diagnostic_review_server(args.packets, args.responses)
         return
 
     packets = load_jsonl(Path(args.packets))
