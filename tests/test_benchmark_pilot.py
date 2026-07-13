@@ -162,6 +162,14 @@ def test_phase2_diagnostic_pool_repository_manifest_hashes_match() -> None:
     assert validate_pilot_manifest(manifest, ROOT) == []
 
 
+def test_phase2_hard_diagnostic_repository_manifest_hashes_match() -> None:
+    manifest = load_pilot_manifest(
+        ROOT / "experiments" / "phase2-diagnostic-v3" / "manifest.json"
+    )
+
+    assert validate_pilot_manifest(manifest, ROOT) == []
+
+
 def test_pilot_preflight_mutable_model_and_hash_mismatch_fail(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path)
     agents = manifest["agents"]
