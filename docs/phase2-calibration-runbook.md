@@ -37,8 +37,20 @@ the output. A mutable alias does not satisfy the study protocol.
 
 ## 3. Complete And Validate Human Reviews
 
-Reviewers fill only `label`, `rationale`, and `reviewed_at` in their assigned response
-file. Validate each round independently:
+Start the local browser reviewer for Round 1:
+
+```bash
+python -m codepulse.eval.calibration_study review \
+  --packets results/phase2/calibration-study-v1/review-packets-round-1.jsonl \
+  --responses results/phase2/calibration-study-v1/human-review-round-1.jsonl
+```
+
+Each explicit choice saves `label`, `rationale`, and `reviewed_at` immediately. Stop
+with Ctrl+C and run the same command later to resume at the first incomplete packet.
+The page is loopback-only and never loads private mappings, Judge results, or the other
+review round.
+
+When Round 1 reaches 100/100, validate it independently:
 
 ```bash
 python -m codepulse.eval.calibration_study validate \
@@ -46,8 +58,9 @@ python -m codepulse.eval.calibration_study validate \
   --responses results/phase2/calibration-study-v1/human-review-round-1.jsonl
 ```
 
-Repeat for Round 2. Resolve disagreements in a separate `adjudication.jsonl`; never
-edit either raw round to force agreement.
+Repeat both commands with the Round 2 packet and response filenames. Complete Round 2
+independently, without consulting Round 1. Resolve disagreements in a separate
+`adjudication.jsonl`; never edit either raw round to force agreement.
 
 ## 4. Capture Diagnostic Evidence
 

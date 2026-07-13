@@ -57,6 +57,9 @@ htmlcov/
 # codebase-memory-mcp cache
 .tmp/
 
+# Local design previews
+.superpowers/
+
 # OS
 .DS_Store
 Thumbs.db
