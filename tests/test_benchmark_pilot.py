@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from click.testing import CliRunner
 
@@ -14,12 +14,12 @@ from codepulse.benchmark.pilot import (
     PilotBudgetGuard,
     build_pilot_schedule,
     deepseek_v4_flash_cost_cny,
+    load_pilot_manifest,
     sha256_file,
     validate_pilot_manifest,
 )
 
-if TYPE_CHECKING:
-    from pathlib import Path
+ROOT = Path(__file__).parents[1]
 
 
 def _manifest(root: Path) -> dict[str, object]:
@@ -98,6 +98,14 @@ def test_phase2_diagnostic_preflight_accepts_minimum_manifest(tmp_path: Path) ->
     )
 
     assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase2_diagnostic_repository_manifest_hashes_match() -> None:
+    manifest = load_pilot_manifest(
+        ROOT / "experiments" / "phase2-diagnostic-v1" / "manifest.json"
+    )
+
+    assert validate_pilot_manifest(manifest, ROOT) == []
 
 
 def test_pilot_preflight_mutable_model_and_hash_mismatch_fail(tmp_path: Path) -> None:

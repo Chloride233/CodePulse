@@ -29,7 +29,7 @@ manifest.
 Run the new manifest with evidence capture enabled:
 
 ```bash
-codepulse benchmark pilot-run \
+.venv/bin/python -m codepulse.cli benchmark pilot-run \
   --manifest experiments/phase2-diagnostic-v1/manifest.json \
   --output-dir results/phase2/diagnostic-run-v1 \
   --capture-evidence
