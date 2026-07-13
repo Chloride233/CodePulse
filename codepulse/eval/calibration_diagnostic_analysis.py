@@ -192,8 +192,17 @@ def analyze_diagnostic_study(
         "hard_cases": _deduplicate_cases(hard_cases),
         "usage_boundaries": {
             "deterministic_grader": "authoritative for executable official tests and static checks",
-            "llm_judge": "limited to evidence-complete qualitative dimensions with raw-response retention",
-            "human_calibration": "required for qualitative agreement and hard-case adjudication",
+            "llm_judge": (
+                "limited to evidence-complete qualitative dimensions with raw-response "
+                f"retention; observed full-evidence exact agreement "
+                f"{agreement_by_variant['length_full']['exact_agreement']} and mean "
+                f"absolute error {agreement_by_variant['length_full']['mean_absolute_error']}"
+            ),
+            "human_calibration": (
+                "required for qualitative agreement and hard-case adjudication; "
+                f"observed {sum(scores_1[trial_id] != scores_2[trial_id] for trial_id in trial_ids)} "
+                f"raw round disagreement and {len(adjudicated)} adjudication"
+            ),
         },
     }
 
@@ -212,6 +221,7 @@ def render_diagnostic_report(analysis: dict[str, Any]) -> str:
     before = calibration.get("before", {})
     after = calibration.get("after", {})
     hard_cases = analysis.get("hard_cases", [])
+    boundaries = analysis.get("usage_boundaries", {})
     reviewer_mode = str(analysis.get("reviewer_mode", "unknown")).replace("_", "-")
     repeatability_label = (
         "Intra-rater repeatability"
@@ -249,18 +259,21 @@ def render_diagnostic_report(analysis: dict[str, Any]) -> str:
         f"- {repeatability_label} within one point: {_display(human.get('within_one_point'))}",
         f"- {repeatability_label} Cohen's kappa: {_display(human.get('cohens_kappa'))}",
         f"- {repeatability_label} Pearson: {_display(human.get('pearson'))}",
+        f"- {repeatability_label} Pearson reason: {_display(human.get('pearson_reason'))}",
         f"- {repeatability_label} mean absolute error: {_display(human.get('mean_absolute_error'))}",
         f"- Full Judge-human sample count: {_display(full.get('n'))}",
         f"- Full Judge-human exact agreement: {_display(full.get('exact_agreement'))}",
         f"- Full Judge-human within one point: {_display(full.get('within_one_point'))}",
         f"- Full Judge-human Cohen's kappa: {_display(full.get('cohens_kappa'))}",
         f"- Full Judge-human Pearson: {_display(full.get('pearson'))}",
+        f"- Full Judge-human Pearson reason: {_display(full.get('pearson_reason'))}",
         f"- Full Judge-human mean absolute error: {_display(full.get('mean_absolute_error'))}",
         f"- Compact Judge-human sample count: {_display(compact.get('n'))}",
         f"- Compact Judge-human exact agreement: {_display(compact.get('exact_agreement'))}",
         f"- Compact Judge-human within one point: {_display(compact.get('within_one_point'))}",
         f"- Compact Judge-human Cohen's kappa: {_display(compact.get('cohens_kappa'))}",
         f"- Compact Judge-human Pearson: {_display(compact.get('pearson'))}",
+        f"- Compact Judge-human Pearson reason: {_display(compact.get('pearson_reason'))}",
         f"- Compact Judge-human mean absolute error: {_display(compact.get('mean_absolute_error'))}",
         f"- Missing Judge observations: {analysis.get('missing_judge_observations', 0)}",
         "",
@@ -288,9 +301,9 @@ def render_diagnostic_report(analysis: dict[str, Any]) -> str:
         "",
         "## Usage Boundaries",
         "",
-        "- **Deterministic Grader:** authoritative for executable official tests and static checks.",
-        "- **LLM Judge:** limited to evidence-complete qualitative dimensions; raw responses and missing calls remain visible.",
-        "- **Human calibration:** required for qualitative agreement and hard-case adjudication; it cannot override deterministic ground truth.",
+        f"- **Deterministic Grader:** {boundaries.get('deterministic_grader', 'not_available')}.",
+        f"- **LLM Judge:** {boundaries.get('llm_judge', 'not_available')}.",
+        f"- **Human calibration:** {boundaries.get('human_calibration', 'not_available')}.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -404,6 +417,7 @@ def _empty_score_agreement() -> dict[str, Any]:
         "exact_agreement": None,
         "within_one_point": None,
         "pearson": None,
+        "pearson_reason": "no aligned scores",
         "mean_signed_error": None,
         "mean_absolute_error": None,
         "cohens_kappa": None,
@@ -423,12 +437,13 @@ def _calibration(rows: list[dict[str, Any]]) -> dict[str, Any]:
     offset = float(result["bias_offset"])
     judge_scores = [float(row["judge_score"]) for row in rows]
     human_scores = [float(row["human_score"]) for row in rows]
+    corrected_scores = [min(5.0, max(1.0, score - offset)) for score in judge_scores]
     return {
         "status": "estimated",
         **result,
         "score_distributions": {
             "judge_before": _score_distribution(judge_scores),
-            "judge_after": _score_distribution([score - offset for score in judge_scores]),
+            "judge_after": _score_distribution(corrected_scores),
             "human": _score_distribution(human_scores),
         },
     }

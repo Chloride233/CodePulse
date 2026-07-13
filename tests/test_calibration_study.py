@@ -165,15 +165,18 @@ def test_calibration_score_agreement_separates_correlation_and_error() -> None:
     result = score_agreement([1.0, 2.0, 3.0], [2.0, 4.0, 6.0])
 
     assert result["pearson"] == 1.0
+    assert result["pearson_reason"] is None
     assert result["mean_signed_error"] == -2.0
     assert result["mean_absolute_error"] == 2.0
-    assert score_agreement([1.0, 1.0], [2.0, 3.0])["pearson"] is None
+    constant = score_agreement([1.0, 1.0], [2.0, 3.0])
+    assert constant["pearson"] is None
+    assert "non-constant" in constant["pearson_reason"]
 
 
 def test_calibration_bias_correction_is_evaluated_on_heldout_records() -> None:
     rows = [
         {"sample_id": f"s{i}", "judge_score": human + 0.2, "human_score": human}
-        for i, human in enumerate((0.1, 0.3, 0.5, 0.7, 0.2, 0.6))
+        for i, human in enumerate((1.1, 1.3, 1.5, 1.7, 1.2, 1.6))
     ]
 
     result = heldout_bias_correction(rows)
@@ -182,6 +185,18 @@ def test_calibration_bias_correction_is_evaluated_on_heldout_records() -> None:
     assert result["test_n"] == 3
     assert result["bias_offset"] == 0.2
     assert result["after"]["mean_absolute_error"] < result["before"]["mean_absolute_error"]
+
+
+def test_calibration_bias_correction_stays_within_rubric_bounds() -> None:
+    rows = [
+        {"sample_id": f"s{i}", "judge_score": judge, "human_score": 5.0}
+        for i, judge in enumerate((1.0, 5.0, 1.0, 5.0, 1.0, 5.0))
+    ]
+
+    result = heldout_bias_correction(rows)
+
+    assert result["bias_offset"] == -4.0
+    assert result["after"]["mean_absolute_error"] == 0.0
 
 
 def test_calibration_length_bias_uses_paired_variants() -> None:

@@ -1,6 +1,6 @@
 # Phase 2 Calibration Runbook
 
-Status: functional calibration complete; qualitative cohort ready; human annotation not started
+Status: Phase 2 complete; authoritative functional and qualitative artifacts saved
 Rubric: [`phase2-human-rubric.md`](phase2-human-rubric.md)
 
 ## 1. Functional Calibration
@@ -27,7 +27,7 @@ uses one functional packet set and does not create human response files:
 .venv/bin/python -m codepulse.eval.calibration_study judge-functional \
   --packets results/phase2/functional-study-reproduction/functional-packets.jsonl \
   --output results/phase2/functional-study-reproduction/judge-observations.jsonl \
-  --model deepseek/deepseek-chat
+  --model deepseek/deepseek-v4-flash
 ```
 
 This result establishes only functional-evidence interpretation. It does not establish
@@ -136,6 +136,10 @@ Finish and validate Round 1 before opening Round 2:
 The browser is only an annotation writer. Validation and analysis accept the same
 external JSONL contract without requiring that server.
 
+Observed result: both 10-record rounds validated. Intra-rater exact repeatability was
+90% with mean absolute error 0.2. One raw disagreement was preserved and resolved in
+`results/phase2/diagnostic-study-v2/adjudications.jsonl`.
+
 ## 5. Run Judge Diagnostics And Analyze
 
 After the cohort gate passes, run the qualitative Judge over full and deterministic
@@ -145,7 +149,7 @@ compact Trace variants:
 .venv/bin/python -m codepulse.eval.calibration_study judge-diagnostic \
   --packets results/phase2/diagnostic-study-v2/review-packets-round-1.jsonl \
   --output results/phase2/diagnostic-study-v2/judge-observations.jsonl \
-  --model deepseek/deepseek-chat
+  --model deepseek/deepseek-v4-flash
 ```
 
 Malformed or exhausted calls remain missing observations, never score zero. With one
@@ -163,6 +167,7 @@ After both human rounds validate, generate the authoritative JSON and Markdown r
   --mapping-2 results/phase2/diagnostic-study-v2/review-mapping-round-2.private.jsonl \
   --responses-2 results/phase2/diagnostic-study-v2/human-review-round-2.jsonl \
   --judge-observations results/phase2/diagnostic-study-v2/judge-observations.jsonl \
+  --adjudications results/phase2/diagnostic-study-v2/adjudications.jsonl \
   --functional-result results/phase2/judge-calibration-before-after.json \
   --output-json results/phase2/calibration-analysis.json \
   --output-report results/phase2/calibration-report.md
@@ -172,3 +177,27 @@ Disagreements use a separate `--adjudications` JSONL artifact and never overwrit
 raw review round. Phase 3 must not start until these real human and Judge artifacts
 satisfy Issue #1; code, prompts, empty templates, and mocked tests are not completion
 evidence.
+
+## 6. Observed Completion Evidence
+
+- Functional Judge exact agreement: 91% to 100%; Cohen's kappa: 0.2936 to 1.0.
+- Diagnostic sample: 10 full-evidence, single-model, single-trial records.
+- Human repeatability: 90% exact agreement, mean absolute error 0.2, one separately
+  adjudicated disagreement.
+- Full and compact Judge-human agreement: 90% exact, mean absolute error 0.4, zero
+  missing observations.
+- Pearson: not identifiable because adjudicated human scores are constant.
+- Length bias: mean full-minus-compact score delta 0.0; length/residual Pearson 0.1907.
+- Position bias: `not_identifiable` without an order-swapped candidate pair.
+- Model self-preference: `not_identifiable` without crossed model families.
+- Held-out bias correction: mean absolute error 0.0 before and after bounded
+  correction; no correction benefit is claimed.
+- Final analysis SHA-256:
+  `8c14594c0c716dbab8644b23960ba7e8f122ab42ca775a83436c01c6335e6b64`.
+- Final report SHA-256:
+  `2b93c6c964d5bdc206dd89a5102b6bda19859135ce25514855426dc68b5309a2`.
+
+The analysis JSON records the exact path and SHA-256 of all nine functional,
+diagnostic, human, Judge, and adjudication inputs. Private mappings and raw Judge
+responses remain local experiment evidence and are not published as human-authored
+results.

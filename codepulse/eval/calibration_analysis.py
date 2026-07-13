@@ -36,6 +36,7 @@ def score_agreement(scores_a: list[float], scores_b: list[float]) -> dict[str, A
     """Report correlation and absolute agreement for aligned numeric scores."""
     if not scores_a or len(scores_a) != len(scores_b):
         raise ValueError("score lists must have the same non-zero length")
+    pearson = _pearson(scores_a, scores_b)
     differences = [
         score_a - score_b
         for score_a, score_b in zip(scores_a, scores_b, strict=True)
@@ -45,7 +46,12 @@ def score_agreement(scores_a: list[float], scores_b: list[float]) -> dict[str, A
         "within_one_point": round(
             sum(abs(value) <= 1.0 for value in differences) / len(differences), 4
         ),
-        "pearson": _pearson(scores_a, scores_b),
+        "pearson": pearson,
+        "pearson_reason": (
+            None
+            if pearson is not None
+            else "requires at least two non-constant aligned score distributions"
+        ),
         "mean_signed_error": round(statistics.mean(differences), 4),
         "mean_absolute_error": round(
             statistics.mean(abs(value) for value in differences), 4
@@ -65,7 +71,9 @@ def heldout_bias_correction(rows: list[dict[str, Any]]) -> dict[str, Any]:
     )
     judge_scores = [float(row["judge_score"]) for row in test]
     human_scores = [float(row["human_score"]) for row in test]
-    corrected_scores = [score - offset for score in judge_scores]
+    corrected_scores = [
+        min(5.0, max(1.0, score - offset)) for score in judge_scores
+    ]
     return {
         "split": "sorted_alternating_v1",
         "train_n": len(train),

@@ -1,6 +1,6 @@
 # Phase 2 Calibration Sampling Protocol
 
-Status: **Functional Judge calibration complete; diagnostic cohort ready**
+Status: **Phase 2 calibration complete**
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)  
 Sample version: `calibration-sample-v1`
 
@@ -40,7 +40,11 @@ python -m codepulse.eval.calibration_sampling \
 
 ## Evidence Boundary
 
-Every LLM Judge and human review score is `null`; extraction does not count as annotation. Phase 1 preserved deterministic test evidence and aggregate metrics but not final code or full transcripts. Therefore this sample is currently eligible only for functional-evidence calibration and is explicitly ineligible for process-quality or experience-alignment judgment.
+In the 100-record functional extraction, every LLM Judge and human review score starts
+as `null`; extraction does not count as annotation. Phase 1 preserved deterministic
+test evidence and aggregate metrics but not final code or full transcripts. Therefore
+that sample is eligible only for functional-evidence calibration and remains
+ineligible for process-quality or experience-alignment judgment.
 
 Before starting the rubric and two-pass review, CodePulse must capture full evidence
 and pass `phase2-cohort-v1`. Pytest logs must not be presented to reviewers as a
@@ -51,7 +55,9 @@ pipeline evidence and excluded from qualitative calibration.
 Two later frozen candidate pools contain 80 additional complete records. Their
 hash-preserving combined profile passes `phase2-cohort-v1` with 4 direct successes,
 5 multi-attempt successes, and 1 final failure selected for the 10-record qualitative
-cohort. Human annotation has not started.
+cohort. One reviewer completed two independently shuffled blind rounds. Raw exact
+repeatability was 90% with mean absolute error 0.2; the only disagreement was resolved
+in a separate adjudication record without changing either raw round.
 
 The approved functional-evidence rubric is now published at
 `docs/phase2-human-rubric.md`. The existing sample remains ineligible for process or
@@ -62,3 +68,12 @@ The completed Judge before/after evidence is stored in
 `results/phase2/judge-calibration-before-after.json` and `.md`. Agreement in that
 report uses deterministic functional evidence as the reference and is not represented
 as human agreement.
+
+The completed qualitative analysis is stored in
+`results/phase2/calibration-analysis.json` and `results/phase2/calibration-report.md`.
+Full and compact Judge variants each reached 90% exact agreement with the adjudicated
+human reference and mean absolute error 0.4 over 10 records, with no missing Judge
+observations. Pearson is not identifiable because the adjudicated human scores are
+constant. Position bias and model self-preference are also `not_identifiable` under
+the single-candidate, single-model-family design; length full-minus-compact score delta
+is 0.0.

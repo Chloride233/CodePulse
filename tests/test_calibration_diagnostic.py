@@ -725,10 +725,10 @@ def test_diagnostic_report_states_metrics_limits_and_usage_boundaries() -> None:
             "sample_size": 10,
             "functional_calibration": _functional_result(),
             "reviewer_mode": "intra_rater",
-            "human_agreement": {"n": 10, "exact_agreement": 0.9, "cohens_kappa": 0.8, "pearson": 0.9, "mean_absolute_error": 0.1},
+            "human_agreement": {"n": 10, "exact_agreement": 0.9, "cohens_kappa": 0.8, "pearson": 0.9, "pearson_reason": None, "mean_absolute_error": 0.1},
             "judge_human_agreement": {
-                "length_full": {"n": 10, "exact_agreement": 0.8, "cohens_kappa": 0.7, "pearson": 0.85, "mean_absolute_error": 0.2},
-                "length_compact": {"n": 10, "exact_agreement": 0.7, "cohens_kappa": 0.6, "pearson": 0.75, "mean_absolute_error": 0.3},
+                "length_full": {"n": 10, "exact_agreement": 0.8, "cohens_kappa": 0.7, "pearson": 0.85, "pearson_reason": None, "mean_absolute_error": 0.2},
+                "length_compact": {"n": 10, "exact_agreement": 0.7, "cohens_kappa": 0.6, "pearson": 0.75, "pearson_reason": None, "mean_absolute_error": 0.3},
             },
             "missing_judge_observations": 0,
             "position_bias": {
@@ -745,6 +745,11 @@ def test_diagnostic_report_states_metrics_limits_and_usage_boundaries() -> None:
                 {"kind": "length_sensitive", "packet_id": "packet-1"},
                 {"kind": "judge_human_disagreement", "packet_id": "packet-2"},
             ],
+            "usage_boundaries": {
+                "deterministic_grader": "authoritative for executable checks",
+                "llm_judge": "limited to complete qualitative evidence",
+                "human_calibration": "required for hard cases",
+            },
         }
     )
 
@@ -760,6 +765,7 @@ def test_diagnostic_report_states_metrics_limits_and_usage_boundaries() -> None:
     assert "a single candidate provides no order-swapped comparison" in report
     assert "judge human disagreement: 1" in report
     assert "length sensitive: 1" in report
+    assert "authoritative for executable checks" in report
     assert "No significance claim" in report
     assert "Deterministic Grader" in report
     assert "LLM Judge" in report
@@ -815,6 +821,11 @@ def test_diagnostic_analysis_cli_writes_json_and_report(tmp_path: Path) -> None:
     analyze.assert_called_once()
     assert json.loads(output_json.read_text(encoding="utf-8"))["status"] == "complete"
     assert output_report.read_text(encoding="utf-8") == "# diagnostic report\n"
+    written = json.loads(output_json.read_text(encoding="utf-8"))
+    assert len(written["input_artifacts"]) == 8
+    assert all(
+        artifact["sha256"] for artifact in written["input_artifacts"].values()
+    )
 
 
 def _completed_diagnostic_responses(

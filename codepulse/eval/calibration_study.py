@@ -9,6 +9,7 @@ from typing import Any
 
 from codepulse.eval.artifacts import (
     ensure_outputs_available,
+    file_sha256,
     load_jsonl,
     write_jsonl,
 )
@@ -199,6 +200,22 @@ def _run_diagnostic_analysis(args: argparse.Namespace) -> None:
         judge_observations=load_jsonl(Path(args.judge_observations)),
         adjudications=_optional_jsonl(args.adjudications),
     )
+    input_paths = {
+        "packets_round_1": args.packets_1,
+        "mapping_round_1": args.mapping_1,
+        "responses_round_1": args.responses_1,
+        "packets_round_2": args.packets_2,
+        "mapping_round_2": args.mapping_2,
+        "responses_round_2": args.responses_2,
+        "judge_observations": args.judge_observations,
+        "functional_result": args.functional_result,
+    }
+    if args.adjudications:
+        input_paths["adjudications"] = args.adjudications
+    analysis["input_artifacts"] = {
+        name: {"path": path, "sha256": file_sha256(Path(path))}
+        for name, path in input_paths.items()
+    }
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_report.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(
