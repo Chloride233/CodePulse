@@ -71,14 +71,25 @@ satisfy this step.
 ## 4. Run Judge Bias Diagnostics
 
 For each eligible record, run the qualitative Judge with the same rubric and persist
-raw responses. Generate paired variants for:
+raw responses. The command generates a full-Trace and deterministic compact-Trace
+pair for every packet:
 
-- Position: candidate A/B order swapped when two candidates are available.
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study judge-diagnostic \
+  --packets results/phase2/diagnostic-study-v1/review-packets-round-1.jsonl \
+  --output results/phase2/diagnostic-study-v1/judge-observations.jsonl \
+  --model deepseek/deepseek-chat
+```
+
+The paired diagnostics cover:
+
 - Length: full Trace versus a deterministic compact projection.
 - Identity: candidate and provider identifiers removed.
 
-With one candidate/Judge family, report model self-preference as `not_identifiable`.
-Do not manufacture a proxy from prompt profiles belonging to the same model family.
+With one candidate and no A/B comparison, report position bias and model
+self-preference as `not_identifiable`. Do not manufacture proxies from prompt profiles
+belonging to the same model family. Provider failures and malformed responses remain
+explicitly missing; they must not be converted to score zero.
 
 ## 5. Analyze And Close Issue #1
 

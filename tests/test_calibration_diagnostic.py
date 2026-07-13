@@ -18,6 +18,11 @@ from codepulse.eval.calibration_diagnostic import (
     validate_diagnostic_packets,
     validate_diagnostic_responses,
 )
+from codepulse.eval.calibration_diagnostic_judge import (
+    compact_diagnostic_evidence,
+    run_diagnostic_judge,
+    validate_diagnostic_judge_observations,
+)
 from codepulse.eval.calibration_study import main
 
 if TYPE_CHECKING:
@@ -261,6 +266,60 @@ def test_diagnostic_packet_validation_detects_duplicate_ids() -> None:
     assert any("duplicate packet IDs" in error for error in validate_diagnostic_packets(packets))
 
 
+def test_diagnostic_compact_evidence_preserves_authoritative_fields() -> None:
+    packets, _ = build_diagnostic_packets(_trials(), round_number=1, seed=7)
+    full = packets[0]["evidence"]
+
+    compact = compact_diagnostic_evidence(full)
+
+    assert compact["task"] == full["task"]
+    assert compact["final_code"] == full["final_code"]
+    assert compact["verification"] == full["verification"]
+    assert len(json.dumps(compact)) < len(json.dumps(full))
+    assert [event["event_type"] for event in compact["trace"]["events"]] == [
+        event["event_type"] for event in full["trace"]["events"]
+    ]
+
+
+def test_diagnostic_judge_runs_full_and_compact_variants() -> None:
+    packets, _ = build_diagnostic_packets(_trials(), round_number=1, seed=7)
+    responses = [
+        json.dumps({"score": 4, "reasoning": "The observable process is direct."})
+        for _ in range(20)
+    ]
+
+    with patch(
+        "codepulse.eval.calibration_diagnostic_judge.call_llm_with_retry",
+        side_effect=responses,
+    ) as call:
+        observations = run_diagnostic_judge(packets, model="judge-a")
+
+    assert call.call_count == 20
+    assert {row["variant"] for row in observations} == {
+        "length_full",
+        "length_compact",
+    }
+    assert validate_diagnostic_judge_observations(packets, observations) == []
+
+
+def test_diagnostic_judge_preserves_malformed_response_as_missing() -> None:
+    packets, _ = build_diagnostic_packets(_trials(), round_number=1, seed=7)
+    responses = ["not json"] + [
+        json.dumps({"score": 3, "reasoning": "Some observable process weakness."})
+        for _ in range(19)
+    ]
+
+    with patch(
+        "codepulse.eval.calibration_diagnostic_judge.call_llm_with_retry",
+        side_effect=responses,
+    ):
+        observations = run_diagnostic_judge(packets, model="judge-a")
+
+    assert observations[0]["status"] == "missing"
+    assert observations[0]["raw_response"] == "not json"
+    assert validate_diagnostic_judge_observations(packets, observations) == []
+
+
 def test_diagnostic_completed_responses_validate() -> None:
     packets, _ = build_diagnostic_packets(_trials(), round_number=1, seed=7)
     responses = build_diagnostic_response_template(packets, "human-a")
@@ -366,3 +425,52 @@ def test_diagnostic_prepare_cli_routes_to_diagnostic_workflow() -> None:
         reviewer_2="human-a",
         force=False,
     )
+
+
+def test_diagnostic_judge_cli_runs_and_writes_observations(tmp_path: Path) -> None:
+    packets, _ = build_diagnostic_packets(_trials(), round_number=1, seed=7)
+    packet_path = tmp_path / "packets.jsonl"
+    packet_path.write_text(
+        "\n".join(json.dumps(packet) for packet in packets) + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "judge-observations.jsonl"
+    observations = [
+        {
+            "packet_id": packet["packet_id"],
+            "packet_sha256": packet["packet_sha256"],
+            "judge_model": "judge-a",
+            "variant": variant,
+            "prompt_version": "diagnostic-process-judge-v1",
+            "evidence_chars": 100,
+            "status": "ok",
+            "score": 4,
+            "reasoning": "The observable process is direct.",
+            "raw_response": '{"score":4,"reasoning":"direct"}',
+            "error": None,
+        }
+        for packet in packets
+        for variant in ("length_full", "length_compact")
+    ]
+    argv = [
+        "calibration_study",
+        "judge-diagnostic",
+        "--packets",
+        str(packet_path),
+        "--output",
+        str(output),
+        "--model",
+        "judge-a",
+    ]
+
+    with (
+        patch.object(sys, "argv", argv),
+        patch(
+            "codepulse.eval.calibration_study.run_diagnostic_judge",
+            return_value=observations,
+        ) as run,
+    ):
+        main()
+
+    run.assert_called_once_with(packets, model="judge-a")
+    assert len(output.read_text(encoding="utf-8").splitlines()) == 20

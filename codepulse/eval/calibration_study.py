@@ -15,6 +15,10 @@ from codepulse.eval.calibration_diagnostic import (
     prepare_diagnostic_review_files,
     validate_diagnostic_responses,
 )
+from codepulse.eval.calibration_diagnostic_judge import (
+    run_diagnostic_judge,
+    validate_diagnostic_judge_observations,
+)
 from codepulse.eval.calibration_review import (
     load_jsonl,
     prepare_review_files,
@@ -78,6 +82,12 @@ def main() -> None:
     judge.add_argument("--model", required=True)
     judge.add_argument("--force", action="store_true")
 
+    judge_diagnostic = subparsers.add_parser("judge-diagnostic")
+    judge_diagnostic.add_argument("--packets", required=True)
+    judge_diagnostic.add_argument("--output", required=True)
+    judge_diagnostic.add_argument("--model", required=True)
+    judge_diagnostic.add_argument("--force", action="store_true")
+
     args = parser.parse_args()
     if args.command == "prepare":
         manifest = prepare_review_files(
@@ -123,6 +133,25 @@ def main() -> None:
 
     if args.command == "analyze":
         _run_analysis(args)
+        return
+
+    if args.command == "judge-diagnostic":
+        packets = load_jsonl(Path(args.packets))
+        output = Path(args.output)
+        if output.exists() and not args.force:
+            raise FileExistsError(f"refusing to overwrite existing artifact: {output}")
+        observations = run_diagnostic_judge(packets, model=args.model)
+        observation_errors = validate_diagnostic_judge_observations(
+            packets, observations
+        )
+        if observation_errors:
+            raise ValueError(
+                "invalid diagnostic Judge observations: "
+                + "; ".join(observation_errors)
+            )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        write_jsonl(output, observations)
+        print(json.dumps({"observations": len(observations)}, ensure_ascii=False))
         return
 
     packets = load_jsonl(Path(args.packets))
