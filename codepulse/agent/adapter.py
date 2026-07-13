@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from codepulse.eval.scoring import PASS_THRESHOLD
+from codepulse.eval.scoring import PASS_THRESHOLD, ScoreDimension
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task
@@ -537,7 +537,7 @@ def run_adapter_trials(
             dimension_scores = harness.grade(task, trial)
             total_score = harness.compute_total_score(dimension_scores)
             trial.scores = {dim.value: score for dim, score in dimension_scores.items()}
-            trial.success = total_score >= PASS_THRESHOLD
+            trial.success = _is_success(dimension_scores, total_score)
 
         except Exception:
             logger.exception("Trial %s 执行失败", trial_id)
@@ -558,6 +558,15 @@ def run_adapter_trials(
         trials.append(trial)
 
     return trials
+
+
+def _is_success(
+    dimension_scores: dict[ScoreDimension, float], total_score: float
+) -> bool:
+    """Use official-test success when functional is the only active grader."""
+    if set(dimension_scores) == {ScoreDimension.FUNCTIONAL}:
+        return dimension_scores[ScoreDimension.FUNCTIONAL] >= 1.0
+    return total_score >= PASS_THRESHOLD
 
 
 def _inject_task_files(
@@ -584,8 +593,6 @@ def _run_verification(
     task: Any, sandbox: SandboxManager, container: Any, trial: Any
 ) -> None:
     """在容器中运行验证测试（pytest）。"""
-    import json as _json
-
     from codepulse.env.sandbox_utils import SandboxUtils
 
     test_cases = task.ground_truth.get("test_cases", [])

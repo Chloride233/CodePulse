@@ -14,6 +14,7 @@ from codepulse.agent.adapter import (
     AgentProfile,
     _guess_filename,
     _inject_task_files,
+    _is_success,
     _load_agent_class,
     _run_cli_agent,
     _run_mock_agent,
@@ -22,6 +23,7 @@ from codepulse.agent.adapter import (
     run_agent,
 )
 from codepulse.data.models import AgentConfig, Difficulty, Task, TaskCategory, TaskSource, Trial
+from codepulse.eval.scoring import ScoreDimension
 
 # ======================================================================
 # AgentProfile
@@ -123,6 +125,15 @@ class TestAgentProfile:
             assert loaded.max_iterations == 30
         finally:
             Path(path).unlink(missing_ok=True)
+
+
+def test_adapter_functional_only_full_score_is_success() -> None:
+    assert _is_success({ScoreDimension.FUNCTIONAL: 1.0}, 30.0)
+
+
+def test_adapter_multiple_dimensions_still_use_total_threshold() -> None:
+    scores = {ScoreDimension.FUNCTIONAL: 1.0, ScoreDimension.EFFICIENCY: 1.0}
+    assert not _is_success(scores, 45.0)
 
 
 # ======================================================================
