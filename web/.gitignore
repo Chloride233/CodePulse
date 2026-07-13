@@ -4,6 +4,7 @@ node_modules
 # build
 dist/
 *.local
+*.tsbuildinfo
 
 # IDE
 .DS_Store

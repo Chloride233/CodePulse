@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -350,13 +349,9 @@ class TestRunVerification:
         container = MagicMock()
         task = _make_task("verify-py", test_cases=["assert 1+1==2"])
         trial = Trial(trial_id="t1", task_id="verify-py", agent_config=_agent_cfg())
-        # Mock: pytest succeeds, JSON report has summary
-        report = json.dumps({"summary": {"total": 1, "passed": 1}})
         sandbox.execute.side_effect = [
             MagicMock(exit_code=0),  # write_file
-            MagicMock(exit_code=0),  # pip install
-            MagicMock(exit_code=0, stdout="passed 1"),  # pytest
-            MagicMock(exit_code=0, stdout=report),  # cat report
+            MagicMock(exit_code=0, stdout="1 passed in 0.01s"),  # pytest
         ]
         _run_verification(task, sandbox, container, trial)
         assert trial.outcome.get("pytest_total") == 1
@@ -369,9 +364,7 @@ class TestRunVerification:
         trial = Trial(trial_id="t1", task_id="verify-no-report", agent_config=_agent_cfg())
         sandbox.execute.side_effect = [
             MagicMock(exit_code=0),  # write_file
-            MagicMock(exit_code=0),  # pip install
-            MagicMock(exit_code=1, stdout="failure"),  # pytest fails
-            MagicMock(exit_code=1, stdout=""),  # no report
+            MagicMock(exit_code=1, stdout="1 failed in 0.01s"),  # pytest
         ]
         _run_verification(task, sandbox, container, trial)
         assert trial.outcome.get("exit_code") == 1

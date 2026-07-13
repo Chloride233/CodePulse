@@ -373,8 +373,10 @@ def _compare_failure_types(
     baseline_summary: dict[str, object],
     current_summary: dict[str, object],
 ) -> str:
-    base = set(str(item) for item in baseline_summary.get("failure_types", []))
-    curr = set(str(item) for item in current_summary.get("failure_types", []))
+    base_raw = baseline_summary.get("failure_types", [])
+    curr_raw = current_summary.get("failure_types", [])
+    base = {str(item) for item in base_raw} if isinstance(base_raw, list) else set()
+    curr = {str(item) for item in curr_raw} if isinstance(curr_raw, list) else set()
     if not base and not curr:
         return "—"
     if curr - base:

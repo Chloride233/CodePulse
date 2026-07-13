@@ -93,24 +93,32 @@ def load_task_trials(results_dir: Path | None = None) -> dict[str, list[dict[str
     if cached is not None:
         return cached  # type: ignore[no-any-return]
     trials: dict[str, list[dict[str, Any]]] = {}
+
+    def append_trial(data: object) -> None:
+        if not isinstance(data, dict):
+            return
+        trial_id = data.get("trial_id")
+        task_id = data.get("task_id")
+        if not isinstance(trial_id, str) or not isinstance(task_id, str):
+            return
+        trials.setdefault(task_id, []).append(data)
+
     trial_files = sorted(base.rglob("*.json")) + sorted(base.rglob("*.jsonl"))
     for trial_path in trial_files:
         if trial_path.name == "summary.json":
             continue
         if "-trace.jsonl" in trial_path.name or "-trace.json" in trial_path.name:
             continue
-        task_id = trial_path.parent.name
         try:
             raw = trial_path.read_text(encoding="utf-8").strip()
             if not raw:
                 continue
             if trial_path.suffix == ".json":
-                trials.setdefault(task_id, []).append(json.loads(raw))
+                append_trial(json.loads(raw))
             else:
                 for line in raw.splitlines():
                     if line.strip():
-                        data = json.loads(line)
-                        trials.setdefault(task_id, []).append(data)
+                        append_trial(json.loads(line))
         except (json.JSONDecodeError, OSError):
             continue
 

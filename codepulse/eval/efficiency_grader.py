@@ -67,7 +67,7 @@ class EfficiencyGrader:
         )
         score = (token_score + duration_score) / 2
 
-        details: dict[str, float | int | str | bool] = {
+        details: dict[str, object] = {
             "total_tokens": tokens,
             "baseline_tokens": self.baseline_tokens,
             "token_score": round(token_score, 4),

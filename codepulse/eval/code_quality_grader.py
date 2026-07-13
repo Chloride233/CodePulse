@@ -61,7 +61,7 @@ class CodeQualityGrader:
         total_violations = ruff_violations + mypy_errors + bandit_high
         score = max(0.0, 1.0 - total_violations * _VIOLATION_PENALTY)
 
-        details: dict[str, float | int | str | bool] = {
+        details: dict[str, object] = {
             "ruff_violations": ruff_violations,
             "mypy_errors": mypy_errors,
             "bandit_high": bandit_high,

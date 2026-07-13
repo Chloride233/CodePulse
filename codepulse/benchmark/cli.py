@@ -475,7 +475,7 @@ def benchmark_run(
         except Exception as exc:
             raise click.ClickException(f"Sandbox error: {exc}") from exc
 
-    harness = EvaluationHarness(sandbox=sandbox)  # type: ignore[arg-type]
+    harness = EvaluationHarness(sandbox=sandbox)
 
     # --- run ---
     task_results: list[dict[str, Any]] = []
