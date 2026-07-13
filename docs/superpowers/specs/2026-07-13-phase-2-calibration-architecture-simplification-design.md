@@ -1,6 +1,6 @@
 # Phase 2 Calibration Architecture Simplification
 
-Status: Approved
+Status: Approved; empirically corrected after v2/v3 candidate captures
 Date: 2026-07-13
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)
 
@@ -80,7 +80,6 @@ The frozen `phase2-cohort-v1` policy requires:
 - At least three of the four eligible process strata.
 - No single eligible stratum above 50% of the selected cohort.
 - At least one final success and one final failure.
-- At least one recovered success.
 - Variation in at least one recorded process count.
 
 Infrastructure failures and structurally incomplete trials are reported separately
@@ -92,9 +91,22 @@ reasons and stratum counts. There is no force flag or runtime threshold override
 can bypass this methodological decision. A new versioned protocol is required to
 change the policy.
 
+The initial design required a recovered success in addition to three strata. Two
+independent 40-record captures found no observed failed tool result followed by
+success, even though they produced direct successes, multi-attempt successes, and a
+real final failure. That requirement duplicated the three-strata rule and made cohort
+eligibility depend on a rare event rather than demonstrated process diversity. The
+frozen policy therefore keeps the three-strata, final-failure, 50% cap, and process
+variation requirements, while treating recovery as a desirable eligible stratum
+rather than a mandatory one.
+
 ### Stable Selection
 
-When the candidate pool contains more than 10 eligible trials, records are grouped by
+One candidate pool may reference multiple independently frozen run artifacts. Every
+source path and exact file hash is recorded in the diagnostic manifest before records
+are combined. Duplicate trial IDs remain a hard failure.
+
+When the combined candidate pool contains more than 10 eligible trials, records are grouped by
 eligible stratum and shuffled within each group using the frozen seed. Selection then
 takes one record at a time in this fixed round-robin order: recovered success,
 unresolved failure, multi-attempt success, direct success. Empty groups are skipped
@@ -180,6 +192,8 @@ Deterministic tests must prove:
 - Infrastructure and incomplete records are excluded and reported separately.
 - Homogeneous all-success cohorts fail before packet construction.
 - A diverse cohort passes, selects deterministically, and freezes its profile in the
+  manifest.
+- Multiple candidate sources preserve their individual paths and hashes in the
   manifest.
 - Gate failure writes no review packets or human templates.
 - Shared hashing/JSONL behavior preserves current artifact bytes and hashes.

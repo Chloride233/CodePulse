@@ -1,6 +1,6 @@
 # Phase 2 Calibration Runbook
 
-Status: functional calibration complete; diagnostic capture valid; qualitative cohort not ready
+Status: functional calibration complete; qualitative cohort ready; human annotation not started
 Rubric: [`phase2-human-rubric.md`](phase2-human-rubric.md)
 
 ## 1. Functional Calibration
@@ -50,11 +50,12 @@ The command returns exit status 1 and `status: not_ready`. Its observed composit
 recovered success. This capture proves that full evidence and immutable hashes work,
 but it must not be sent to a reviewer or Judge for qualitative calibration.
 
-## 3. Capture A Diverse Candidate Pool
+## 3. Build A Diverse Candidate Pool
 
-The next frozen manifest uses the same two audited Agent profiles over all 20 pilot
-tasks, once per profile. Forty candidate records provide a larger pool from which the
-deterministic gate selects exactly 10; they do not increase the human-review count.
+The v2 frozen manifest used the same two audited Agent profiles over all 20 pilot
+tasks, once per profile. It completed 40/40 records for CNY 0.344342 with 37 direct
+successes, 2 multi-attempt successes, and 1 final failure. Alone it remained too
+dominated by direct successes.
 
 ```bash
 .venv/bin/python -m codepulse.cli benchmark preflight \
@@ -70,10 +71,31 @@ deterministic gate selects exactly 10; they do not increase the human-review cou
   --input results/phase2/diagnostic-pool-v2/trials.jsonl
 ```
 
-Proceed only when the last command returns exit status 0 and `status: ready`. A
-`not_ready` result names the missing process strata; it is not permission to lower the
-gate or invent failure evidence. Provider, sandbox, and capture failures are excluded
-and reported separately.
+The v3 manifest then used the iterative profile over 40 harder, fixed HumanEval tasks.
+It completed 40/40 records for CNY 0.652890 with 37 direct and 3 multi-attempt
+successes. The two sources remain separate immutable runs. Profiling them together
+records both inputs explicitly and selects 10 records without copying or rewriting
+either source:
+
+```bash
+.venv/bin/python -m codepulse.cli benchmark preflight \
+  --manifest experiments/phase2-diagnostic-v3/manifest.json \
+  --repo-root .
+
+.venv/bin/python -m codepulse.cli benchmark pilot-run \
+  --manifest experiments/phase2-diagnostic-v3/manifest.json \
+  --output-dir results/phase2/diagnostic-pool-v3 \
+  --capture-evidence
+
+.venv/bin/python -m codepulse.eval.calibration_study profile-diagnostic \
+  --input results/phase2/diagnostic-pool-v2/trials.jsonl \
+  --input results/phase2/diagnostic-pool-v3/trials.jsonl
+```
+
+The combined profile is `ready`: 4 direct successes, 5 multi-attempt successes, and
+1 final failure. No stratum exceeds 50%. Recovery remains an eligible process type but
+is not mandatory after 80 real records showed that it is rare under this Agent
+protocol. Provider, sandbox, and capture failures remain excluded.
 
 ## 4. Prepare The Qualitative Study
 
@@ -84,6 +106,7 @@ artifact:
 ```bash
 .venv/bin/python -m codepulse.eval.calibration_study prepare-diagnostic \
   --input results/phase2/diagnostic-pool-v2/trials.jsonl \
+  --input results/phase2/diagnostic-pool-v3/trials.jsonl \
   --output-dir results/phase2/diagnostic-study-v2 \
   --reviewer-1 Chloride233 \
   --reviewer-2 Chloride233

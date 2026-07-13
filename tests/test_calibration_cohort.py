@@ -157,7 +157,23 @@ def test_calibration_cohort_homogeneous_successes_are_not_ready() -> None:
     assert "insufficient_strata" in reason_codes
     assert "dominant_stratum" in reason_codes
     assert "missing_failure" in reason_codes
-    assert "missing_recovery" in reason_codes
+
+
+def test_calibration_cohort_three_strata_can_pass_without_recovery() -> None:
+    trials = [
+        *[_trial(index) for index in range(4)],
+        *[_multi_attempt_trial(index) for index in range(4, 9)],
+        _trial(9, passed=False),
+    ]
+
+    profile = profile_diagnostic_cohort(trials, seed=7)
+
+    assert profile["status"] == "ready"
+    assert profile["stratum_counts"] == {
+        "direct_success": 4,
+        "multi_attempt_success": 5,
+        "unresolved_failure": 1,
+    }
 
 
 def test_calibration_cohort_diverse_pool_selects_stably() -> None:

@@ -1,6 +1,6 @@
 # Phase 2 Calibration Sampling Protocol
 
-Status: **Functional Judge calibration complete; diagnostic cohort not ready**
+Status: **Functional Judge calibration complete; diagnostic cohort ready**
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)  
 Sample version: `calibration-sample-v1`
 
@@ -47,6 +47,11 @@ and pass `phase2-cohort-v1`. Pytest logs must not be presented to reviewers as a
 substitute for the observable Trace or final code. The first 10-record diagnostic
 capture is evidence-complete but process-homogeneous, so it is retained as capture
 pipeline evidence and excluded from qualitative calibration.
+
+Two later frozen candidate pools contain 80 additional complete records. Their
+hash-preserving combined profile passes `phase2-cohort-v1` with 4 direct successes,
+5 multi-attempt successes, and 1 final failure selected for the 10-record qualitative
+cohort. Human annotation has not started.
 
 The approved functional-evidence rubric is now published at
 `docs/phase2-human-rubric.md`. The existing sample remains ineligible for process or

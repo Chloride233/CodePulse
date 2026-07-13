@@ -51,7 +51,7 @@ def main() -> None:
     prepare_functional.add_argument("--force", action="store_true")
 
     prepare_diagnostic = subparsers.add_parser("prepare-diagnostic")
-    prepare_diagnostic.add_argument("--input", required=True)
+    prepare_diagnostic.add_argument("--input", action="append", required=True)
     prepare_diagnostic.add_argument("--output-dir", required=True)
     prepare_diagnostic.add_argument("--seed", type=int, default=20260713)
     prepare_diagnostic.add_argument("--reviewer-1", required=True)
@@ -59,7 +59,7 @@ def main() -> None:
     prepare_diagnostic.add_argument("--force", action="store_true")
 
     profile_diagnostic = subparsers.add_parser("profile-diagnostic")
-    profile_diagnostic.add_argument("--input", required=True)
+    profile_diagnostic.add_argument("--input", action="append", required=True)
     profile_diagnostic.add_argument("--seed", type=int, default=20260713)
 
     validate_diagnostic = subparsers.add_parser("validate-diagnostic")
@@ -99,7 +99,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "profile-diagnostic":
         profile = profile_diagnostic_cohort(
-            load_jsonl(Path(args.input)), seed=args.seed
+            _load_jsonl_many(args.input), seed=args.seed
         )
         print(json.dumps(profile, ensure_ascii=False))
         if profile["status"] != "ready":
@@ -211,6 +211,10 @@ def _run_diagnostic_analysis(args: argparse.Namespace) -> None:
 
 def _optional_jsonl(path: str | None) -> list[dict[str, Any]] | None:
     return load_jsonl(Path(path)) if path else None
+
+
+def _load_jsonl_many(paths: list[str]) -> list[dict[str, Any]]:
+    return [record for path in paths for record in load_jsonl(Path(path))]
 
 
 def _load_json_object(path: str) -> dict[str, Any]:

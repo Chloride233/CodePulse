@@ -412,15 +412,21 @@ def test_diagnostic_response_validation_detects_coverage_and_metadata_drift() ->
 
 
 def test_diagnostic_prepare_writes_two_rounds_and_manifest(tmp_path: Path) -> None:
-    source = tmp_path / "trials.jsonl"
-    source.write_text(
-        "\n".join(json.dumps(row) for row in _diverse_trials()) + "\n",
+    trials = _diverse_trials()
+    source_1 = tmp_path / "trials-1.jsonl"
+    source_2 = tmp_path / "trials-2.jsonl"
+    source_1.write_text(
+        "\n".join(json.dumps(row) for row in trials[:6]) + "\n",
+        encoding="utf-8",
+    )
+    source_2.write_text(
+        "\n".join(json.dumps(row) for row in trials[6:]) + "\n",
         encoding="utf-8",
     )
     output = tmp_path / "diagnostic-study"
 
     manifest = prepare_diagnostic_review_files(
-        source,
+        [source_1, source_2],
         output,
         seed=7,
         reviewer_1="human-a",
@@ -432,20 +438,24 @@ def test_diagnostic_prepare_writes_two_rounds_and_manifest(tmp_path: Path) -> No
     assert manifest["rubric_version"] == "diagnostic-process-v1"
     assert manifest["cohort_profile"]["status"] == "ready"
     assert manifest["candidate_pool_size"] == 12
+    assert [source["path"] for source in manifest["sources"]] == [
+        str(source_1),
+        str(source_2),
+    ]
     assert (output / "review-packets-round-1.jsonl").exists()
     assert (output / "review-packets-round-2.jsonl").exists()
     assert (output / "human-review-round-1.jsonl").exists()
     assert (output / "human-review-round-2.jsonl").exists()
     with pytest.raises(FileExistsError):
         prepare_diagnostic_review_files(
-            source,
+            [source_1, source_2],
             output,
             seed=7,
             reviewer_1="human-a",
             reviewer_2="human-a",
         )
     rewritten = prepare_diagnostic_review_files(
-        source,
+        [source_1, source_2],
         output,
         seed=7,
         reviewer_1="human-a",
@@ -526,7 +536,7 @@ def test_diagnostic_prepare_cli_routes_to_diagnostic_workflow() -> None:
         main()
 
     prepare.assert_called_once_with(
-        "trials.jsonl",
+        ["trials.jsonl"],
         "study",
         seed=20260713,
         reviewer_1="human-a",

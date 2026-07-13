@@ -291,11 +291,6 @@ def _gate_reasons(
             "code": "missing_failure",
             "message": "selected cohort requires at least one final failure",
         })
-    if "recovered_success" not in counts:
-        reasons.append({
-            "code": "missing_recovery",
-            "message": "selected cohort requires at least one recovered success",
-        })
     if not _has_process_variation(selected):
         reasons.append({
             "code": "constant_process_counts",

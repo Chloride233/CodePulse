@@ -192,7 +192,7 @@ def validate_diagnostic_responses(
 
 
 def prepare_diagnostic_review_files(
-    source_path: str | Path,
+    source_path: str | Path | list[str | Path],
     output_dir: str | Path,
     *,
     seed: int,
@@ -201,9 +201,15 @@ def prepare_diagnostic_review_files(
     force: bool = False,
 ) -> dict[str, Any]:
     """Write two diagnostic blind rounds, private mappings, and response templates."""
-    source = Path(source_path)
+    sources = (
+        [Path(path) for path in source_path]
+        if isinstance(source_path, list)
+        else [Path(source_path)]
+    )
     output = Path(output_dir)
-    candidate_trials = load_jsonl(source)
+    candidate_trials = [
+        trial for source in sources for trial in load_jsonl(source)
+    ]
     trials, cohort_profile = select_diagnostic_cohort(candidate_trials, seed=seed)
     round_1, mapping_1 = build_diagnostic_packets(
         trials, round_number=1, seed=seed
@@ -237,8 +243,10 @@ def prepare_diagnostic_review_files(
     manifest: dict[str, Any] = {
         "protocol_version": "diagnostic-study-v1",
         "status": "review_prepared",
-        "source": str(source),
-        "source_sha256": file_sha256(source),
+        "sources": [
+            {"path": str(source), "sha256": file_sha256(source)}
+            for source in sources
+        ],
         "candidate_pool_size": len(candidate_trials),
         "sample_size": len(trials),
         "seed": seed,
