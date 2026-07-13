@@ -26,6 +26,11 @@ venv/
 ENV/
 !codepulse/env/
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # IDE
 .idea/
 .vscode/
