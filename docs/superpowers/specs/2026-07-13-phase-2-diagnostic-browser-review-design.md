@@ -1,6 +1,6 @@
 # Phase 2 Diagnostic Browser Review Design
 
-Status: Approved on 2026-07-13
+Status: Plain-language revision approved on 2026-07-13
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)
 
 ## Objective
@@ -17,16 +17,21 @@ to repeat deterministic functional labeling.
 ## Reviewer Experience
 
 The command accepts exactly one packet file and its matching response file, starts a
-loopback-only server, and opens the local browser. The page uses a focused single-item
-layout with:
+loopback-only server, and opens the local browser. The default view is a focused,
+plain-language single-item layout with:
 
 - Round number, completed count, total count, and previous/next navigation.
-- Task description and supplied code.
-- Final `solution.py`.
-- The complete observable Trace, including tool results and recovery evidence.
-- Official pytest verification and token/time metrics.
+- Four deterministic facts: code writes, test runs, observed failures, and final pytest
+  result.
+- A Chinese timeline such as "wrote solution", "ran tests", "tests passed", or
+  "recovered after failure", derived only from event types and tool results.
 - A stable 1-5 segmented score control using the published rubric.
-- A required rationale field and one explicit save-and-continue action.
+- Observable-reason checkboxes plus an optional custom note and one explicit
+  save-and-continue action.
+
+Task text, final `solution.py`, the complete normalized Trace, official verification,
+and token/time metrics remain available under a collapsed "detailed evidence" section.
+The reviewer does not need to read raw JSON for an ordinary direct run.
 
 Saving immediately persists the selected score, rationale, and UTC timestamp. Closing
 and restarting resumes at the first incomplete item. Previously completed items remain
@@ -46,12 +51,38 @@ No score is inferred, preselected, or generated from official tests. The same py
 result can accompany different process-quality scores because the human decision is
 about observable approach quality, not functional correctness.
 
+## Plain-Language Projection
+
+The page computes its summary locally from fields already present in the blinded
+packet. It does not call an LLM or add inferred facts:
+
+- `write_file` tool calls increment "code writes" and render "wrote or updated code".
+- `execute` tool calls increment "test or command runs" and render "ran verification".
+- Error events and unsuccessful tool results increment "observed failures".
+- Official `pytest_passed` and `pytest_total` render the final test result.
+- Every original event remains available in the collapsed detailed Trace.
+
+Reason options are neutral observable claims rather than score recommendations:
+
+- Steps were direct with no repeated attempt.
+- There were minor avoidable steps.
+- A failure was followed by effective recovery.
+- Recovery after failure was weak or missing.
+- Similar attempts were repeated.
+- Final code and official verification were consistent.
+- Key process evidence was insufficient.
+
+The reviewer selects one or more claims. The browser joins those selected claims into
+the required rationale, with an optional custom note appended. No reason option changes
+or suggests the selected 1-5 score.
+
 ## Data Flow
 
 1. Startup validates diagnostic packet hashes, identity blinding, response coverage,
    immutable metadata, and every already completed row.
 2. The browser requests one index through a token-protected loopback API.
-3. A save request supplies packet ID, integer score, and non-empty rationale.
+3. A save request supplies packet ID, integer score, and a non-empty rationale assembled
+   from reviewer-selected observable claims plus any optional note.
 4. The server rechecks the packet ID and immutable metadata, adds the current UTC
    timestamp, writes a temporary JSONL file in the same directory, and atomically
    replaces the response file.
@@ -92,17 +123,18 @@ response state; valid save and resume; immutable-field preservation; rollback on
 failure; invalid update rejection; token enforcement; and CLI routing.
 
 After implementation, Playwright verifies the real local page at desktop and mobile
-widths, including nonblank content, score/rationale interaction, stable layout, and no
-overlap. The test uses synthetic packets and must not create human decisions for the
-real experiment.
+widths, including nonblank summary and timeline content, collapsed raw evidence,
+score/reason interaction, stable layout, and no overlap. The test uses copied packets
+and must not create human decisions for the real experiment.
 
 Repository gates remain full pytest coverage, Ruff, mypy, and Bandit with no
 high-severity findings.
 
 ## Acceptance Criteria
 
-The feature is complete when the reviewer can open Round 1 with one command, inspect
-all required qualitative evidence, save an explicit 1-5 score and rationale, close and
-resume without editing JSONL, and finish with the existing validator reporting all 10
+The feature is complete when the reviewer can open Round 1 with one command, understand
+the default view without reading raw JSON, expand every underlying evidence field when
+needed, save an explicit 1-5 score and reviewer-selected rationale, close and resume
+without editing JSONL, and finish with the existing validator reporting all 10
 responses valid. Browser state and network responses must contain no identity, private
 mapping, Judge output, or other-round responses.
