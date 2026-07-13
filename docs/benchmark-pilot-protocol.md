@@ -75,7 +75,7 @@ python scripts/download_humaneval.py --no-download
 - **pass@3**：`(1/T) * sum(1 - C(n-c_i, 3) / C(n, 3))`，即三次中至少成功一次的任务比例。
 - **pass^3**：`(1/T) * sum(1[c_i = 3])`，即三次全部成功的任务比例。
 - **Token**：每 Trial 的输入、输出、缓存和总 Token；报告总量、均值和 P95。
-- **成本**：按实际 Provider 账单口径记录每 Trial USD，报告总成本和平均每 Trial/每任务成本。价格表版本和抓取日期写入运行清单。
+- **成本**：按 DeepSeek 账单币种 CNY 记录每 Trial，报告总成本和平均每 Trial/每任务成本。每次请求同时计算平时价下界与高峰价上界；在官方峰谷时段公布前，预算中止一律使用高峰价上界。价格表版本、证据来源和抓取日期写入运行清单。
 - **耗时**：从任务提交到 Agent 结束的端到端 wall-clock 秒数，包含模型和工具时间；报告全部 Trial 的 P50/P95。
 - **失败类型**：报告次数及占比，每个失败只能有一个主类型。
 
@@ -101,17 +101,17 @@ python scripts/download_humaneval.py --no-download
 
 | 限制 | 上限 |
 |---|---:|
-| pilot 总实际成本 | USD 20.00 |
-| 单个 Agent 成本 | USD 10.00 |
-| 单 Trial 成本 | USD 0.20 |
+| pilot 总实际成本上界 | CNY 10.00 |
+| 单个 Agent 成本上界 | CNY 5.00 |
+| 单 Trial 成本上界 | CNY 0.10 |
 | 单 Trial wall-clock | 300 秒 |
 | Trial 总数 | 120 |
 
-先执行不计费的配置校验和每个 Agent 1 个任务的 smoke test；任何付费 smoke test 也计入 USD 20.00 总预算。满足以下任一条件立即停止提交新 Trial，保留已有结果并标记实验为 `aborted`：
+先执行不计费的配置校验和每个 Agent 1 个任务的 smoke test；任何付费 smoke test 也计入 CNY 10.00 总预算。满足以下任一条件立即停止提交新 Trial，保留已有结果并标记实验为 `aborted`：
 
-1. 累计实际成本达到 USD 20.00，或任一 Agent 达到 USD 10.00。
-2. 任一 Trial 达到 USD 0.20；先停止该 Agent，并复核计费与 Token 限制。
-3. 按已完成 Trial 均价预测的总成本超过 USD 20.00，或成本数据无法采集。
+1. 按高峰价计算的累计成本上界达到 CNY 10.00，或任一 Agent 达到 CNY 5.00。
+2. 任一 Trial 的高峰价成本上界达到 CNY 0.10；先停止该 Agent，并复核计费与 Token 限制。
+3. 按已完成 Trial 高峰价均值预测的总成本超过 CNY 10.00，或成本数据无法采集。
 4. 连续 3 次 `provider_error`、`agent_error` 或 `sandbox_error`。
 5. 完成至少 10 个 Trial 后，非任务质量类故障（`provider_error`、`agent_error`、`sandbox_error`）超过 10%。
 6. 发现模型、Prompt、任务、镜像、依赖、工具权限或 CodePulse commit 与运行清单不一致。
@@ -128,7 +128,7 @@ python scripts/download_humaneval.py --no-download
 - [ ] Prompt、profile、数据文件、任务清单和 lockfile 的 SHA-256 已写入运行清单。
 - [x] Docker 基础镜像以 digest 固定，评测镜像已在无网络、2 CPU、2048 MB 限制下验证。
 - [x] 成本采集字段和中止逻辑通过无付费 mock 测试。
-- [ ] 预算获得人工确认。
+- [x] CNY 10.00 总预算已获得人工确认。
 
 运行清单使用 JSON，顶层必须包含 `protocol_version`、`benchmark`、`task_ids`、`n_trials`、`seed`、`agents`、`dataset`、`dependencies`、`codepulse_commit`、`environment` 和 `budget`。每个 Agent 必须记录 profile 路径及 SHA-256、Provider、不可变模型版本和 Provider 实际返回的模型版本；数据集、20 任务清单和 lockfile 必须同时记录路径与 SHA-256。
 
@@ -142,6 +142,8 @@ codepulse benchmark preflight \
 
 命令必须输出 `Pilot preflight passed` 才能进入 smoke test。它会拒绝可漂移模型别名、错误任务范围、非 3 次运行、缺失或不匹配的文件哈希、非完整 Git SHA、未以 digest 固定的镜像，以及偏离协议的资源和预算配置。preflight 通过只证明配置冻结，不代表实验已经运行。
 
+V4 Flash 当前价格证据（单位：CNY/百万 Token）为：平时缓存命中 0.02、缓存未命中 1、输出 2；高峰对应为 0.04、2、4。官方尚未发布峰谷具体时段，因此 manifest 的 `pricing_schedule_status` 必须为 `pending_official_schedule`。在状态更新前，每个 Trial 保存平时价下界和高峰价上界，不伪造 `pricing_tier`；预算守卫使用高峰价。若运行中发布或改变时段/价格，立即中止当前批次并以新实验 ID 重跑。
+
 本地评测镜像 `codepulse-eval:pilot-v1` 构建 ID 为 `sha256:fcb59a48cd9017b030ebb32f2a7cddfba839b26c7137d3be16b60f986a919396`。离线容器实测版本为 Python 3.11.15、pytest 9.1.1、ruff 0.15.21、mypy 2.2.0 和 bandit 1.9.4；这些工具版本已固定在 `Dockerfile.eval`。该 ID 只作为当前机器构建证据，正式 manifest 仍须记录可由运行环境解析的镜像 digest。
 
 正式产出包括运行清单、120 条原始 Trial JSONL、失败复核记录，以及包含 pass@1、pass@3、pass^3、Token、成本、P50/P95 耗时和失败分布的 Markdown/HTML 报告。本协议只锁定实验设计；不会在本次文档变更中启动任何实验。
@@ -152,7 +154,7 @@ codepulse benchmark preflight \
 
 ## 8. 简历证据记录
 
-当前可核验的证据仅限实验设计阶段：为 20 个 HumanEval 任务、2 个 Agent、每任务 3 次运行（计划 120 个 Trial）制定了可复现实验协议，统一定义 pass@1、pass@3、pass^3、Token、成本、P50/P95 耗时和 7 类失败归因，并设置 USD 20 总预算及模型、数据、Prompt、依赖和容器哈希门禁。
+当前可核验的证据仅限实验设计阶段：为 20 个 HumanEval 任务、2 个 Agent、每任务 3 次运行（计划 120 个 Trial）制定了可复现实验协议，统一定义 pass@1、pass@3、pass^3、Token、成本、P50/P95 耗时和 7 类失败归因，并设置 CNY 10 总预算及模型、数据、Prompt、依赖和容器哈希门禁。
 
 已实现可复现门禁命令 `codepulse benchmark preflight`，用确定性测试证明合法 manifest 可通过，并能拒绝可漂移模型版本与被篡改的 profile 哈希；该能力不产生模型调用费用。
 

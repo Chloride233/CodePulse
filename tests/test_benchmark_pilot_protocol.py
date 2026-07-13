@@ -29,6 +29,7 @@ def test_benchmark_pilot_protocol_reproducibility_and_budget_gates_present() -> 
             "lockfile SHA-256",
         )
     )
-    assert "pilot 总实际成本 | USD 20.00" in protocol
+    assert "pilot 总实际成本上界 | CNY 10.00" in protocol
+    assert "pending_official_schedule" in protocol
     assert "codepulse benchmark preflight" in protocol
     assert "状态：**已锁定，尚未执行**" in protocol

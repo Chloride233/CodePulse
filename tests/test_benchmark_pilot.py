@@ -11,6 +11,7 @@ from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.pilot import (
     PILOT_TASK_IDS,
     PilotBudgetGuard,
+    deepseek_v4_flash_cost_cny,
     sha256_file,
     validate_pilot_manifest,
 )
@@ -59,7 +60,15 @@ def _manifest(root: Path) -> dict[str, object]:
             "network": "none",
             "timeout_seconds": 300,
         },
-        "budget": {"total_usd": 20.0, "per_agent_usd": 10.0, "per_trial_usd": 0.2},
+        "budget": {"total_cny": 10.0, "per_agent_cny": 5.0, "per_trial_cny": 0.1},
+        "pricing": {
+            "currency": "CNY",
+            "unit_tokens": 1_000_000,
+            "schedule_status": "pending_official_schedule",
+            "off_peak": {"cache_hit": 0.02, "cache_miss": 1.0, "output": 2.0},
+            "peak": {"cache_hit": 0.04, "cache_miss": 2.0, "output": 4.0},
+            "budget_tier": "peak",
+        },
     }
 
 
@@ -112,11 +121,11 @@ def test_pilot_preflight_cli_valid_manifest_passes(tmp_path: Path) -> None:
 def test_pilot_budget_guard_cost_limits_and_projection_stop() -> None:
     guard = PilotBudgetGuard()
 
-    reasons = guard.record_trial("agent-a", 0.18)
+    reasons = guard.record_trial("agent-a", 0.09)
 
     assert "projected_budget_exceeded" in reasons
     assert "per_trial_budget_reached" not in reasons
-    assert guard.total_cost_usd == 0.18
+    assert guard.total_cost_cny == 0.09
 
 
 def test_pilot_budget_guard_missing_cost_stops() -> None:
@@ -128,9 +137,9 @@ def test_pilot_budget_guard_missing_cost_stops() -> None:
 def test_pilot_budget_guard_hard_cost_limits_stop() -> None:
     guard = PilotBudgetGuard(
         planned_trials=3,
-        total_limit_usd=0.3,
-        per_agent_limit_usd=0.2,
-        per_trial_limit_usd=0.1,
+        total_limit_cny=0.3,
+        per_agent_limit_cny=0.2,
+        per_trial_limit_cny=0.1,
     )
 
     first = guard.record_trial("agent-a", 0.1)
@@ -161,3 +170,15 @@ def test_pilot_budget_guard_infra_failure_rate_after_ten_trials_stop() -> None:
     reasons = guard.record_trial("agent-b", 0.01, "sandbox_error")
 
     assert "infrastructure_failure_rate_exceeded" in reasons
+
+
+def test_v4_flash_pricing_peak_is_double_off_peak() -> None:
+    off_peak = deepseek_v4_flash_cost_cny(5_000, 1_000, 0, "off_peak")
+    peak = deepseek_v4_flash_cost_cny(5_000, 1_000, 0, "peak")
+
+    assert off_peak == 0.007
+    assert peak == 0.014
+
+
+def test_v4_flash_pricing_cache_hit_uses_lower_rate() -> None:
+    assert deepseek_v4_flash_cost_cny(5_000, 1_000, 5_000, "off_peak") == 0.0021

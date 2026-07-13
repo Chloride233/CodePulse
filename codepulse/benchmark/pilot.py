@@ -14,6 +14,36 @@ MUTABLE_MODEL_NAMES = {"latest", "deepseek-chat", "deepseek/deepseek-chat"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 INFRA_FAILURES = {"provider_error", "agent_error", "sandbox_error"}
+V4_FLASH_PRICING_CNY = {
+    "off_peak": {"cache_hit": 0.02, "cache_miss": 1.0, "output": 2.0},
+    "peak": {"cache_hit": 0.04, "cache_miss": 2.0, "output": 4.0},
+}
+
+
+def deepseek_v4_flash_cost_cny(
+    input_tokens: int,
+    output_tokens: int,
+    cache_hit_tokens: int,
+    pricing_tier: str,
+) -> float:
+    """Calculate V4 Flash cost in CNY for an explicit pricing tier."""
+    if pricing_tier not in V4_FLASH_PRICING_CNY:
+        raise ValueError(f"Unknown V4 Flash pricing tier: {pricing_tier}")
+    if min(input_tokens, output_tokens, cache_hit_tokens) < 0:
+        raise ValueError("Token counts cannot be negative")
+    if cache_hit_tokens > input_tokens:
+        raise ValueError("Cache-hit tokens cannot exceed input tokens")
+    pricing = V4_FLASH_PRICING_CNY[pricing_tier]
+    cache_miss_tokens = input_tokens - cache_hit_tokens
+    return round(
+        (
+            cache_hit_tokens * pricing["cache_hit"]
+            + cache_miss_tokens * pricing["cache_miss"]
+            + output_tokens * pricing["output"]
+        )
+        / 1_000_000,
+        6,
+    )
 
 
 @dataclass
@@ -21,41 +51,41 @@ class PilotBudgetGuard:
     """Track pilot cost and infrastructure stop conditions across trials."""
 
     planned_trials: int = 120
-    total_limit_usd: float = 20.0
-    per_agent_limit_usd: float = 10.0
-    per_trial_limit_usd: float = 0.2
-    total_cost_usd: float = 0.0
+    total_limit_cny: float = 10.0
+    per_agent_limit_cny: float = 5.0
+    per_trial_limit_cny: float = 0.1
+    total_cost_cny: float = 0.0
     completed_trials: int = 0
     infrastructure_failures: int = 0
     consecutive_infrastructure_failures: int = 0
-    agent_costs_usd: dict[str, float] = field(default_factory=dict)
+    agent_costs_cny: dict[str, float] = field(default_factory=dict)
 
     def record_trial(
         self,
         agent_name: str,
-        cost_usd: float | None,
+        cost_cny: float | None,
         failure_type: str | None = None,
     ) -> list[str]:
         """Record one trial and return every triggered stop reason."""
         self.completed_trials += 1
         reasons: list[str] = []
 
-        if cost_usd is None:
+        if cost_cny is None:
             reasons.append("cost_unavailable")
-        elif cost_usd < 0:
+        elif cost_cny < 0:
             reasons.append("cost_invalid")
         else:
-            self.total_cost_usd += cost_usd
-            agent_total = self.agent_costs_usd.get(agent_name, 0.0) + cost_usd
-            self.agent_costs_usd[agent_name] = agent_total
-            if cost_usd >= self.per_trial_limit_usd:
+            self.total_cost_cny += cost_cny
+            agent_total = self.agent_costs_cny.get(agent_name, 0.0) + cost_cny
+            self.agent_costs_cny[agent_name] = agent_total
+            if cost_cny >= self.per_trial_limit_cny:
                 reasons.append("per_trial_budget_reached")
-            if agent_total >= self.per_agent_limit_usd:
+            if agent_total >= self.per_agent_limit_cny:
                 reasons.append("per_agent_budget_reached")
-            if self.total_cost_usd >= self.total_limit_usd:
+            if self.total_cost_cny >= self.total_limit_cny:
                 reasons.append("total_budget_reached")
-            projected_cost = self.total_cost_usd / self.completed_trials * self.planned_trials
-            if projected_cost > self.total_limit_usd:
+            projected_cost = self.total_cost_cny / self.completed_trials * self.planned_trials
+            if projected_cost > self.total_limit_cny:
                 reasons.append("projected_budget_exceeded")
 
         if failure_type in INFRA_FAILURES:
@@ -129,12 +159,27 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
             errors.append("environment.image_digest must be pinned by sha256 digest")
 
     budget = manifest.get("budget")
-    expected_budget = {"total_usd": 20.0, "per_agent_usd": 10.0, "per_trial_usd": 0.2}
+    expected_budget = {"total_cny": 10.0, "per_agent_cny": 5.0, "per_trial_cny": 0.1}
     if not isinstance(budget, dict):
         errors.append("budget must be an object")
     else:
         for key, expected in expected_budget.items():
             _require_equal(errors, budget, key, expected, prefix="budget.")
+
+    pricing = manifest.get("pricing")
+    expected_pricing: dict[str, object] = {
+        "currency": "CNY",
+        "unit_tokens": 1_000_000,
+        "schedule_status": "pending_official_schedule",
+        "off_peak": V4_FLASH_PRICING_CNY["off_peak"],
+        "peak": V4_FLASH_PRICING_CNY["peak"],
+        "budget_tier": "peak",
+    }
+    if not isinstance(pricing, dict):
+        errors.append("pricing must be an object")
+    else:
+        for key, expected in expected_pricing.items():
+            _require_equal(errors, pricing, key, expected, prefix="pricing.")
 
     return errors
 
