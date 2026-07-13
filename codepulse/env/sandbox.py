@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import docker
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -166,7 +166,7 @@ class SandboxManager:
 
         logger.info("容器已创建: %s (image=%s)", docker_container.short_id, image)
         return Container(
-            id=docker_container.id,
+            id=cast("str", docker_container.id),
             image=image,
             resource_limits=limits,
         )
@@ -189,13 +189,15 @@ class SandboxManager:
         docker_container = self._get_container(container.id)
 
         try:
-            exit_code, output = docker_container.exec_run(
+            exit_code_raw, output_raw = docker_container.exec_run(
                 cmd=["sh", "-c", command],
                 demux=True,
             )
         except Exception as exc:
             raise SandboxError(f"命令执行失败: {exc}") from exc
 
+        exit_code = cast("int", exit_code_raw)
+        output = cast("tuple[bytes | None, bytes | None] | None", output_raw)
         stdout_bytes, stderr_bytes = output or (None, None)
         return ExecutionResult(
             exit_code=exit_code,
@@ -258,7 +260,7 @@ class SandboxManager:
 
         logger.info("容器已从快照恢复: %s -> %s", snapshot.image_tag, docker_container.short_id)
         return Container(
-            id=docker_container.id,
+            id=cast("str", docker_container.id),
             image=snapshot.image_tag,
             resource_limits=ResourceLimits(),
         )

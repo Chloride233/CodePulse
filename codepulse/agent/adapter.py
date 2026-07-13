@@ -640,19 +640,14 @@ def _run_verification(
         # Parse pytest output for pass/fail counts
         stdout = result.stdout or ""
         import re as _re
-        summary_line = ""
-        for line in stdout.split("\n"):
-            if "passed" in line and "failed" in line:
-                summary_line = line
-                break
-        if summary_line:
-            passed_m = _re.search(r"(\d+)\s+passed", summary_line)
-            failed_m = _re.search(r"(\d+)\s+failed", summary_line)
-            if passed_m:
-                trial.outcome["pytest_passed"] = int(passed_m.group(1))
-            if failed_m:
-                trial.outcome["pytest_failed"] = int(failed_m.group(1))
-            trial.outcome["pytest_total"] = int(passed_m.group(1)) + int(failed_m.group(1)) if passed_m and failed_m else 0
+        passed_m = _re.search(r"(\d+)\s+passed", stdout)
+        failed_m = _re.search(r"(\d+)\s+failed", stdout)
+        if passed_m or failed_m:
+            passed = int(passed_m.group(1)) if passed_m else 0
+            failed = int(failed_m.group(1)) if failed_m else 0
+            trial.outcome["pytest_passed"] = passed
+            trial.outcome["pytest_failed"] = failed
+            trial.outcome["pytest_total"] = passed + failed
         trial.outcome["exit_code"] = result.exit_code
         trial.outcome["stdout"] = (result.stdout or "")[:4096]
         trial.outcome["stderr"] = (result.stderr or "")[:4096]

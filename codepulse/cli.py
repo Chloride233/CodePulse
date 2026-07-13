@@ -115,7 +115,7 @@ def _load_results(results_dir: str) -> dict[str, Any]:
 # ------------------------------------------------------------------
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(package_name="codepulse")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v=INFO, -vv=DEBUG).")
 def cli(verbose: int) -> None:

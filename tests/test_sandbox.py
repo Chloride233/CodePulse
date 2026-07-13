@@ -538,14 +538,14 @@ class TestSandboxManagerIntegration:
         container = real_manager.create(self.IMAGE)
         try:
             # Create a file so we can verify it survives snapshot
-            real_manager.execute(container, "touch /tmp/snapshot_marker")
+            real_manager.execute(container, "touch /snapshot_marker")
             snap = real_manager.snapshot(container)
             assert snap.container_id == container.id
             assert "snapshot" in snap.image_tag
 
             restored = real_manager.restore(snap)
             try:
-                result = real_manager.execute(restored, "ls /tmp/snapshot_marker")
+                result = real_manager.execute(restored, "ls /snapshot_marker")
                 assert result.exit_code == 0
             finally:
                 real_manager.destroy(restored)
