@@ -1,4 +1,4 @@
-"""Blinded packet, human review, and Judge I/O for calibration studies."""
+"""Deterministic functional-evidence packets and Judge I/O."""
 
 from __future__ import annotations
 
@@ -9,6 +9,13 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from codepulse.eval.artifacts import (
+    canonical_sha256,
+    ensure_outputs_available,
+    file_sha256,
+    load_jsonl,
+    write_jsonl,
+)
 from codepulse.eval.llm_judge import call_llm_with_retry
 
 FUNCTIONAL_RUBRIC_VERSION = "functional-evidence-v1"
@@ -68,7 +75,7 @@ def build_review_packets(
     round_number: int,
     seed: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
-    """Build a seeded blind review round and its private sample mapping."""
+    """Build a seeded functional Judge packet set and private mapping."""
     if round_number < 1:
         raise ValueError("round_number must be positive")
 
@@ -99,38 +106,17 @@ def build_review_packets(
                 "eligible_dimensions": record.get("eligible_dimensions", []),
             },
         }
-        packet["packet_sha256"] = _canonical_sha256(packet)
+        packet["packet_sha256"] = canonical_sha256(packet)
         packets.append(packet)
         mapping_by_packet[packet_id] = {
             "packet_id": packet_id,
             "sample_id": sample_id,
-            "source_record_sha256": _canonical_sha256(record),
+            "source_record_sha256": canonical_sha256(record),
         }
 
     random.Random(seed + round_number).shuffle(packets)
     mapping = [mapping_by_packet[str(packet["packet_id"])] for packet in packets]
     return packets, mapping
-
-
-def build_response_template(
-    packets: list[dict[str, Any]], reviewer_id: str
-) -> list[dict[str, Any]]:
-    """Create an unscored response file for one human reviewer."""
-    if not reviewer_id.strip():
-        raise ValueError("reviewer_id is required")
-    return [
-        {
-            "packet_id": packet["packet_id"],
-            "round": packet["round"],
-            "reviewer_id": reviewer_id,
-            "rubric_version": packet["rubric_version"],
-            "label": None,
-            "rationale": None,
-            "reviewed_at": None,
-            "packet_sha256": packet["packet_sha256"],
-        }
-        for packet in packets
-    ]
 
 
 def validate_review_packets(packets: list[dict[str, Any]]) -> list[str]:
@@ -145,7 +131,7 @@ def validate_review_packets(packets: list[dict[str, Any]]) -> list[str]:
         packet_id = str(packet.get("packet_id", f"index-{index}"))
         supplied_hash = packet.get("packet_sha256")
         unhashed = {key: value for key, value in packet.items() if key != "packet_sha256"}
-        if supplied_hash != _canonical_sha256(unhashed):
+        if supplied_hash != canonical_sha256(unhashed):
             errors.append(f"packet {packet_id} hash mismatch")
         forbidden = sorted(_find_forbidden_keys(packet))
         if forbidden:
@@ -156,39 +142,6 @@ def validate_review_packets(packets: list[dict[str, Any]]) -> list[str]:
             errors.append(f"packet {packet_id} has unknown rubric version")
         if packet.get("dimension") != "functional_evidence":
             errors.append(f"packet {packet_id} has ineligible dimension")
-    return errors
-
-
-def validate_review_responses(
-    packets: list[dict[str, Any]], responses: list[dict[str, Any]]
-) -> list[str]:
-    """Validate a complete human review round against its packet set."""
-    errors = validate_review_packets(packets)
-    packet_by_id = {str(packet["packet_id"]): packet for packet in packets}
-    response_ids = [str(response.get("packet_id", "")) for response in responses]
-    if Counter(response_ids) != Counter(packet_by_id.keys()):
-        errors.append("response coverage does not match review packets")
-
-    for response in responses:
-        packet_id = str(response.get("packet_id", ""))
-        packet = packet_by_id.get(packet_id)
-        if packet is None:
-            errors.append(f"response references unknown packet {packet_id}")
-            continue
-        if response.get("packet_sha256") != packet["packet_sha256"]:
-            errors.append(f"response {packet_id} packet hash mismatch")
-        if response.get("round") != packet["round"]:
-            errors.append(f"response {packet_id} round mismatch")
-        if response.get("rubric_version") != packet["rubric_version"]:
-            errors.append(f"response {packet_id} rubric mismatch")
-        if response.get("label") not in FUNCTIONAL_LABELS:
-            errors.append(f"response {packet_id} has invalid label")
-        if not _nonempty_string(response.get("reviewer_id")):
-            errors.append(f"response {packet_id} requires reviewer_id")
-        if not _nonempty_string(response.get("rationale")):
-            errors.append(f"response {packet_id} requires rationale")
-        if not _nonempty_string(response.get("reviewed_at")):
-            errors.append(f"response {packet_id} requires reviewed_at")
     return errors
 
 
@@ -237,52 +190,41 @@ def validate_judge_observations(
     return errors
 
 
-def prepare_review_files(
+def prepare_functional_judge_files(
     source_path: str | Path,
     output_dir: str | Path,
     *,
     seed: int,
-    reviewer_1: str,
-    reviewer_2: str,
     force: bool = False,
 ) -> dict[str, Any]:
-    """Write two blinded review rounds, private mappings, and a manifest."""
+    """Write one deterministic functional Judge packet set and manifest."""
     source = Path(source_path)
     output = Path(output_dir)
     records = load_jsonl(source)
-    round_1, mapping_1 = build_review_packets(records, round_number=1, seed=seed)
-    round_2, mapping_2 = build_review_packets(records, round_number=2, seed=seed)
+    packets, mapping = build_review_packets(records, round_number=1, seed=seed)
     artifacts: dict[str, list[dict[str, Any]]] = {
-        "review-packets-round-1.jsonl": round_1,
-        "review-packets-round-2.jsonl": round_2,
-        "review-mapping-round-1.private.jsonl": mapping_1,
-        "review-mapping-round-2.private.jsonl": mapping_2,
-        "human-review-round-1.jsonl": build_response_template(round_1, reviewer_1),
-        "human-review-round-2.jsonl": build_response_template(round_2, reviewer_2),
+        "functional-packets.jsonl": packets,
+        "functional-mapping.private.jsonl": mapping,
     }
     targets = [output / name for name in artifacts]
     targets.append(output / "manifest.json")
-    existing = [path for path in targets if path.exists()]
-    if existing and not force:
-        raise FileExistsError(f"refusing to overwrite existing artifact: {existing[0]}")
+    ensure_outputs_available(targets, force=force)
 
     output.mkdir(parents=True, exist_ok=True)
     artifact_hashes: dict[str, str] = {}
     for name, rows in artifacts.items():
         path = output / name
         write_jsonl(path, rows)
-        artifact_hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        artifact_hashes[name] = file_sha256(path)
 
-    reviewer_mode = "inter_rater" if reviewer_1 != reviewer_2 else "intra_rater"
     manifest: dict[str, Any] = {
-        "protocol_version": "calibration-study-v1",
-        "status": "review_prepared",
+        "protocol_version": "functional-judge-study-v1",
+        "status": "judge_prepared",
         "source": str(source),
-        "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "source_sha256": file_sha256(source),
         "sample_size": len(records),
         "seed": seed,
         "rubric_version": FUNCTIONAL_RUBRIC_VERSION,
-        "reviewer_mode": reviewer_mode,
         "artifact_hashes": artifact_hashes,
     }
     (output / "manifest.json").write_text(
@@ -349,33 +291,6 @@ def run_functional_judge(
             }
         )
     return observations
-
-
-def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Load non-empty JSONL records."""
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-
-
-def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    """Write JSONL records with a trailing newline."""
-    path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
-        encoding="utf-8",
-    )
-
-
-def _canonical_sha256(value: object) -> str:
-    encoded = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode()
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _valid_judge_result(observation: dict[str, Any]) -> bool:

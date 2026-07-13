@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
+from codepulse.eval.calibration_cohort import CohortNotReadyError
 from codepulse.eval.calibration_diagnostic import (
     build_diagnostic_packets,
     build_diagnostic_response_template,
@@ -126,6 +127,59 @@ def _trial(index: int = 0) -> dict[str, object]:
 
 def _trials() -> list[dict[str, object]]:
     return [_trial(index) for index in range(10)]
+
+
+def _cohort_trial(index: int, status: str) -> dict[str, object]:
+    trial = _trial(index)
+    evidence = trial["outcome"]["evidence"]
+    if status == "recovered_success":
+        evidence["transcript"]["events"] = [
+            {"event_type": "llm_call", "content": {}},
+            {
+                "event_type": "tool_call",
+                "content": {"tool": "execute", "success": False},
+            },
+            {
+                "event_type": "tool_result",
+                "content": {"tool": "execute", "success": False},
+            },
+            {
+                "event_type": "tool_call",
+                "content": {"tool": "execute", "success": True},
+            },
+        ]
+    elif status == "multi_attempt_success":
+        evidence["transcript"]["events"] = [
+            {"event_type": "llm_call", "content": {}},
+            {
+                "event_type": "tool_call",
+                "content": {"tool": "execute", "success": True},
+            },
+            {
+                "event_type": "tool_call",
+                "content": {"tool": "execute", "success": True},
+            },
+        ]
+    elif status == "unresolved_failure":
+        trial["success"] = False
+        evidence["verification"].update({
+            "exit_code": 1,
+            "stdout": "1 failed in 0.01s",
+            "pytest_passed": 0,
+        })
+    evidence["sha256"] = _canonical_sha256(
+        {key: value for key, value in evidence.items() if key != "sha256"}
+    )
+    return trial
+
+
+def _diverse_trials() -> list[dict[str, object]]:
+    return [
+        *[_cohort_trial(index, "direct_success") for index in range(3)],
+        *[_cohort_trial(index, "multi_attempt_success") for index in range(3, 6)],
+        *[_cohort_trial(index, "recovered_success") for index in range(6, 9)],
+        *[_cohort_trial(index, "unresolved_failure") for index in range(9, 12)],
+    ]
 
 
 def test_diagnostic_packets_are_complete_blinded_and_hashed() -> None:
@@ -360,7 +414,7 @@ def test_diagnostic_response_validation_detects_coverage_and_metadata_drift() ->
 def test_diagnostic_prepare_writes_two_rounds_and_manifest(tmp_path: Path) -> None:
     source = tmp_path / "trials.jsonl"
     source.write_text(
-        "\n".join(json.dumps(row) for row in _trials()) + "\n",
+        "\n".join(json.dumps(row) for row in _diverse_trials()) + "\n",
         encoding="utf-8",
     )
     output = tmp_path / "diagnostic-study"
@@ -376,6 +430,8 @@ def test_diagnostic_prepare_writes_two_rounds_and_manifest(tmp_path: Path) -> No
     assert manifest["sample_size"] == 10
     assert manifest["reviewer_mode"] == "intra_rater"
     assert manifest["rubric_version"] == "diagnostic-process-v1"
+    assert manifest["cohort_profile"]["status"] == "ready"
+    assert manifest["candidate_pool_size"] == 12
     assert (output / "review-packets-round-1.jsonl").exists()
     assert (output / "review-packets-round-2.jsonl").exists()
     assert (output / "human-review-round-1.jsonl").exists()
@@ -397,6 +453,54 @@ def test_diagnostic_prepare_writes_two_rounds_and_manifest(tmp_path: Path) -> No
         force=True,
     )
     assert rewritten["artifact_hashes"] == manifest["artifact_hashes"]
+
+
+def test_diagnostic_prepare_rejects_homogeneous_cohort_before_writing(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "trials.jsonl"
+    source.write_text(
+        "\n".join(json.dumps(row) for row in _trials()) + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "diagnostic-study"
+
+    with pytest.raises(CohortNotReadyError) as caught:
+        prepare_diagnostic_review_files(
+            source,
+            output,
+            seed=7,
+            reviewer_1="human-a",
+            reviewer_2="human-a",
+        )
+
+    assert caught.value.profile["status"] == "not_ready"
+    assert not output.exists()
+
+
+def test_diagnostic_profile_cli_reports_not_ready_without_reviewer(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "trials.jsonl"
+    source.write_text(
+        "\n".join(json.dumps(row) for row in _trials()) + "\n",
+        encoding="utf-8",
+    )
+    argv = [
+        "calibration_study",
+        "profile-diagnostic",
+        "--input",
+        str(source),
+        "--seed",
+        "7",
+    ]
+
+    with patch.object(sys, "argv", argv), pytest.raises(SystemExit, match="1"):
+        main()
+
+    profile = json.loads(capsys.readouterr().out)
+    assert profile["status"] == "not_ready"
+    assert profile["stratum_counts"] == {"direct_success": 10}
 
 
 def test_diagnostic_prepare_cli_routes_to_diagnostic_workflow() -> None:

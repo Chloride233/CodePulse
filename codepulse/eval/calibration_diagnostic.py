@@ -9,7 +9,17 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from codepulse.eval.calibration_review import load_jsonl, write_jsonl
+from codepulse.eval.artifacts import (
+    canonical_sha256,
+    ensure_outputs_available,
+    file_sha256,
+    load_jsonl,
+    write_jsonl,
+)
+from codepulse.eval.calibration_cohort import (
+    select_diagnostic_cohort,
+    validate_diagnostic_trial,
+)
 
 DIAGNOSTIC_RUBRIC_VERSION = "diagnostic-process-v1"
 DIAGNOSTIC_PACKET_VERSION = "diagnostic-review-packet-v1"
@@ -49,7 +59,7 @@ def build_diagnostic_packets(
     packets: list[dict[str, Any]] = []
     mapping_by_packet: dict[str, dict[str, Any]] = {}
     for index, trial in enumerate(trials):
-        errors = _validate_diagnostic_trial(trial, index)
+        errors = validate_diagnostic_trial(trial, index)
         if errors:
             raise ValueError("invalid diagnostic trial: " + "; ".join(errors))
 
@@ -83,7 +93,7 @@ def build_diagnostic_packets(
                 "metrics": _diagnostic_metrics(trial["metrics"]),
             },
         }
-        packet["packet_sha256"] = _canonical_sha256(packet)
+        packet["packet_sha256"] = canonical_sha256(packet)
         packets.append(packet)
         mapping_by_packet[packet_id] = {
             "packet_id": packet_id,
@@ -92,7 +102,7 @@ def build_diagnostic_packets(
             "agent_name": trial["agent_name"],
             "provider_model_versions": trial.get("provider_model_versions", []),
             "source_evidence_sha256": evidence["sha256"],
-            "source_record_sha256": _canonical_sha256(trial),
+            "source_record_sha256": canonical_sha256(trial),
         }
 
     random.Random(seed + round_number).shuffle(packets)
@@ -133,7 +143,7 @@ def validate_diagnostic_packets(packets: list[dict[str, Any]]) -> list[str]:
         packet_id = str(packet.get("packet_id", f"index-{index}"))
         supplied_hash = packet.get("packet_sha256")
         unhashed = {key: value for key, value in packet.items() if key != "packet_sha256"}
-        if supplied_hash != _canonical_sha256(unhashed):
+        if supplied_hash != canonical_sha256(unhashed):
             errors.append(f"packet {packet_id} hash mismatch")
         if packet.get("schema_version") != DIAGNOSTIC_PACKET_VERSION:
             errors.append(f"packet {packet_id} has unknown schema version")
@@ -193,7 +203,8 @@ def prepare_diagnostic_review_files(
     """Write two diagnostic blind rounds, private mappings, and response templates."""
     source = Path(source_path)
     output = Path(output_dir)
-    trials = load_jsonl(source)
+    candidate_trials = load_jsonl(source)
+    trials, cohort_profile = select_diagnostic_cohort(candidate_trials, seed=seed)
     round_1, mapping_1 = build_diagnostic_packets(
         trials, round_number=1, seed=seed
     )
@@ -214,28 +225,28 @@ def prepare_diagnostic_review_files(
     }
     targets = [output / name for name in artifacts]
     targets.append(output / "manifest.json")
-    existing = [path for path in targets if path.exists()]
-    if existing and not force:
-        raise FileExistsError(f"refusing to overwrite existing artifact: {existing[0]}")
+    ensure_outputs_available(targets, force=force)
 
     output.mkdir(parents=True, exist_ok=True)
     artifact_hashes: dict[str, str] = {}
     for name, rows in artifacts.items():
         path = output / name
         write_jsonl(path, rows)
-        artifact_hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        artifact_hashes[name] = file_sha256(path)
 
     manifest: dict[str, Any] = {
         "protocol_version": "diagnostic-study-v1",
         "status": "review_prepared",
         "source": str(source),
-        "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "source_sha256": file_sha256(source),
+        "candidate_pool_size": len(candidate_trials),
         "sample_size": len(trials),
         "seed": seed,
         "rubric_version": DIAGNOSTIC_RUBRIC_VERSION,
         "reviewer_mode": (
             "inter_rater" if reviewer_1 != reviewer_2 else "intra_rater"
         ),
+        "cohort_profile": cohort_profile,
         "artifact_hashes": artifact_hashes,
     }
     (output / "manifest.json").write_text(
@@ -243,59 +254,6 @@ def prepare_diagnostic_review_files(
         encoding="utf-8",
     )
     return manifest
-
-
-def _validate_diagnostic_trial(trial: dict[str, Any], index: int) -> list[str]:
-    trial_id = str(trial.get("trial_id", f"index-{index}"))
-    errors: list[str] = []
-    if not _nonempty_string(trial.get("trial_id")):
-        errors.append(f"trial {trial_id} requires trial_id")
-    if not _nonempty_string(trial.get("task_id")):
-        errors.append(f"trial {trial_id} requires task_id")
-    if not _nonempty_string(trial.get("agent_name")):
-        errors.append(f"trial {trial_id} requires agent_name")
-
-    outcome = trial.get("outcome")
-    if not isinstance(outcome, dict):
-        errors.append(f"trial {trial_id} requires outcome")
-        return errors
-    failure_type = outcome.get("failure_type") or trial.get("failure_type")
-    if failure_type:
-        errors.append(f"trial {trial_id} has infrastructure failure: {failure_type}")
-    evidence = outcome.get("evidence")
-    if not isinstance(evidence, dict):
-        errors.append(f"trial {trial_id} requires full evidence")
-        return errors
-
-    supplied_hash = evidence.get("sha256")
-    unhashed = {key: value for key, value in evidence.items() if key != "sha256"}
-    if supplied_hash != _canonical_sha256(unhashed):
-        errors.append(f"trial {trial_id} evidence hash mismatch")
-    if evidence.get("schema_version") != "calibration-evidence-v1":
-        errors.append(f"trial {trial_id} has unknown evidence schema")
-
-    task = evidence.get("task")
-    if not isinstance(task, dict) or not _nonempty_string(task.get("description")):
-        errors.append(f"trial {trial_id} requires task description")
-    output_files = evidence.get("output_files")
-    if not isinstance(output_files, dict) or not _nonempty_string(
-        output_files.get("solution.py")
-    ):
-        errors.append(f"trial {trial_id} requires final solution.py")
-    transcript = evidence.get("transcript")
-    if not isinstance(transcript, dict) or not isinstance(
-        transcript.get("events"), list
-    ) or not transcript.get("events"):
-        errors.append(f"trial {trial_id} requires a non-empty transcript")
-    verification = evidence.get("verification")
-    if not _valid_verification(verification):
-        errors.append(f"trial {trial_id} requires complete official verification")
-    metrics = trial.get("metrics")
-    if not isinstance(metrics, dict) or not isinstance(
-        metrics.get("total_tokens"), int
-    ):
-        errors.append(f"trial {trial_id} requires token metrics")
-    return errors
 
 
 def _validate_packet_evidence(packet_id: str, evidence: object) -> list[str]:
@@ -372,16 +330,6 @@ def _find_identity_keys(value: object) -> set[str]:
         for child in value:
             found.update(_find_identity_keys(child))
     return found
-
-
-def _canonical_sha256(value: object) -> str:
-    encoded = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode()
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _nonempty_string(value: object) -> bool:

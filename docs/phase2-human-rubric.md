@@ -5,9 +5,10 @@ Study: LLM-as-Judge calibration, Issue #1
 
 ## Scope
 
-Human review applies only to the full-evidence diagnostic batch. Each eligible packet
-must contain the task, final code, complete observable Trace, and official verification
-result. The minimum batch is 10 records reviewed in two independently shuffled rounds.
+Human review applies only to a full-evidence diagnostic cohort that first passes
+`phase2-cohort-v1`. Each eligible packet must contain the task, final code, complete
+observable Trace, and official verification result. The gate selects 10 process-diverse
+records for two independently shuffled rounds before any reviewer is asked to score.
 
 The 100-record functional sample is not a human task. Its label is completely defined
 by exit status and the official pytest result, so the deterministic Grader is the

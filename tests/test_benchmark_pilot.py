@@ -100,6 +100,27 @@ def test_phase2_diagnostic_preflight_accepts_minimum_manifest(tmp_path: Path) ->
     assert validate_pilot_manifest(manifest, tmp_path) == []
 
 
+def test_phase2_diagnostic_pool_preflight_accepts_diverse_candidate_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    manifest.update(
+        {
+            "protocol_version": "phase2-diagnostic-v2",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260713,
+            "budget": {
+                "total_cny": 4.0,
+                "per_agent_cny": 2.0,
+                "per_trial_cny": 0.1,
+            },
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
 def test_phase2_diagnostic_repository_manifest_hashes_match() -> None:
     manifest = load_pilot_manifest(
         ROOT / "experiments" / "phase2-diagnostic-v1" / "manifest.json"

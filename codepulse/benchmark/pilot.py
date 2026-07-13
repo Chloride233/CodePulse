@@ -165,9 +165,20 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
             "per_agent_cny": 1.0,
             "per_trial_cny": 0.1,
         }
+    elif protocol_version == "phase2-diagnostic-v2":
+        expected_task_ids = PILOT_TASK_IDS
+        expected_trials = 1
+        expected_seed = 20260713
+        expected_agents = 2
+        expected_budget = {
+            "total_cny": 4.0,
+            "per_agent_cny": 2.0,
+            "per_trial_cny": 0.1,
+        }
     else:
         errors.append(
-            "protocol_version must equal 'pilot-v1' or 'phase2-diagnostic-v1'"
+            "protocol_version must equal 'pilot-v1', 'phase2-diagnostic-v1', "
+            "or 'phase2-diagnostic-v2'"
         )
         expected_task_ids = PILOT_TASK_IDS
         expected_trials = 3

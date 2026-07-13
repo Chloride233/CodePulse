@@ -3,6 +3,10 @@
 Status: Approved; methodology corrected on 2026-07-13
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)
 
+Implementation note: command names and cohort eligibility are superseded by
+`2026-07-13-phase-2-calibration-architecture-simplification-design.md`. The evidence
+boundaries and Issue #1 acceptance criteria in this document remain authoritative.
+
 ## Objective
 
 Phase 2 must establish where LLM-as-Judge scores are trustworthy, where they are

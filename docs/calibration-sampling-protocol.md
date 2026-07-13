@@ -1,6 +1,6 @@
 # Phase 2 Calibration Sampling Protocol
 
-Status: **Judge calibration complete; human annotation not started**
+Status: **Functional Judge calibration complete; diagnostic cohort not ready**
 Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)  
 Sample version: `calibration-sample-v1`
 
@@ -42,7 +42,11 @@ python -m codepulse.eval.calibration_sampling \
 
 Every LLM Judge and human review score is `null`; extraction does not count as annotation. Phase 1 preserved deterministic test evidence and aggregate metrics but not final code or full transcripts. Therefore this sample is currently eligible only for functional-evidence calibration and is explicitly ineligible for process-quality or experience-alignment judgment.
 
-Before starting the rubric and two-pass review, CodePulse must capture the missing judge inputs or create a new evidence batch. Pytest logs must not be presented to reviewers as a substitute for agent reasoning or final code.
+Before starting the rubric and two-pass review, CodePulse must capture full evidence
+and pass `phase2-cohort-v1`. Pytest logs must not be presented to reviewers as a
+substitute for the observable Trace or final code. The first 10-record diagnostic
+capture is evidence-complete but process-homogeneous, so it is retained as capture
+pipeline evidence and excluded from qualitative calibration.
 
 The approved functional-evidence rubric is now published at
 `docs/phase2-human-rubric.md`. The existing sample remains ineligible for process or

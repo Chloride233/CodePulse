@@ -1,34 +1,32 @@
-"""Tests for the Phase 2 blinded calibration study workflow."""
+"""Tests for functional Judge calibration and shared calibration metrics."""
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from codepulse.eval.calibration_analysis import (
-    analyze_calibration_study,
     analyze_length_bias,
-    analyze_model_self_preference,
-    analyze_position_bias,
     categorical_agreement,
     heldout_bias_correction,
-    render_calibration_report,
     score_agreement,
 )
 from codepulse.eval.calibration_review import (
-    build_response_template,
     build_review_packets,
-    prepare_review_files,
+    prepare_functional_judge_files,
     run_functional_judge,
     validate_judge_observations,
     validate_review_packets,
-    validate_review_responses,
 )
+from codepulse.eval.calibration_study import main
 
 ROOT = Path(__file__).parents[1]
+
+
 def _records() -> list[dict[str, object]]:
     return [
         {
@@ -80,7 +78,7 @@ def _records() -> list[dict[str, object]]:
     ]
 
 
-def test_calibration_packets_are_deterministic_and_blinded() -> None:
+def test_calibration_functional_packets_are_deterministic_and_blinded() -> None:
     packets, mapping = build_review_packets(_records(), round_number=1, seed=7)
 
     assert packets == build_review_packets(_records(), round_number=1, seed=7)[0]
@@ -98,7 +96,7 @@ def test_calibration_packets_are_deterministic_and_blinded() -> None:
     assert validate_review_packets(packets) == []
 
 
-def test_calibration_packet_ids_change_between_rounds() -> None:
+def test_calibration_functional_packet_ids_change_with_round() -> None:
     round_1, _ = build_review_packets(_records(), round_number=1, seed=7)
     round_2, _ = build_review_packets(_records(), round_number=2, seed=7)
 
@@ -107,42 +105,14 @@ def test_calibration_packet_ids_change_between_rounds() -> None:
     )
 
 
-def test_calibration_response_template_validates_when_completed() -> None:
-    packets, _ = build_review_packets(_records(), round_number=1, seed=7)
-    responses = build_response_template(packets, reviewer_id="human-a")
-    for response, label in zip(
-        responses, ("supported_pass", "supported_fail"), strict=True
-    ):
-        response["label"] = label
-        response["rationale"] = "Official verification output supports this label."
-        response["reviewed_at"] = "2026-07-13T00:00:00Z"
-
-    assert validate_review_responses(packets, responses) == []
-
-
-def test_calibration_response_validation_rejects_missing_and_hash_drift() -> None:
-    packets, _ = build_review_packets(_records(), round_number=1, seed=7)
-    responses = build_response_template(packets, reviewer_id="human-a")[:1]
-    responses[0]["label"] = "invalid-label"
-    responses[0]["rationale"] = ""
-    responses[0]["packet_sha256"] = "0" * 64
-
-    errors = validate_review_responses(packets, responses)
-
-    assert any("coverage" in error for error in errors)
-    assert any("label" in error for error in errors)
-    assert any("rationale" in error for error in errors)
-    assert any("hash" in error for error in errors)
-
-
-def test_calibration_packet_validation_detects_identity_leakage() -> None:
+def test_calibration_functional_packet_validation_detects_identity_leakage() -> None:
     packets, _ = build_review_packets(_records(), round_number=1, seed=7)
     packets[0]["evidence"]["agent_name"] = "leaked"
 
     assert any("forbidden" in error for error in validate_review_packets(packets))
 
 
-def test_calibration_judge_observations_keep_failures_missing() -> None:
+def test_calibration_functional_judge_observations_keep_failures_missing() -> None:
     packets, _ = build_review_packets(_records(), round_number=1, seed=7)
     observations = [
         {
@@ -214,31 +184,6 @@ def test_calibration_bias_correction_is_evaluated_on_heldout_records() -> None:
     assert result["after"]["mean_absolute_error"] < result["before"]["mean_absolute_error"]
 
 
-def test_calibration_position_bias_uses_swapped_pairs() -> None:
-    result = analyze_position_bias(
-        [
-            {
-                "comparison_id": "c1",
-                "ab_winner": "candidate_a",
-                "ba_winner": "candidate_b",
-                "ab_first_minus_second": 0.4,
-                "ba_first_minus_second": 0.2,
-            },
-            {
-                "comparison_id": "c2",
-                "ab_winner": "candidate_a",
-                "ba_winner": "candidate_a",
-                "ab_first_minus_second": 0.1,
-                "ba_first_minus_second": -0.1,
-            },
-        ]
-    )
-
-    assert result["n"] == 2
-    assert result["preference_flip_rate"] == 0.5
-    assert result["mean_first_position_advantage"] == 0.15
-
-
 def test_calibration_length_bias_uses_paired_variants() -> None:
     result = analyze_length_bias(
         [
@@ -266,66 +211,9 @@ def test_calibration_length_bias_uses_paired_variants() -> None:
     assert result["length_residual_correlation"] > 0
 
 
-def test_calibration_self_preference_uses_crossed_human_residuals() -> None:
-    result = analyze_model_self_preference(
-        [
-            {"judge_family": "a", "candidate_family": "a", "judge_score": 4.2, "human_score": 4.0},
-            {"judge_family": "b", "candidate_family": "b", "judge_score": 3.1, "human_score": 3.0},
-            {"judge_family": "a", "candidate_family": "b", "judge_score": 2.9, "human_score": 3.0},
-            {"judge_family": "b", "candidate_family": "a", "judge_score": 4.0, "human_score": 4.0},
-        ]
-    )
-
-    assert result["status"] == "estimated"
-    assert result["own_family_n"] == 2
-    assert result["other_family_n"] == 2
-    assert result["self_preference_effect"] == 0.2
-    assert analyze_model_self_preference(
-        [{"judge_family": "a", "candidate_family": "a", "judge_score": 4.0, "human_score": 4.0}]
-    )["status"] == "not_identifiable"
-
-
-def test_calibration_report_states_usage_boundaries() -> None:
-    report = render_calibration_report(
-        {
-            "status": "complete",
-            "sample_size": 100,
-            "human_agreement": {"exact_agreement": 0.9, "cohens_kappa": 0.8},
-            "judge_agreement": {"exact_agreement": 0.85, "cohens_kappa": 0.7},
-            "position_bias": {"preference_flip_rate": 0.1},
-            "length_bias": {"mean_full_minus_compact": 0.2},
-            "model_self_preference": {"status": "not_identifiable"},
-            "hard_cases": ["sample-1"],
-            "calibration": {
-                "before": {"mean_absolute_error": 0.3},
-                "after": {"mean_absolute_error": 0.2},
-            },
-        }
-    )
-
-    assert "Deterministic Grader" in report
-    assert "LLM Judge" in report
-    assert "Human calibration" in report
-    assert "not_identifiable" in report
-
-
-def test_calibration_rubric_and_runbook_publish_required_boundaries() -> None:
-    rubric = (ROOT / "docs" / "phase2-human-rubric.md").read_text(encoding="utf-8")
-    runbook = (ROOT / "docs" / "phase2-calibration-runbook.md").read_text(
-        encoding="utf-8"
-    )
-
-    assert "diagnostic-process-v1" in rubric
-    assert "100-record functional sample is not a human task" in rubric
-    assert "Process-Quality Score" in rubric
-    assert "deterministic oracle" in runbook
-    assert "20 human decisions, not 200" in runbook
-    assert "--capture-evidence" in runbook
-    assert "prepare-diagnostic" in runbook
-    assert "validate-diagnostic" in runbook
-
-
-def test_calibration_prepare_writes_two_blind_rounds_and_manifest(tmp_path: Path) -> None:
+def test_calibration_functional_prepare_writes_no_human_artifacts(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "sample.jsonl"
     source.write_text(
         "\n".join(json.dumps(record) for record in _records()) + "\n",
@@ -333,29 +221,41 @@ def test_calibration_prepare_writes_two_blind_rounds_and_manifest(tmp_path: Path
     )
     output = tmp_path / "study"
 
-    manifest = prepare_review_files(
-        source,
-        output,
-        seed=7,
-        reviewer_1="human-a",
-        reviewer_2="human-b",
-    )
+    manifest = prepare_functional_judge_files(source, output, seed=7)
 
     assert manifest["sample_size"] == 2
-    assert manifest["reviewer_mode"] == "inter_rater"
-    assert (output / "review-packets-round-1.jsonl").exists()
-    assert (output / "review-packets-round-2.jsonl").exists()
-    assert (output / "review-mapping-round-1.private.jsonl").exists()
-    assert (output / "human-review-round-2.jsonl").exists()
-    assert (output / "manifest.json").exists()
+    assert manifest["status"] == "judge_prepared"
+    assert (output / "functional-packets.jsonl").exists()
+    assert (output / "functional-mapping.private.jsonl").exists()
+    assert not list(output.glob("human-review*.jsonl"))
     with pytest.raises(FileExistsError):
-        prepare_review_files(
-            source,
-            output,
-            seed=7,
-            reviewer_1="human-a",
-            reviewer_2="human-b",
-        )
+        prepare_functional_judge_files(source, output, seed=7)
+
+
+def test_calibration_functional_prepare_cli_uses_no_reviewer_ids() -> None:
+    argv = [
+        "calibration_study",
+        "prepare-functional",
+        "--input",
+        "sample.jsonl",
+        "--output-dir",
+        "study",
+    ]
+    with (
+        patch.object(sys, "argv", argv),
+        patch(
+            "codepulse.eval.calibration_study.prepare_functional_judge_files",
+            return_value={"sample_size": 100},
+        ) as prepare,
+    ):
+        main()
+
+    prepare.assert_called_once_with(
+        "sample.jsonl",
+        "study",
+        seed=20260713,
+        force=False,
+    )
 
 
 def test_calibration_functional_judge_persists_malformed_raw_response() -> None:
@@ -378,88 +278,14 @@ def test_calibration_functional_judge_persists_malformed_raw_response() -> None:
     assert validate_judge_observations(packets, observations) == []
 
 
-def test_calibration_analysis_aligns_blind_rounds_through_private_mapping() -> None:
-    packets_1, mapping_1 = build_review_packets(_records(), round_number=1, seed=7)
-    packets_2, mapping_2 = build_review_packets(_records(), round_number=2, seed=7)
-    responses_1 = _completed_responses(packets_1, "human-a")
-    responses_2 = _completed_responses(packets_2, "human-b")
-    judge = _judge_observations_from_packets(packets_1)
-
-    analysis = analyze_calibration_study(
-        packets_1=packets_1,
-        mapping_1=mapping_1,
-        responses_1=responses_1,
-        packets_2=packets_2,
-        mapping_2=mapping_2,
-        responses_2=responses_2,
-        judge_observations=judge,
+def test_calibration_runbook_checks_cohort_before_human_review() -> None:
+    rubric = (ROOT / "docs" / "phase2-human-rubric.md").read_text(encoding="utf-8")
+    runbook = (ROOT / "docs" / "phase2-calibration-runbook.md").read_text(
+        encoding="utf-8"
     )
 
-    assert analysis["sample_size"] == 2
-    assert analysis["human_agreement"]["exact_agreement"] == 1.0
-    assert analysis["judge_agreement"]["exact_agreement"] == 1.0
-    assert analysis["hard_cases"] == []
-    assert analysis["status"] == "incomplete"
-
-
-def test_calibration_analysis_requires_adjudication_for_human_disagreement() -> None:
-    packets_1, mapping_1 = build_review_packets(_records(), round_number=1, seed=7)
-    packets_2, mapping_2 = build_review_packets(_records(), round_number=2, seed=7)
-    responses_1 = _completed_responses(packets_1, "human-a")
-    responses_2 = _completed_responses(packets_2, "human-b")
-    responses_2[0]["label"] = (
-        "supported_fail"
-        if responses_2[0]["label"] == "supported_pass"
-        else "supported_pass"
-    )
-
-    analysis = analyze_calibration_study(
-        packets_1=packets_1,
-        mapping_1=mapping_1,
-        responses_1=responses_1,
-        packets_2=packets_2,
-        mapping_2=mapping_2,
-        responses_2=responses_2,
-        judge_observations=[],
-    )
-
-    assert analysis["unresolved_human_disagreements"] == 1
-    assert any(case["kind"] == "human_disagreement" for case in analysis["hard_cases"])
-
-
-def _completed_responses(
-    packets: list[dict[str, object]], reviewer_id: str
-) -> list[dict[str, object]]:
-    responses = build_response_template(packets, reviewer_id)
-    for packet, response in zip(packets, responses, strict=True):
-        stdout = packet["evidence"]["verification"].get("stdout", "")
-        response["label"] = (
-            "supported_fail" if "failed" in stdout else "supported_pass"
-        )
-        response["rationale"] = "Official verification output supports this label."
-        response["reviewed_at"] = "2026-07-13T00:00:00Z"
-    return responses
-
-
-def _judge_observations_from_packets(
-    packets: list[dict[str, object]],
-) -> list[dict[str, object]]:
-    observations = []
-    for packet in packets:
-        stdout = packet["evidence"]["verification"].get("stdout", "")
-        label = "supported_fail" if "failed" in stdout else "supported_pass"
-        observations.append(
-            {
-                "packet_id": packet["packet_id"],
-                "packet_sha256": packet["packet_sha256"],
-                "judge_model": "judge-a",
-                "variant": "identity_blind",
-                "status": "ok",
-                "label": label,
-                "score": None,
-                "reasoning": "Official verification output supports this label.",
-                "raw_response": json.dumps({"label": label}),
-                "error": None,
-            }
-        )
-    return observations
+    assert "diagnostic-process-v1" in rubric
+    assert "100-record functional sample is not a human task" in rubric
+    assert "profile-diagnostic" in runbook
+    assert "not_ready" in runbook
+    assert runbook.index("profile-diagnostic") < runbook.index("prepare-diagnostic")
