@@ -1,4 +1,4 @@
-"""Tests for the Phase 1 pilot preflight gates."""
+"""Tests for reproducible benchmark preflight gates."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from click.testing import CliRunner
 
 from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.pilot import (
+    DIAGNOSTIC_TASK_IDS,
     PILOT_TASK_IDS,
     PilotBudgetGuard,
     build_pilot_schedule,
@@ -75,6 +76,28 @@ def _manifest(root: Path) -> dict[str, object]:
 
 def test_pilot_preflight_valid_manifest_passes(tmp_path: Path) -> None:
     assert validate_pilot_manifest(_manifest(tmp_path), tmp_path) == []
+
+
+def test_phase2_diagnostic_preflight_accepts_minimum_manifest(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    manifest.update(
+        {
+            "protocol_version": "phase2-diagnostic-v1",
+            "task_ids": DIAGNOSTIC_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260713,
+            "agents": agents[:1],
+            "budget": {
+                "total_cny": 1.0,
+                "per_agent_cny": 1.0,
+                "per_trial_cny": 0.1,
+            },
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
 
 
 def test_pilot_preflight_mutable_model_and_hash_mismatch_fail(tmp_path: Path) -> None:

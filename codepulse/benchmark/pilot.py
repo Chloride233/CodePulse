@@ -1,4 +1,4 @@
-"""Deterministic preflight validation for the Phase 1 benchmark pilot."""
+"""Deterministic preflight validation for reproducible benchmark runs."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 PILOT_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(20)]
+DIAGNOSTIC_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(10)]
 MUTABLE_MODEL_NAMES = {"latest", "deepseek-chat", "deepseek/deepseek-chat"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -136,15 +137,49 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
     root = Path(repo_root)
     errors: list[str] = []
 
-    _require_equal(errors, manifest, "protocol_version", "pilot-v1")
+    protocol_version = manifest.get("protocol_version")
+    if protocol_version == "pilot-v1":
+        expected_task_ids = PILOT_TASK_IDS
+        expected_trials = 3
+        expected_seed = 20260712
+        expected_agents = 2
+        expected_budget = {
+            "total_cny": 10.0,
+            "per_agent_cny": 5.0,
+            "per_trial_cny": 0.1,
+        }
+    elif protocol_version == "phase2-diagnostic-v1":
+        expected_task_ids = DIAGNOSTIC_TASK_IDS
+        expected_trials = 1
+        expected_seed = 20260713
+        expected_agents = 1
+        expected_budget = {
+            "total_cny": 1.0,
+            "per_agent_cny": 1.0,
+            "per_trial_cny": 0.1,
+        }
+    else:
+        errors.append(
+            "protocol_version must equal 'pilot-v1' or 'phase2-diagnostic-v1'"
+        )
+        expected_task_ids = PILOT_TASK_IDS
+        expected_trials = 3
+        expected_seed = 20260712
+        expected_agents = 2
+        expected_budget = {
+            "total_cny": 10.0,
+            "per_agent_cny": 5.0,
+            "per_trial_cny": 0.1,
+        }
+
     _require_equal(errors, manifest, "benchmark", "humaneval")
-    _require_equal(errors, manifest, "task_ids", PILOT_TASK_IDS)
-    _require_equal(errors, manifest, "n_trials", 3)
-    _require_equal(errors, manifest, "seed", 20260712)
+    _require_equal(errors, manifest, "task_ids", expected_task_ids)
+    _require_equal(errors, manifest, "n_trials", expected_trials)
+    _require_equal(errors, manifest, "seed", expected_seed)
 
     agents = manifest.get("agents")
-    if not isinstance(agents, list) or len(agents) != 2:
-        errors.append("agents must contain exactly two entries")
+    if not isinstance(agents, list) or len(agents) != expected_agents:
+        errors.append(f"agents must contain exactly {expected_agents} entries")
     else:
         for index, agent in enumerate(agents):
             _validate_agent(errors, agent, index, root)
@@ -174,7 +209,6 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
             errors.append("environment.image_digest must be pinned by sha256 digest")
 
     budget = manifest.get("budget")
-    expected_budget = {"total_cny": 10.0, "per_agent_cny": 5.0, "per_trial_cny": 0.1}
     if not isinstance(budget, dict):
         errors.append("budget must be an object")
     else:

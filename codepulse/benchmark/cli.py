@@ -210,7 +210,7 @@ def benchmark_pilot_run(
     repo_root: str,
     capture_evidence: bool,
 ) -> None:
-    """Run the frozen two-Agent pilot in deterministic interleaved order."""
+    """Run a frozen benchmark manifest in deterministic interleaved order."""
     from codepulse.agent.adapter import AgentProfile, run_adapter_trials
     from codepulse.env.sandbox import SandboxManager
     from codepulse.eval.pytest_grader import PytestGrader
