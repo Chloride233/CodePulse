@@ -18,6 +18,8 @@ limits, pricing schedule and budget are fixed in
 Before that evaluation, `phase3-training-v1` runs the disjoint HumanEval/100-109
 training set once with the baseline. A failed training Trial is the only permitted
 source for the `PromptEdit` used to materialize the candidate profile and provenance.
+If the first cohort has no failures, `phase3-training-v2` uses the distinct
+HumanEval/130-139 cohort within the remaining CNY 0.9 training budget.
 
 ## Planned scale and preflight
 

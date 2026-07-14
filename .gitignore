@@ -35,6 +35,7 @@ ENV/
 experiments/*/manifest.json
 !experiments/phase3-evolution-v1/manifest.json
 !experiments/phase3-training-v1/manifest.json
+!experiments/phase3-training-v2/manifest.json
 
 # IDE
 .idea/

@@ -14,6 +14,7 @@ PILOT_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(20)]
 DIAGNOSTIC_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(10)]
 DIAGNOSTIC_HARD_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(100, 140)]
 PHASE3_TRAINING_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(100, 110)]
+PHASE3_TRAINING_HARD_TASK_IDS = [f"HumanEval/{task_id}" for task_id in range(130, 140)]
 MUTABLE_MODEL_NAMES = {"latest", "deepseek-chat", "deepseek/deepseek-chat"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -207,11 +208,21 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
             "per_agent_cny": 1.0,
             "per_trial_cny": 0.1,
         }
+    elif protocol_version == "phase3-training-v2":
+        expected_task_ids = PHASE3_TRAINING_HARD_TASK_IDS
+        expected_trials = 1
+        expected_seed = 20260716
+        expected_agents = 1
+        expected_budget = {
+            "total_cny": 0.9,
+            "per_agent_cny": 0.9,
+            "per_trial_cny": 0.1,
+        }
     else:
         errors.append(
             "protocol_version must equal 'pilot-v1', 'phase2-diagnostic-v1', "
             "'phase2-diagnostic-v2', 'phase2-diagnostic-v3', 'phase3-evolution-v1', "
-            "or 'phase3-training-v1'"
+            "'phase3-training-v1', or 'phase3-training-v2'"
         )
         expected_task_ids = PILOT_TASK_IDS
         expected_trials = 3
