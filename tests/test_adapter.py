@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
 from codepulse.agent.adapter import (
     AgentProfile,
+    AgentResult,
     _guess_filename,
     _inject_task_files,
     _is_success,
@@ -19,10 +22,12 @@ from codepulse.agent.adapter import (
     _run_mock_agent,
     _run_protocol_agent,
     _run_verification,
+    run_adapter_trials,
     run_agent,
 )
 from codepulse.data.models import AgentConfig, Difficulty, Task, TaskCategory, TaskSource, Trial
 from codepulse.eval.scoring import ScoreDimension
+from codepulse.shared.trace_types import EventType, TraceEvent, Transcript
 
 # ======================================================================
 # AgentProfile
@@ -299,6 +304,125 @@ class TestRunProtocolAgent:
         result = _run_protocol_agent(profile, task, sandbox, container)
         assert result.exit_code == -1
         assert "未指定 agent_class" in result.stderr
+
+    def test_provider_authentication_error_is_classified(self):
+        sandbox = MagicMock()
+        container = MagicMock()
+        task = _make_task("proto-auth-error")
+        profile = AgentProfile(
+            name="proto",
+            type="protocol",
+            agent_class="module.Agent",
+        )
+        transcript = Transcript(session_id="session-auth")
+        transcript.add_event(
+            TraceEvent(
+                timestamp=1.0,
+                event_type=EventType.ERROR,
+                content={
+                    "error": "authentication failed",
+                    "error_type": "AuthenticationError",
+                },
+            )
+        )
+        agent = MagicMock()
+        agent.run.return_value = transcript
+
+        with patch("codepulse.agent.adapter._load_agent_class", return_value=agent):
+            result = _run_protocol_agent(profile, task, sandbox, container)
+
+        assert result.exit_code == -1
+        assert result.metadata["failure_type"] == "provider_auth_error"
+        assert result.stderr == "authentication failed"
+
+    def test_provider_authentication_message_is_classified_when_wrapped(self):
+        sandbox = MagicMock()
+        container = MagicMock()
+        task = _make_task("proto-wrapped-auth-error")
+        profile = AgentProfile(
+            name="proto",
+            type="protocol",
+            agent_class="module.Agent",
+        )
+        transcript = Transcript(session_id="session-wrapped-auth")
+        transcript.add_event(
+            TraceEvent(
+                timestamp=1.0,
+                event_type=EventType.ERROR,
+                content={
+                    "error": 'BadRequestError: {"type":"authentication_error"}',
+                    "error_type": "BadRequestError",
+                },
+            )
+        )
+        agent = MagicMock()
+        agent.run.return_value = transcript
+
+        with patch("codepulse.agent.adapter._load_agent_class", return_value=agent):
+            result = _run_protocol_agent(profile, task, sandbox, container)
+
+        assert result.metadata["failure_type"] == "provider_auth_error"
+
+
+def test_adapter_evidence_capture_survives_container_teardown() -> None:
+    sandbox = MagicMock()
+    sandbox.create.return_value = MagicMock(id="container-1")
+    task = _make_task("evidence-task", input_code="def answer(): return 42")
+    transcript = Transcript(session_id="session-1", agent_config={"model": "model-a"})
+    transcript.add_event(
+        TraceEvent(
+            timestamp=1.0,
+            event_type=EventType.TOOL_RESULT,
+            content={"tool": "read_file", "output": "source"},
+        )
+    )
+    result = AgentResult(
+        task_id=task.task_id,
+        exit_code=0,
+        output_files={"solution.py": "def answer(): return 42"},
+        transcript=transcript,
+    )
+    harness = MagicMock()
+    harness.grade.return_value = {ScoreDimension.FUNCTIONAL: 1.0}
+    harness.compute_total_score.return_value = 30.0
+    profile = AgentProfile(name="candidate-a", type="protocol", model="model-a")
+
+    with patch("codepulse.agent.adapter.run_agent", return_value=result):
+        trial = run_adapter_trials(
+            profile,
+            task,
+            sandbox,
+            harness,
+            1,
+            capture_evidence=True,
+        )[0]
+
+    sandbox.destroy.assert_called_once_with(sandbox.create.return_value)
+    evidence = trial.outcome["evidence"]
+    assert evidence["task"]["description"] == "test task"
+    assert evidence["output_files"]["solution.py"] == "def answer(): return 42"
+    assert evidence["transcript"]["events"][0]["event_type"] == "tool_result"
+    payload = {key: value for key, value in evidence.items() if key != "sha256"}
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    assert evidence["sha256"] == hashlib.sha256(encoded).hexdigest()
+
+
+def test_adapter_evidence_capture_is_opt_in() -> None:
+    sandbox = MagicMock()
+    sandbox.create.return_value = MagicMock(id="container-1")
+    task = _make_task("default-task")
+    result = AgentResult(task_id=task.task_id, exit_code=0)
+    harness = MagicMock()
+    harness.grade.return_value = {ScoreDimension.FUNCTIONAL: 1.0}
+    harness.compute_total_score.return_value = 30.0
+    profile = AgentProfile(name="candidate-a", type="cli")
+
+    with patch("codepulse.agent.adapter.run_agent", return_value=result):
+        trial = run_adapter_trials(profile, task, sandbox, harness, 1)[0]
+
+    assert "evidence" not in trial.outcome
 
 
 # ======================================================================

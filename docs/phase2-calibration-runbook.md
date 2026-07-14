@@ -1,0 +1,203 @@
+# Phase 2 Calibration Runbook
+
+Status: Phase 2 complete; authoritative functional and qualitative artifacts saved
+Rubric: [`phase2-human-rubric.md`](phase2-human-rubric.md)
+
+## 1. Functional Calibration
+
+The 100-record sample contains official functional verification but no complete Trace
+or final artifact. Its reference label is derived deterministically from exit status
+and pytest output. It is not a human task.
+
+Completed evidence:
+
+- `results/phase2/judge-calibration-before-after.json`
+- `results/phase2/judge-calibration-before-after.md`
+- `results/phase2/calibration-study-v1/judge-observations-v1.jsonl`
+- `results/phase2/calibration-study-v1/judge-observations-v2.jsonl`
+
+Judge v2 reached 100/100 exact agreement with the deterministic oracle. Reproduction
+uses one functional packet set and does not create human response files:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study prepare-functional \
+  --input results/phase2/calibration-sample-v1.jsonl \
+  --output-dir results/phase2/functional-study-reproduction
+
+.venv/bin/python -m codepulse.eval.calibration_study judge-functional \
+  --packets results/phase2/functional-study-reproduction/functional-packets.jsonl \
+  --output results/phase2/functional-study-reproduction/judge-observations.jsonl \
+  --model deepseek/deepseek-v4-flash
+```
+
+This result establishes only functional-evidence interpretation. It does not establish
+Judge reliability for process quality or experience alignment.
+
+## 2. Profile Before Spending
+
+Every full-evidence candidate pool must pass `phase2-cohort-v1` before CodePulse
+creates blind packets, calls the qualitative Judge, or asks for human review.
+
+The completed first capture is checked with:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study profile-diagnostic \
+  --input results/phase2/diagnostic-run-v1-retry-2/trials.jsonl
+```
+
+The command returns exit status 1 and `status: not_ready`. Its observed composition is
+9 direct successes and 1 multi-attempt success. It has no final failure and no
+recovered success. This capture proves that full evidence and immutable hashes work,
+but it must not be sent to a reviewer or Judge for qualitative calibration.
+
+## 3. Build A Diverse Candidate Pool
+
+The v2 frozen manifest used the same two audited Agent profiles over all 20 pilot
+tasks, once per profile. It completed 40/40 records for CNY 0.344342 with 37 direct
+successes, 2 multi-attempt successes, and 1 final failure. Alone it remained too
+dominated by direct successes.
+
+```bash
+.venv/bin/python -m codepulse.cli benchmark preflight \
+  --manifest experiments/phase2-diagnostic-v2/manifest.json \
+  --repo-root .
+
+.venv/bin/python -m codepulse.cli benchmark pilot-run \
+  --manifest experiments/phase2-diagnostic-v2/manifest.json \
+  --output-dir results/phase2/diagnostic-pool-v2 \
+  --capture-evidence
+
+.venv/bin/python -m codepulse.eval.calibration_study profile-diagnostic \
+  --input results/phase2/diagnostic-pool-v2/trials.jsonl
+```
+
+The v3 manifest then used the iterative profile over 40 harder, fixed HumanEval tasks.
+It completed 40/40 records for CNY 0.652890 with 37 direct and 3 multi-attempt
+successes. The two sources remain separate immutable runs. Profiling them together
+records both inputs explicitly and selects 10 records without copying or rewriting
+either source:
+
+```bash
+.venv/bin/python -m codepulse.cli benchmark preflight \
+  --manifest experiments/phase2-diagnostic-v3/manifest.json \
+  --repo-root .
+
+.venv/bin/python -m codepulse.cli benchmark pilot-run \
+  --manifest experiments/phase2-diagnostic-v3/manifest.json \
+  --output-dir results/phase2/diagnostic-pool-v3 \
+  --capture-evidence
+
+.venv/bin/python -m codepulse.eval.calibration_study profile-diagnostic \
+  --input results/phase2/diagnostic-pool-v2/trials.jsonl \
+  --input results/phase2/diagnostic-pool-v3/trials.jsonl
+```
+
+The combined profile is `ready`: 4 direct successes, 5 multi-attempt successes, and
+1 final failure. No stratum exceeds 50%. Recovery remains an eligible process type but
+is not mandatory after 80 real records showed that it is rare under this Agent
+protocol. Provider, sandbox, and capture failures remain excluded.
+
+## 4. Prepare The Qualitative Study
+
+Once the candidate pool is ready, create two independently shuffled identity-blind
+rounds. The gate selects and freezes exactly 10 records before writing any review
+artifact:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study prepare-diagnostic \
+  --input results/phase2/diagnostic-pool-v2/trials.jsonl \
+  --input results/phase2/diagnostic-pool-v3/trials.jsonl \
+  --output-dir results/phase2/diagnostic-study-v2 \
+  --reviewer-1 Chloride233 \
+  --reviewer-2 Chloride233
+```
+
+One reviewer completing both rounds measures intra-rater repeatability. Two reviewer
+IDs measure inter-rater agreement. The required human work remains 20 qualitative
+decisions, not 200. CodePulse does not generate or impersonate either human round.
+
+The optional loopback reviewer writes the validated annotation format directly and
+resumes at the first incomplete item:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study review-diagnostic \
+  --packets results/phase2/diagnostic-study-v2/review-packets-round-1.jsonl \
+  --responses results/phase2/diagnostic-study-v2/human-review-round-1.jsonl
+```
+
+Finish and validate Round 1 before opening Round 2:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study validate-diagnostic \
+  --packets results/phase2/diagnostic-study-v2/review-packets-round-1.jsonl \
+  --responses results/phase2/diagnostic-study-v2/human-review-round-1.jsonl
+```
+
+The browser is only an annotation writer. Validation and analysis accept the same
+external JSONL contract without requiring that server.
+
+Observed result: both 10-record rounds validated. Intra-rater exact repeatability was
+90% with mean absolute error 0.2. One raw disagreement was preserved and resolved in
+`results/phase2/diagnostic-study-v2/adjudications.jsonl`.
+
+## 5. Run Judge Diagnostics And Analyze
+
+After the cohort gate passes, run the qualitative Judge over full and deterministic
+compact Trace variants:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study judge-diagnostic \
+  --packets results/phase2/diagnostic-study-v2/review-packets-round-1.jsonl \
+  --output results/phase2/diagnostic-study-v2/judge-observations.jsonl \
+  --model deepseek/deepseek-v4-flash
+```
+
+Malformed or exhausted calls remain missing observations, never score zero. With one
+model family and no A/B candidate pair, position bias and model self-preference remain
+`not_identifiable`; CodePulse does not manufacture weaker proxies.
+
+After both human rounds validate, generate the authoritative JSON and Markdown report:
+
+```bash
+.venv/bin/python -m codepulse.eval.calibration_study analyze-diagnostic \
+  --packets-1 results/phase2/diagnostic-study-v2/review-packets-round-1.jsonl \
+  --mapping-1 results/phase2/diagnostic-study-v2/review-mapping-round-1.private.jsonl \
+  --responses-1 results/phase2/diagnostic-study-v2/human-review-round-1.jsonl \
+  --packets-2 results/phase2/diagnostic-study-v2/review-packets-round-2.jsonl \
+  --mapping-2 results/phase2/diagnostic-study-v2/review-mapping-round-2.private.jsonl \
+  --responses-2 results/phase2/diagnostic-study-v2/human-review-round-2.jsonl \
+  --judge-observations results/phase2/diagnostic-study-v2/judge-observations.jsonl \
+  --adjudications results/phase2/diagnostic-study-v2/adjudications.jsonl \
+  --functional-result results/phase2/judge-calibration-before-after.json \
+  --output-json results/phase2/calibration-analysis.json \
+  --output-report results/phase2/calibration-report.md
+```
+
+Disagreements use a separate `--adjudications` JSONL artifact and never overwrite a
+raw review round. Phase 3 must not start until these real human and Judge artifacts
+satisfy Issue #1; code, prompts, empty templates, and mocked tests are not completion
+evidence.
+
+## 6. Observed Completion Evidence
+
+- Functional Judge exact agreement: 91% to 100%; Cohen's kappa: 0.2936 to 1.0.
+- Diagnostic sample: 10 full-evidence, single-model, single-trial records.
+- Human repeatability: 90% exact agreement, mean absolute error 0.2, one separately
+  adjudicated disagreement.
+- Full and compact Judge-human agreement: 90% exact, mean absolute error 0.4, zero
+  missing observations.
+- Pearson: not identifiable because adjudicated human scores are constant.
+- Length bias: mean full-minus-compact score delta 0.0; length/residual Pearson 0.1907.
+- Position bias: `not_identifiable` without an order-swapped candidate pair.
+- Model self-preference: `not_identifiable` without crossed model families.
+- Held-out bias correction: mean absolute error 0.0 before and after bounded
+  correction; no correction benefit is claimed.
+- Final analysis SHA-256:
+  `8c14594c0c716dbab8644b23960ba7e8f122ab42ca775a83436c01c6335e6b64`.
+- Final report SHA-256:
+  `2b93c6c964d5bdc206dd89a5102b6bda19859135ce25514855426dc68b5309a2`.
+
+The analysis JSON records the exact path and SHA-256 of all nine functional,
+diagnostic, human, Judge, and adjudication inputs. Private mappings and raw Judge
+responses remain local experiment evidence and are not published as human-authored
+results.

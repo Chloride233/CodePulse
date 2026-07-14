@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from codepulse.eval.comparison import align_exact
 from codepulse.eval.scoring import ScoreDimension, aggregate_scores
 from codepulse.evolve.forward import ForwardPass, Trajectory
 
@@ -122,7 +123,15 @@ class ValidationGate:
         Returns:
             对比结果字典。
         """
-        n_tasks = len(candidate_trajs)
+        pairs = align_exact(
+            candidate_trajs,
+            baseline_trajs,
+            left_key=lambda trajectory: trajectory.task.task_id,
+            right_key=lambda trajectory: trajectory.task.task_id,
+            left_name="candidate",
+            right_name="baseline",
+        )
+        n_tasks = len(pairs)
         if n_tasks == 0:
             return {
                 "candidate_score": 0.0,
@@ -141,9 +150,7 @@ class ValidationGate:
         cost_violations = 0
         regression_suite_failures = 0
 
-        for c_traj, b_traj in zip(
-            candidate_trajs, baseline_trajs, strict=True
-        ):
+        for c_traj, b_traj in pairs:
             c_score = aggregate_scores(_to_dimension_scores(c_traj.avg_scores))
             b_score = aggregate_scores(_to_dimension_scores(b_traj.avg_scores))
 

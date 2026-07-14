@@ -348,6 +348,24 @@ class TestValidationGateEmptyDataset:
         assert result["regression_rate"] == 0.0
 
 
+def test_validation_gate_aligns_trajectories_by_task_id(
+    mock_harness: MagicMock, sample_tasks: list[Task]
+) -> None:
+    candidate = [
+        _make_trajectory(sample_tasks[0], {"functional": 0.9}),
+        _make_trajectory(sample_tasks[1], {"functional": 0.1}),
+    ]
+    baseline = [
+        _make_trajectory(sample_tasks[1], {"functional": 0.1}),
+        _make_trajectory(sample_tasks[0], {"functional": 0.9}),
+    ]
+
+    result = ValidationGate(mock_harness, sample_tasks)._compare(candidate, baseline)
+
+    assert result["improvement_rate"] == 0.0
+    assert result["regression_rate"] == 0.0
+
+
 # ---------------------------------------------------------------------------
 # ForwardPass 调用测试
 # ---------------------------------------------------------------------------

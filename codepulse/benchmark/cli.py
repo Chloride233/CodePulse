@@ -199,8 +199,18 @@ def benchmark_preflight(manifest_path: str, repo_root: str) -> None:
     type=click.Path(file_okay=False),
 )
 @click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
-def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> None:
-    """Run the frozen two-Agent pilot in deterministic interleaved order."""
+@click.option(
+    "--capture-evidence",
+    is_flag=True,
+    help="Persist full observable Trace and output files before sandbox teardown.",
+)
+def benchmark_pilot_run(
+    manifest_path: str,
+    output_dir: str,
+    repo_root: str,
+    capture_evidence: bool,
+) -> None:
+    """Run a frozen benchmark manifest in deterministic interleaved order."""
     from codepulse.agent.adapter import AgentProfile, run_adapter_trials
     from codepulse.env.sandbox import SandboxManager
     from codepulse.eval.pytest_grader import PytestGrader
@@ -254,10 +264,13 @@ def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> 
                 harness,
                 1,
                 sandbox_image=image,
+                capture_evidence=capture_evidence,
             )[0]
             trial.trial_id = f"{task_id}--r{repetition}--{agent_name}"
             versions = trial.outcome.get("provider_model_versions", [])
-            failure_type = "agent_error" if "error" in trial.outcome else None
+            failure_type = trial.outcome.get("failure_type")
+            if not isinstance(failure_type, str):
+                failure_type = "agent_error" if "error" in trial.outcome else None
             peak_cost = deepseek_v4_flash_cost_cny(
                 trial.metrics.input_tokens,
                 trial.metrics.output_tokens,
@@ -271,7 +284,7 @@ def benchmark_pilot_run(manifest_path: str, output_dir: str, repo_root: str) -> 
                 "off_peak",
             )
             stopped_reasons = guard.record_trial(agent_name, peak_cost, failure_type)
-            if versions != [expected_models[agent_name]]:
+            if versions and versions != [expected_models[agent_name]]:
                 stopped_reasons.append("model_version_drift")
             record = {
                 "trial_id": trial.trial_id,

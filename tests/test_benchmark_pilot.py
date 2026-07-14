@@ -1,24 +1,26 @@
-"""Tests for the Phase 1 pilot preflight gates."""
+"""Tests for reproducible benchmark preflight gates."""
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from click.testing import CliRunner
 
 from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.pilot import (
+    DIAGNOSTIC_HARD_TASK_IDS,
+    DIAGNOSTIC_TASK_IDS,
     PILOT_TASK_IDS,
     PilotBudgetGuard,
     build_pilot_schedule,
     deepseek_v4_flash_cost_cny,
+    load_pilot_manifest,
     sha256_file,
     validate_pilot_manifest,
 )
 
-if TYPE_CHECKING:
-    from pathlib import Path
+ROOT = Path(__file__).parents[1]
 
 
 def _manifest(root: Path) -> dict[str, object]:
@@ -77,6 +79,97 @@ def test_pilot_preflight_valid_manifest_passes(tmp_path: Path) -> None:
     assert validate_pilot_manifest(_manifest(tmp_path), tmp_path) == []
 
 
+def test_phase2_diagnostic_preflight_accepts_minimum_manifest(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    manifest.update(
+        {
+            "protocol_version": "phase2-diagnostic-v1",
+            "task_ids": DIAGNOSTIC_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260713,
+            "agents": agents[:1],
+            "budget": {
+                "total_cny": 1.0,
+                "per_agent_cny": 1.0,
+                "per_trial_cny": 0.1,
+            },
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase2_diagnostic_pool_preflight_accepts_diverse_candidate_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    manifest.update(
+        {
+            "protocol_version": "phase2-diagnostic-v2",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260713,
+            "budget": {
+                "total_cny": 4.0,
+                "per_agent_cny": 2.0,
+                "per_trial_cny": 0.1,
+            },
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase2_hard_diagnostic_preflight_accepts_iterative_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    manifest.update(
+        {
+            "protocol_version": "phase2-diagnostic-v3",
+            "task_ids": DIAGNOSTIC_HARD_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260713,
+            "agents": agents[:1],
+            "budget": {
+                "total_cny": 4.0,
+                "per_agent_cny": 4.0,
+                "per_trial_cny": 0.1,
+            },
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase2_diagnostic_repository_manifest_hashes_match() -> None:
+    manifest = load_pilot_manifest(
+        ROOT / "experiments" / "phase2-diagnostic-v1" / "manifest.json"
+    )
+
+    assert validate_pilot_manifest(manifest, ROOT) == []
+
+
+def test_phase2_diagnostic_pool_repository_manifest_hashes_match() -> None:
+    manifest = load_pilot_manifest(
+        ROOT / "experiments" / "phase2-diagnostic-v2" / "manifest.json"
+    )
+
+    assert validate_pilot_manifest(manifest, ROOT) == []
+
+
+def test_phase2_hard_diagnostic_repository_manifest_hashes_match() -> None:
+    manifest = load_pilot_manifest(
+        ROOT / "experiments" / "phase2-diagnostic-v3" / "manifest.json"
+    )
+
+    assert validate_pilot_manifest(manifest, ROOT) == []
+
+
 def test_pilot_preflight_mutable_model_and_hash_mismatch_fail(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path)
     agents = manifest["agents"]
@@ -117,6 +210,13 @@ def test_pilot_preflight_cli_valid_manifest_passes(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Pilot preflight passed" in result.output
+
+
+def test_pilot_run_cli_exposes_opt_in_evidence_capture() -> None:
+    result = CliRunner().invoke(benchmark_group, ["pilot-run", "--help"])
+
+    assert result.exit_code == 0
+    assert "--capture-evidence" in result.output
 
 
 def test_pilot_budget_guard_cost_limits_and_projection_stop() -> None:
@@ -160,6 +260,14 @@ def test_pilot_budget_guard_three_consecutive_infra_failures_stop() -> None:
     reasons = guard.record_trial("agent-a", 0.01, "sandbox_error")
 
     assert "consecutive_infrastructure_failures" in reasons
+
+
+def test_pilot_budget_guard_provider_authentication_stops_immediately() -> None:
+    guard = PilotBudgetGuard()
+
+    reasons = guard.record_trial("agent-a", 0.0, "provider_auth_error")
+
+    assert reasons == ["provider_authentication_failed"]
 
 
 def test_pilot_budget_guard_infra_failure_rate_after_ten_trials_stop() -> None:

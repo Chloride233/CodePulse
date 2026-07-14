@@ -1,0 +1,17 @@
+{
+  "source": "results/pilot-v1/runs/20260713-v1/trials.jsonl",
+  "output": "results/phase2/calibration-sample-v1.jsonl",
+  "seed": 20260713,
+  "sample_size": 100,
+  "agents": {
+    "deepseek-v4-flash-direct": 50,
+    "deepseek-v4-flash-iterative": 50
+  },
+  "tasks": 20,
+  "strata": {
+    "success": 98,
+    "failure": 2
+  },
+  "annotation_status": "not_started",
+  "artifact_limitation": "Phase 1 did not persist final code or full transcripts"
+}

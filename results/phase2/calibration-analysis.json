@@ -1,0 +1,234 @@
+{
+  "status": "complete",
+  "functional_calibration": {
+    "status": "functional_oracle_complete_diagnostics_pending",
+    "protocol_version": "calibration-study-v1",
+    "sample_size": 100,
+    "source_sample_sha256": "df237645d1fd04c1128c09fa0410d5186a9b9686ea7634e677f104091da983b6",
+    "review_packet_sha256": "1f3a658b605e6bbe7f1940a781e1566608163d22a24d7781fb5360e21f26222a",
+    "judge_model": "deepseek/deepseek-v4-flash",
+    "comparison_reference": "deterministic functional success flag; not human annotation",
+    "human_review_required_for_functional_sample": false,
+    "before": {
+      "prompt_version": "unversioned-v1",
+      "observations": 100,
+      "missing": 0,
+      "label_distribution": {
+        "supported_pass": 89,
+        "supported_fail": 2,
+        "insufficient_evidence": 9
+      },
+      "exact_agreement": 0.91,
+      "cohens_kappa": 0.2936,
+      "artifact_sha256": "08c1aba5c0b856c5ffda36c3a0e4377f123fdda5e9c7ea2d7cd5d9b88016f4de"
+    },
+    "after": {
+      "prompt_version": "functional-evidence-judge-v2",
+      "observations": 100,
+      "missing": 0,
+      "label_distribution": {
+        "supported_pass": 98,
+        "supported_fail": 2,
+        "insufficient_evidence": 0
+      },
+      "exact_agreement": 1.0,
+      "cohens_kappa": 1.0,
+      "artifact_sha256": "8376235624d4903b352cf02f04114a14389d835bb0dbb8baab3234fedfbaa99f"
+    },
+    "observed_bias": {
+      "kind": "artifact_completeness_confusion",
+      "affected_samples": 9,
+      "description": "The v1 Judge treated the expected absence of final code and a full transcript as contradictory functional evidence.",
+      "correction": "The v2 prompt states that artifact_status limits non-functional review and does not contradict complete official verification."
+    },
+    "remaining_evidence": {
+      "diagnostic_human_review": "pending_minimum_10_full_evidence_records_two_rounds",
+      "position_bias": "not_run",
+      "length_bias": "not_run",
+      "model_self_preference": "not_identifiable_with_one_model_family"
+    },
+    "limitations": [
+      "Functional agreement uses the deterministic oracle by design; human calibration is reserved for qualitative full-evidence records.",
+      "The configured model ID was persisted, but provider response model metadata and token cost were not captured by the Judge helper.",
+      "The 98/2 class distribution makes kappa prevalence-sensitive; raw agreement and label distributions must be reported alongside it."
+    ]
+  },
+  "sample_size": 10,
+  "reviewer_mode": "intra_rater",
+  "human_agreement": {
+    "n": 10,
+    "within_one_point": 0.9,
+    "pearson": null,
+    "pearson_reason": "requires at least two non-constant aligned score distributions",
+    "mean_signed_error": -0.2,
+    "mean_absolute_error": 0.2,
+    "exact_agreement": 0.9,
+    "cohens_kappa": 0.0,
+    "degenerate": false,
+    "distribution_a": {
+      "3": 1,
+      "5": 9
+    },
+    "distribution_b": {
+      "5": 10
+    }
+  },
+  "unresolved_human_disagreements": 0,
+  "judge_human_agreement": {
+    "length_full": {
+      "n": 10,
+      "within_one_point": 0.9,
+      "pearson": null,
+      "pearson_reason": "requires at least two non-constant aligned score distributions",
+      "mean_signed_error": -0.4,
+      "mean_absolute_error": 0.4,
+      "exact_agreement": 0.9,
+      "cohens_kappa": 0.0,
+      "degenerate": false,
+      "distribution_a": {
+        "1.0": 1,
+        "5.0": 9
+      },
+      "distribution_b": {
+        "5.0": 10
+      }
+    },
+    "length_compact": {
+      "n": 10,
+      "within_one_point": 0.9,
+      "pearson": null,
+      "pearson_reason": "requires at least two non-constant aligned score distributions",
+      "mean_signed_error": -0.4,
+      "mean_absolute_error": 0.4,
+      "exact_agreement": 0.9,
+      "cohens_kappa": 0.0,
+      "degenerate": false,
+      "distribution_a": {
+        "1.0": 1,
+        "5.0": 9
+      },
+      "distribution_b": {
+        "5.0": 10
+      }
+    }
+  },
+  "missing_judge_observations": 0,
+  "calibration": {
+    "status": "estimated",
+    "split": "sorted_alternating_v1",
+    "train_n": 5,
+    "test_n": 5,
+    "bias_offset": -0.8,
+    "before": {
+      "n": 5,
+      "within_one_point": 1.0,
+      "pearson": null,
+      "pearson_reason": "requires at least two non-constant aligned score distributions",
+      "mean_signed_error": 0.0,
+      "mean_absolute_error": 0.0
+    },
+    "after": {
+      "n": 5,
+      "within_one_point": 1.0,
+      "pearson": null,
+      "pearson_reason": "requires at least two non-constant aligned score distributions",
+      "mean_signed_error": 0.0,
+      "mean_absolute_error": 0.0
+    },
+    "score_distributions": {
+      "judge_before": {
+        "1": 1,
+        "5": 9
+      },
+      "judge_after": {
+        "1.8": 1,
+        "5": 9
+      },
+      "human": {
+        "5": 10
+      }
+    }
+  },
+  "position_bias": {
+    "n": 0,
+    "status": "not_identifiable",
+    "reason": "a single candidate provides no order-swapped A/B comparison"
+  },
+  "length_bias": {
+    "n": 10,
+    "status": "estimated",
+    "mean_full_minus_compact": 0.0,
+    "length_residual_correlation": 0.1907
+  },
+  "model_self_preference": {
+    "status": "not_identifiable",
+    "reason": "crossed candidate and Judge model families are unavailable"
+  },
+  "hard_cases": [
+    {
+      "kind": "human_disagreement",
+      "packet_id": "diag-2f9e6e6262f6246b",
+      "packet_sha256": "7cbd15f534ed291e5cc485cc2c43780ead5a0488d3357913c8ea390b5d0ac519"
+    },
+    {
+      "kind": "judge_human_disagreement",
+      "packet_id": "diag-b17280a717d2aec7",
+      "packet_sha256": "9f65323f4c3ae34898c5ad85c733803a76abd3dc51f8c724c06b6cf25c75da00",
+      "variant": "length_compact"
+    },
+    {
+      "kind": "judge_human_disagreement",
+      "packet_id": "diag-b17280a717d2aec7",
+      "packet_sha256": "9f65323f4c3ae34898c5ad85c733803a76abd3dc51f8c724c06b6cf25c75da00",
+      "variant": "length_full"
+    },
+    {
+      "kind": "official_failure",
+      "packet_id": "diag-b17280a717d2aec7",
+      "packet_sha256": "9f65323f4c3ae34898c5ad85c733803a76abd3dc51f8c724c06b6cf25c75da00"
+    }
+  ],
+  "usage_boundaries": {
+    "deterministic_grader": "authoritative for executable official tests and static checks",
+    "llm_judge": "limited to evidence-complete qualitative dimensions with raw-response retention; observed full-evidence exact agreement 0.9 and mean absolute error 0.4",
+    "human_calibration": "required for qualitative agreement and hard-case adjudication; observed 1 raw round disagreement and 1 adjudication"
+  },
+  "input_artifacts": {
+    "packets_round_1": {
+      "path": "results/phase2/diagnostic-study-v2/review-packets-round-1.jsonl",
+      "sha256": "b088a8177f236a4f3d9f58e1fa80d9ba65e0db0fa06d349175f0f9381256008c"
+    },
+    "mapping_round_1": {
+      "path": "results/phase2/diagnostic-study-v2/review-mapping-round-1.private.jsonl",
+      "sha256": "0e2103f5db94e1da21aae7a45606b5927cc66d3cee926a886dad69f491823810"
+    },
+    "responses_round_1": {
+      "path": "results/phase2/diagnostic-study-v2/human-review-round-1.jsonl",
+      "sha256": "d7d91f9e2431e17766897d26475772ca5dfca812c0a899119b97d3bb8a8cfe6d"
+    },
+    "packets_round_2": {
+      "path": "results/phase2/diagnostic-study-v2/review-packets-round-2.jsonl",
+      "sha256": "cfbf16eda1ad33b65195737b584027d226cd5ce8a5cc8027a8bf5a861669d874"
+    },
+    "mapping_round_2": {
+      "path": "results/phase2/diagnostic-study-v2/review-mapping-round-2.private.jsonl",
+      "sha256": "774f0f79a54ea00b4c51a9861d10dc59edbe16af717660c185ae48024db21f68"
+    },
+    "responses_round_2": {
+      "path": "results/phase2/diagnostic-study-v2/human-review-round-2.jsonl",
+      "sha256": "640d557775c5c046c7742a47de0b33d7a7614880e8af483302d1595219fa6a97"
+    },
+    "judge_observations": {
+      "path": "results/phase2/diagnostic-study-v2/judge-observations.jsonl",
+      "sha256": "5f2dc0c589c58e012af02d9dff962318032e027b8cb7f48cc58032b3df434309"
+    },
+    "functional_result": {
+      "path": "results/phase2/judge-calibration-before-after.json",
+      "sha256": "befcfb09c857dc4243cc2861e2c10a3e8da3e1d4fe5748a4f3200763ef1e3c1b"
+    },
+    "adjudications": {
+      "path": "results/phase2/diagnostic-study-v2/adjudications.jsonl",
+      "sha256": "91bebe28d8b6ab58463e640ad73f7bde26b8ce9d2eb883c0d3fc6445485e8cf6"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "status": "functional_oracle_complete_diagnostics_pending",
+  "protocol_version": "calibration-study-v1",
+  "sample_size": 100,
+  "source_sample_sha256": "df237645d1fd04c1128c09fa0410d5186a9b9686ea7634e677f104091da983b6",
+  "review_packet_sha256": "1f3a658b605e6bbe7f1940a781e1566608163d22a24d7781fb5360e21f26222a",
+  "judge_model": "deepseek/deepseek-v4-flash",
+  "comparison_reference": "deterministic functional success flag; not human annotation",
+  "human_review_required_for_functional_sample": false,
+  "before": {
+    "prompt_version": "unversioned-v1",
+    "observations": 100,
+    "missing": 0,
+    "label_distribution": {
+      "supported_pass": 89,
+      "supported_fail": 2,
+      "insufficient_evidence": 9
+    },
+    "exact_agreement": 0.91,
+    "cohens_kappa": 0.2936,
+    "artifact_sha256": "08c1aba5c0b856c5ffda36c3a0e4377f123fdda5e9c7ea2d7cd5d9b88016f4de"
+  },
+  "after": {
+    "prompt_version": "functional-evidence-judge-v2",
+    "observations": 100,
+    "missing": 0,
+    "label_distribution": {
+      "supported_pass": 98,
+      "supported_fail": 2,
+      "insufficient_evidence": 0
+    },
+    "exact_agreement": 1.0,
+    "cohens_kappa": 1.0,
+    "artifact_sha256": "8376235624d4903b352cf02f04114a14389d835bb0dbb8baab3234fedfbaa99f"
+  },
+  "observed_bias": {
+    "kind": "artifact_completeness_confusion",
+    "affected_samples": 9,
+    "description": "The v1 Judge treated the expected absence of final code and a full transcript as contradictory functional evidence.",
+    "correction": "The v2 prompt states that artifact_status limits non-functional review and does not contradict complete official verification."
+  },
+  "remaining_evidence": {
+    "diagnostic_human_review": "pending_minimum_10_full_evidence_records_two_rounds",
+    "position_bias": "not_run",
+    "length_bias": "not_run",
+    "model_self_preference": "not_identifiable_with_one_model_family"
+  },
+  "limitations": [
+    "Functional agreement uses the deterministic oracle by design; human calibration is reserved for qualitative full-evidence records.",
+    "The configured model ID was persisted, but provider response model metadata and token cost were not captured by the Judge helper.",
+    "The 98/2 class distribution makes kappa prevalence-sensitive; raw agreement and label distributions must be reported alongside it."
+  ]
+}

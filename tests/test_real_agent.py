@@ -247,11 +247,14 @@ class TestRealAgentRun:
 
         transcript = agent.run(task, sandbox)
 
-        # 应该有 2 个 LLM_CALL 事件 + 1 个 TOOL_CALL 事件
+        # 应该有 2 个 LLM_CALL 事件、1 个 TOOL_CALL 和 1 个 TOOL_RESULT 事件
         llm_events = [e for e in transcript.events if e.event_type == EventType.LLM_CALL]
         tool_events = [e for e in transcript.events if e.event_type == EventType.TOOL_CALL]
+        result_events = [e for e in transcript.events if e.event_type == EventType.TOOL_RESULT]
         assert len(llm_events) == 2
         assert len(tool_events) == 1
+        assert len(result_events) == 1
+        assert result_events[0].content["output"] == "hello"
 
     @patch("litellm.completion")
     def test_max_iterations_stops(self, mock_completion: MagicMock) -> None:
@@ -291,6 +294,7 @@ class TestRealAgentRun:
         error_events = [e for e in transcript.events if e.event_type == EventType.ERROR]
         assert len(error_events) == 1
         assert "API error" in error_events[0].content["error"]
+        assert error_events[0].content["error_type"] == "RuntimeError"
 
     @patch("litellm.completion")
     def test_transcript_metrics(self, mock_completion: MagicMock) -> None:

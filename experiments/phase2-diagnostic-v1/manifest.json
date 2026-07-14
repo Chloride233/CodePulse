@@ -1,0 +1,68 @@
+{
+  "protocol_version": "phase2-diagnostic-v1",
+  "benchmark": "humaneval",
+  "task_ids": [
+    "HumanEval/0",
+    "HumanEval/1",
+    "HumanEval/2",
+    "HumanEval/3",
+    "HumanEval/4",
+    "HumanEval/5",
+    "HumanEval/6",
+    "HumanEval/7",
+    "HumanEval/8",
+    "HumanEval/9"
+  ],
+  "n_trials": 1,
+  "seed": 20260713,
+  "agents": [
+    {
+      "name": "deepseek-v4-flash-iterative",
+      "provider": "deepseek",
+      "model_version": "deepseek/deepseek-v4-flash",
+      "provider_model_version": "deepseek-v4-flash",
+      "profile_path": "agents/deepseek-v4-flash-iterative.yaml",
+      "profile_sha256": "9f2d9bbcc5a96dd21abc51efff97fc0e9356ff60d54ca5fbbdbb42590277057f",
+      "prompt_sha256": "14c69074eeda620fcad777ffa560a6ddcf01f19c396a908506f6d0542560f776"
+    }
+  ],
+  "dataset": {
+    "source_path": "datasets/humaneval/HumanEval.jsonl.gz",
+    "source_sha256": "b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef",
+    "task_path": "datasets/humaneval/pilot-v1.jsonl",
+    "task_sha256": "cc5632e3416390c706da7002f2237dc5aba295bd2d50114d5238e0149d090b1d"
+  },
+  "dependencies": {
+    "lockfile": "experiments/pilot-v1/requirements.lock",
+    "lockfile_sha256": "f4584ea0ac4e7d5b9c0357849a279449cc33e967d7f4596a4cd1d6227536b82e"
+  },
+  "codepulse_commit": "b9e8e1cecb8a63b2e9394d0bab9bbbdef22115d2",
+  "environment": {
+    "image_digest": "sha256:fcb59a48cd9017b030ebb32f2a7cddfba839b26c7137d3be16b60f986a919396",
+    "cpus": 2,
+    "memory_mb": 2048,
+    "network": "none",
+    "timeout_seconds": 300
+  },
+  "budget": {
+    "total_cny": 1.0,
+    "per_agent_cny": 1.0,
+    "per_trial_cny": 0.1
+  },
+  "pricing": {
+    "currency": "CNY",
+    "unit_tokens": 1000000,
+    "schedule_status": "pending_official_schedule",
+    "off_peak": {
+      "cache_hit": 0.02,
+      "cache_miss": 1.0,
+      "output": 2.0
+    },
+    "peak": {
+      "cache_hit": 0.04,
+      "cache_miss": 2.0,
+      "output": 4.0
+    },
+    "budget_tier": "peak"
+  }
+}

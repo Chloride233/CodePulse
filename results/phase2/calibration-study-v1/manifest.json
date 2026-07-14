@@ -1,0 +1,29 @@
+{
+  "protocol_version": "calibration-study-v1",
+  "status": "functional_oracle_complete_diagnostics_pending",
+  "source": "results/phase2/calibration-sample-v1.jsonl",
+  "source_sha256": "df237645d1fd04c1128c09fa0410d5186a9b9686ea7634e677f104091da983b6",
+  "sample_size": 100,
+  "seed": 20260713,
+  "rubric_version": "functional-evidence-v1",
+  "reviewer_mode": "not_applicable_to_functional_sample",
+  "artifact_hashes": {
+    "review-packets-round-1.jsonl": "1f3a658b605e6bbe7f1940a781e1566608163d22a24d7781fb5360e21f26222a",
+    "review-packets-round-2.jsonl": "68a4c1c5d99fd0738c1bd4739475ba34f27a87a9ca6071068a5d9a3bc177ddd9",
+    "review-mapping-round-1.private.jsonl": "9ad0b05cd7bec3f8502c9948b59f4f64c8fd2ede99a6f5d0776a0e8c8533632f",
+    "review-mapping-round-2.private.jsonl": "56ca01496f9f1382b1aa7f0550f2db4b2ce4e1b8a4db0b1e6b805d40a86ebe6d",
+    "human-review-round-1.jsonl": "e792706d791a50747606252e9955706f019f45995d0a5e193c68ffd683ee5886",
+    "human-review-round-2.jsonl": "069ea5749a6303d8cc3d47f1afa0c657166ef5fe6e363896cee4ae10375b7216",
+    "judge-observations-v1.jsonl": "08c1aba5c0b856c5ffda36c3a0e4377f123fdda5e9c7ea2d7cd5d9b88016f4de",
+    "judge-observations-v2.jsonl": "8376235624d4903b352cf02f04114a14389d835bb0dbb8baab3234fedfbaa99f"
+  },
+  "judge_model": "deepseek/deepseek-v4-flash",
+  "judge_calls_per_run": 100,
+  "judge_call_failures": {
+    "v1": 0,
+    "v2": 0
+  },
+  "comparison_reference": "deterministic_functional_oracle",
+  "human_review_status": "not_applicable_to_functional_sample",
+  "human_review_scope": "full_evidence_diagnostic_batch_only"
+}
