@@ -51,6 +51,9 @@ dev = [
     "types-docker>=7.1.0",
     "types-PyYAML>=6.0.0",
 ]
+swebench = [
+    "swebench==4.1.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/Chloride233/CodePulse"
