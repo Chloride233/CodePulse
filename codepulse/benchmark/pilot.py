@@ -186,10 +186,20 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
             "per_agent_cny": 4.0,
             "per_trial_cny": 0.1,
         }
+    elif protocol_version == "phase3-evolution-v1":
+        expected_task_ids = PILOT_TASK_IDS
+        expected_trials = 3
+        expected_seed = 20260714
+        expected_agents = 2
+        expected_budget = {
+            "total_cny": 10.0,
+            "per_agent_cny": 5.0,
+            "per_trial_cny": 0.1,
+        }
     else:
         errors.append(
             "protocol_version must equal 'pilot-v1', 'phase2-diagnostic-v1', "
-            "'phase2-diagnostic-v2', or 'phase2-diagnostic-v3'"
+            "'phase2-diagnostic-v2', 'phase2-diagnostic-v3', or 'phase3-evolution-v1'"
         )
         expected_task_ids = PILOT_TASK_IDS
         expected_trials = 3
@@ -212,6 +222,8 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
     else:
         for index, agent in enumerate(agents):
             _validate_agent(errors, agent, index, root)
+        if protocol_version == "phase3-evolution-v1":
+            _validate_phase3_roles(errors, agents)
 
     _validate_file(errors, manifest.get("dataset"), "source_path", "source_sha256", root)
     _validate_file(errors, manifest.get("dataset"), "task_path", "task_sha256", root)
@@ -283,6 +295,19 @@ def _validate_agent(errors: list[str], agent: object, index: int, root: Path) ->
     if isinstance(model_version, str) and model_version.lower() in MUTABLE_MODEL_NAMES:
         errors.append(f"{prefix}.model_version must be immutable, got {model_version!r}")
     _validate_file(errors, agent, "profile_path", "profile_sha256", root, prefix=f"{prefix}.")
+
+
+def _validate_phase3_roles(errors: list[str], agents: list[object]) -> None:
+    """Require an explicitly paired, same-model Phase 3 comparison."""
+    if not all(isinstance(agent, dict) for agent in agents):
+        return
+    typed_agents = [agent for agent in agents if isinstance(agent, dict)]
+    roles = {agent.get("role") for agent in typed_agents}
+    if roles != {"baseline", "candidate"}:
+        errors.append("phase3 agents must contain one baseline and one candidate role")
+    model_versions = {agent.get("model_version") for agent in typed_agents}
+    if len(model_versions) != 1:
+        errors.append("phase3 baseline and candidate must use the same model_version")
 
 
 def _validate_file(

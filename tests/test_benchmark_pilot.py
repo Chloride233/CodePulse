@@ -146,6 +146,49 @@ def test_phase2_hard_diagnostic_preflight_accepts_iterative_manifest(
     assert validate_pilot_manifest(manifest, tmp_path) == []
 
 
+def test_phase3_evolution_preflight_accepts_paired_manifest(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    assert all(isinstance(agent, dict) for agent in agents)
+    agents[0]["role"] = "baseline"
+    agents[1]["role"] = "candidate"
+    agents[1]["model_version"] = agents[0]["model_version"]
+    agents[1]["provider_model_version"] = agents[0]["provider_model_version"]
+    manifest.update(
+        {
+            "protocol_version": "phase3-evolution-v1",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 3,
+            "seed": 20260714,
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase3_evolution_preflight_rejects_unpaired_or_cross_model_agents(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    assert all(isinstance(agent, dict) for agent in agents)
+    agents[0]["role"] = "candidate"
+    agents[1]["role"] = "candidate"
+    manifest.update(
+        {
+            "protocol_version": "phase3-evolution-v1",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 3,
+            "seed": 20260714,
+        }
+    )
+
+    errors = validate_pilot_manifest(manifest, tmp_path)
+
+    assert "phase3 agents must contain one baseline and one candidate role" in errors
+    assert "phase3 baseline and candidate must use the same model_version" in errors
+
+
 def test_phase2_diagnostic_repository_manifest_hashes_match() -> None:
     manifest = load_pilot_manifest(
         ROOT / "experiments" / "phase2-diagnostic-v1" / "manifest.json"
@@ -165,6 +208,14 @@ def test_phase2_diagnostic_pool_repository_manifest_hashes_match() -> None:
 def test_phase2_hard_diagnostic_repository_manifest_hashes_match() -> None:
     manifest = load_pilot_manifest(
         ROOT / "experiments" / "phase2-diagnostic-v3" / "manifest.json"
+    )
+
+    assert validate_pilot_manifest(manifest, ROOT) == []
+
+
+def test_phase3_evolution_repository_manifest_hashes_match() -> None:
+    manifest = load_pilot_manifest(
+        ROOT / "experiments" / "phase3-evolution-v1" / "manifest.json"
     )
 
     assert validate_pilot_manifest(manifest, ROOT) == []
