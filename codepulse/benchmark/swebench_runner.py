@@ -119,7 +119,9 @@ def run_swebench_trial(
     harness = _official_harness()
     test_spec = harness.make_test_spec(instance)
     client = sandbox._client
-    harness.build_instance_images(client, [instance], max_workers=1)
+    harness.build_instance_images(
+        client, [instance], max_workers=1, tag="latest", env_image_tag="latest"
+    )
     log_path = Path("results") / "swebench-harness" / str(instance["instance_id"]) / "agent.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger = harness.setup_logger(str(instance["instance_id"]), log_path)
