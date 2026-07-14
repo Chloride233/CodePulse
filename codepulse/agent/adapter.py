@@ -117,6 +117,10 @@ class AgentProfile:
             data["max_iterations"] = self.max_iterations
             data["temperature"] = self.temperature
             data["max_tokens"] = self.max_tokens
+        if self.author:
+            data["author"] = self.author
+        if self.metadata:
+            data["metadata"] = self.metadata
 
         file_path = Path(path)
         file_path.parent.mkdir(parents=True, exist_ok=True)

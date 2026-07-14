@@ -127,6 +127,7 @@ class TestAgentProfile:
             assert loaded.type == "protocol"
             assert loaded.agent_class == "my.module.MyAgent"
             assert loaded.max_iterations == 30
+            assert loaded.temperature == 0.5
         finally:
             Path(path).unlink(missing_ok=True)
 

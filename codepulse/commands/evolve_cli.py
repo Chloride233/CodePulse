@@ -12,12 +12,38 @@ from typing import Any
 
 import click
 
+from codepulse.evolve.candidate import materialize_candidate
 from codepulse.evolve.suggest import SuggestionEngine
 
 
 @click.group(name="evolve")
 def evolve_group() -> None:
     """Self-evolution tools — analyze and improve agent performance."""
+
+
+@evolve_group.command(name="materialize-candidate")
+@click.option("--baseline-profile", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--training-trials", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--candidate-profile", required=True, type=click.Path(dir_okay=False))
+@click.option("--provenance", required=True, type=click.Path(dir_okay=False))
+def materialize_candidate_command(
+    baseline_profile: str,
+    training_trials: str,
+    candidate_profile: str,
+    provenance: str,
+) -> None:
+    """Generate a provenance-backed candidate profile from failed training trials."""
+    try:
+        result = materialize_candidate(
+            baseline_profile,
+            training_trials,
+            candidate_profile,
+            provenance,
+        )
+    except (FileExistsError, OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Candidate profile: {result['candidate_profile_path']}")
+    click.echo(f"Provenance: {provenance}")
 
 
 @evolve_group.command(name="suggest")
