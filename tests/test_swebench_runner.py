@@ -9,6 +9,7 @@ from click.testing import CliRunner
 
 from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.swebench_runner import (
+    _native_architecture,
     _task_from_instance,
     validate_swebench_training_manifest,
 )
@@ -30,6 +31,10 @@ def test_swebench_runner_task_exposes_issue_but_not_oracle_data() -> None:
     assert task.input == {"description": "Fix the regression."}
     assert task.ground_truth == {}
     assert task.metadata == {"repo": "org/repo", "base_commit": "abc123"}
+
+
+def test_swebench_runner_uses_supported_native_architecture() -> None:
+    assert _native_architecture() in {"arm64", "x86_64"}
 
 
 def test_swebench_runner_training_manifest_accepts_frozen_repository_inputs() -> None:
