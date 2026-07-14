@@ -26,6 +26,11 @@ from codepulse.benchmark.pilot import (
     validate_pilot_manifest,
 )
 from codepulse.benchmark.pilot_report import write_phase3_reports, write_pilot_reports
+from codepulse.benchmark.swebench_runner import (
+    load_swebench_instances,
+    run_swebench_trial,
+    validate_swebench_training_manifest,
+)
 from codepulse.config import DEFAULT_RESULTS_DIR
 from codepulse.data.aacr_bench import AacrBenchLoader
 from codepulse.data.custom_loader import CustomDatasetLoader
@@ -327,6 +332,70 @@ def benchmark_pilot_run(
     if not stopped_reasons:
         write_pilot_reports(output)
     click.echo(json.dumps(summary, ensure_ascii=False))
+
+
+@benchmark_group.command(name="swebench-training-run")
+@click.option("--manifest", "manifest_path", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--output-dir", required=True, type=click.Path(file_okay=False))
+@click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
+def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_root: str) -> None:
+    """Run the frozen Phase 3 SWE-bench baseline-training cohort."""
+    from codepulse.agent.adapter import AgentProfile
+    from codepulse.env.sandbox import SandboxManager
+
+    root = Path(repo_root)
+    manifest = load_pilot_manifest(manifest_path)
+    errors = validate_swebench_training_manifest(manifest, root)
+    if errors:
+        raise click.ClickException("SWE-bench preflight failed: " + "; ".join(errors))
+    dataset = manifest["dataset"]
+    agent = manifest["agents"][0]
+    assert isinstance(dataset, dict) and isinstance(agent, dict)
+    instances = load_swebench_instances(root / str(dataset["task_path"]))
+    profile = AgentProfile.from_yaml(root / str(agent["profile_path"]))
+    output = Path(output_dir)
+    trials_path = output / "trials.jsonl"
+    if trials_path.exists():
+        raise click.ClickException(f"Refusing to merge with existing run: {trials_path}")
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    sandbox = SandboxManager()
+    total_cost = 0.0
+    with trials_path.open("w", encoding="utf-8") as trial_file:
+        for index, task_id in enumerate(manifest["task_ids"], start=1):
+            click.echo(f"[{index}/5] {task_id} baseline")
+            trial = run_swebench_trial(
+                profile, instances[task_id], sandbox, timeout_seconds=900
+            )
+            peak_cost = deepseek_v4_flash_cost_cny(
+                int(trial.metrics["input_tokens"]), int(trial.metrics["output_tokens"]),
+                int(trial.metrics["cache_tokens"]), "peak"
+            )
+            total_cost += peak_cost
+            record = {
+                "trial_id": f"{task_id}--r0--{profile.name}",
+                "task_id": task_id, "repetition": 0, "agent_name": profile.name,
+                "success": trial.success, "outcome": trial.outcome,
+                "metrics": {**trial.metrics, "cost_cny_peak": peak_cost},
+            }
+            trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+            trial_file.flush()
+    summary = {"completed_trials": 5, "total_cost_cny_peak": round(total_cost, 6)}
+    (output / "run-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    click.echo(json.dumps(summary))
+
+
+@benchmark_group.command(name="swebench-training-preflight")
+@click.option("--manifest", "manifest_path", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
+def benchmark_swebench_training_preflight(manifest_path: str, repo_root: str) -> None:
+    """Validate a frozen SWE-bench training run without contacting Docker."""
+    errors = validate_swebench_training_manifest(
+        load_pilot_manifest(manifest_path), repo_root
+    )
+    if errors:
+        raise click.ClickException("SWE-bench preflight failed: " + "; ".join(errors))
+    click.echo("SWE-bench training preflight passed: manifest hashes and tasks are frozen.")
 
 
 @benchmark_group.command(name="phase3-report")

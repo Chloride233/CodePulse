@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from codepulse.agent.adapter import AgentProfile, _load_agent_class
 from codepulse.data.models import Difficulty, Task, TaskCategory, TaskSource
 from codepulse.env.sandbox import Container, ResourceLimits, SandboxManager
-from codepulse.eval.artifacts import canonical_sha256
+from codepulse.eval.artifacts import canonical_sha256, file_sha256
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,6 +38,74 @@ class SWEbenchTrial:
     success: bool
     outcome: dict[str, Any]
     metrics: dict[str, Any]
+
+
+def load_swebench_instances(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Load a frozen SWE-bench JSONL snapshot keyed by instance ID."""
+    rows = [
+        json.loads(line)
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if not all(isinstance(row, dict) and isinstance(row.get("instance_id"), str) for row in rows):
+        raise ValueError("SWE-bench snapshot must contain object records with instance_id")
+    instances = {str(row["instance_id"]): row for row in rows}
+    if len(instances) != len(rows):
+        raise ValueError("SWE-bench snapshot contains duplicate instance IDs")
+    return instances
+
+
+def validate_swebench_training_manifest(
+    manifest: dict[str, Any], repo_root: str | Path
+) -> list[str]:
+    """Return frozen-training manifest validation errors without invoking Docker."""
+    root = Path(repo_root)
+    errors: list[str] = []
+    if manifest.get("protocol_version") != "phase3-swebench-training-v1":
+        errors.append("protocol_version must equal 'phase3-swebench-training-v1'")
+    if manifest.get("benchmark") != "swe-bench-verified":
+        errors.append("benchmark must equal 'swe-bench-verified'")
+    if manifest.get("n_trials") != 1:
+        errors.append("n_trials must equal 1")
+    if manifest.get("seed") != 20260717:
+        errors.append("seed must equal 20260717")
+    task_ids = manifest.get("task_ids")
+    if not isinstance(task_ids, list) or len(task_ids) != 5 or len(set(task_ids)) != 5:
+        errors.append("task_ids must contain exactly five unique training instances")
+    dataset = manifest.get("dataset")
+    if not isinstance(dataset, dict):
+        return errors + ["dataset must be an object"]
+    path = dataset.get("task_path")
+    digest = dataset.get("task_sha256")
+    if not isinstance(path, str) or not isinstance(digest, str):
+        return errors + ["dataset.task_path and dataset.task_sha256 are required"]
+    snapshot = root / path
+    if not snapshot.is_file():
+        return errors + [f"dataset.task_path does not exist: {path}"]
+    if file_sha256(snapshot) != digest:
+        errors.append(f"dataset.task_sha256 mismatch for {path}")
+    try:
+        instances = load_swebench_instances(snapshot)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return errors + [f"dataset snapshot cannot be loaded: {exc}"]
+    if isinstance(task_ids, list) and any(task_id not in instances for task_id in task_ids):
+        errors.append("task_ids must all exist in the frozen SWE-bench snapshot")
+    agents = manifest.get("agents")
+    if not isinstance(agents, list) or len(agents) != 1 or not isinstance(agents[0], dict):
+        return errors + ["agents must contain exactly one baseline entry"]
+    agent = agents[0]
+    if agent.get("role") != "baseline":
+        errors.append("training agent role must equal 'baseline'")
+    profile_path = agent.get("profile_path")
+    profile_digest = agent.get("profile_sha256")
+    if not isinstance(profile_path, str) or not isinstance(profile_digest, str):
+        return errors + ["baseline profile_path and profile_sha256 are required"]
+    profile = root / profile_path
+    if not profile.is_file():
+        errors.append(f"baseline profile_path does not exist: {profile_path}")
+    elif file_sha256(profile) != profile_digest:
+        errors.append(f"baseline profile_sha256 mismatch for {profile_path}")
+    return errors
 
 
 def run_swebench_trial(
