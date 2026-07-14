@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import json
+from typing import TYPE_CHECKING
+
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from codepulse.benchmark.pilot_report import (
     classify_phase3_pilot,
     compare_phase3_pilot,
     summarize_pilot,
     validate_phase3_pilot,
+    write_phase3_reports,
 )
 
 
@@ -181,3 +188,18 @@ def test_phase3_pilot_gate_rejects_regressive_candidate() -> None:
 
     assert rejected["accepted"] is False
     assert "regression_detected" in rejected["rejection_reasons"]
+
+
+def test_phase3_report_writes_metrics_cases_and_reproduction_commands(tmp_path: Path) -> None:
+    (tmp_path / "trials.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in _phase3_rows()) + "\n",
+        encoding="utf-8",
+    )
+
+    markdown_path, html_path = write_phase3_reports(tmp_path, _phase3_manifest())
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert html_path.is_file()
+    assert "# CodePulse Phase 3 Comparison Report" in markdown
+    assert "| improvement | task-0 | pass, pass, fail | pass, pass, pass |" in markdown
+    assert "codepulse benchmark phase3-report" in markdown

@@ -41,3 +41,12 @@ observed categories only; a real run is still required before making a benefit c
 `validate_phase3_pilot()` rejects invalid coverage, any task regression, no positive
 `pass^3` gain, a per-trial peak-cost breach, or a per-role peak-cost breach. It can
 only accept a fully paired, stably improved candidate within the frozen budget.
+
+After a completed run, generate the shareable Markdown and HTML report with:
+
+```bash
+codepulse benchmark phase3-report --manifest experiments/phase3-evolution-v1/manifest.json --run-dir results/phase3/evolution-v1
+```
+
+The report lists aggregate metrics, four-way attribution, Gate verdict, and one
+fully observable task example from each populated attribution class.

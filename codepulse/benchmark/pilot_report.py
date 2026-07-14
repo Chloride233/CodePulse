@@ -258,3 +258,141 @@ def write_pilot_reports(run_dir: str | Path) -> list[dict[str, Any]]:
         encoding="utf-8",
     )
     return summaries
+
+
+def write_phase3_reports(run_dir: str | Path, manifest: dict[str, Any]) -> tuple[Path, Path]:
+    """Write the Phase 3 paired comparison report from complete frozen Trial records."""
+    directory = Path(run_dir)
+    rows = [
+        json.loads(line)
+        for line in (directory / "trials.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    comparison = compare_phase3_pilot(rows, manifest)
+    attribution = classify_phase3_pilot(rows, manifest)
+    gate = validate_phase3_pilot(rows, manifest)
+    markdown = _render_phase3_report(rows, manifest, comparison, attribution, gate)
+    markdown_path = directory / "phase3-report.md"
+    html_path = directory / "phase3-report.html"
+    markdown_path.write_text(markdown + "\n", encoding="utf-8")
+    html_path.write_text(
+        "<!doctype html><meta charset='utf-8'><title>CodePulse Phase 3</title>"
+        "<style>body{font:16px system-ui;max-width:1100px;margin:40px auto;line-height:1.5}"
+        "pre{white-space:pre-wrap}</style><pre>"
+        + html.escape(markdown)
+        + "</pre>",
+        encoding="utf-8",
+    )
+    return markdown_path, html_path
+
+
+def _render_phase3_report(
+    rows: list[dict[str, Any]],
+    manifest: dict[str, Any],
+    comparison: dict[str, Any],
+    attribution: dict[str, Any],
+    gate: dict[str, Any],
+) -> str:
+    metric_keys = [
+        "success_rate",
+        "pass_at_k",
+        "pass_hat_k",
+        "avg_tokens",
+        "total_tokens",
+        "cost_cny_off_peak",
+        "cost_cny_peak",
+        "p50_seconds",
+        "p95_seconds",
+    ]
+    metric_rows = [
+        "| {key} | {baseline} | {candidate} | {delta} |".format(
+            key=key,
+            baseline=_format_phase3_metric(key, comparison["baseline"][key]),
+            candidate=_format_phase3_metric(key, comparison["candidate"][key]),
+            delta=_format_phase3_metric(key, comparison["deltas"][key], signed=True),
+        )
+        for key in metric_keys
+    ]
+    role_names = _phase3_role_names(manifest)
+    cases = _phase3_typical_cases(rows, attribution["by_task"], role_names)
+    case_rows = [
+        f"| {category} | {task_id} | {baseline} | {candidate} |"
+        for category, task_id, baseline, candidate in cases
+    ] or ["| none | - | - | - |"]
+    reasons = ", ".join(gate["rejection_reasons"]) or "none"
+    return "\n".join(
+        [
+            "# CodePulse Phase 3 Comparison Report",
+            "",
+            "Status: generated from supplied Trial records; this report does not itself prove a real-model benefit.",
+            f"Protocol: `{manifest['protocol_version']}` | Trials: {len(rows)} | k: {comparison['k']}",
+            "",
+            "## Metric Comparison",
+            "",
+            "| Metric | Baseline | Candidate | Candidate - Baseline |",
+            "|---|---:|---:|---:|",
+            *metric_rows,
+            "",
+            "## Attribution",
+            "",
+            "| Improvements | Regressions | Persistent failures | Stable successes |",
+            "|---:|---:|---:|---:|",
+            "| {improvements} | {regressions} | {persistent_failures} | {stable_successes} |".format(
+                **attribution["summary"]
+            ),
+            "",
+            "## Validation Gate",
+            "",
+            f"Accepted: `{gate['accepted']}` | Rejection reasons: `{reasons}`",
+            "",
+            "## Typical Cases",
+            "",
+            "| Attribution | Task | Baseline trials | Candidate trials |",
+            "|---|---|---|---|",
+            *case_rows,
+            "",
+            "## Reproduce",
+            "",
+            "```bash",
+            "codepulse benchmark preflight --manifest experiments/phase3-evolution-v1/manifest.json",
+            "codepulse benchmark pilot-run --manifest experiments/phase3-evolution-v1/manifest.json --output-dir results/phase3/evolution-v1 --capture-evidence",
+            "codepulse benchmark phase3-report --manifest experiments/phase3-evolution-v1/manifest.json --run-dir results/phase3/evolution-v1",
+            "```",
+        ]
+    )
+
+
+def _format_phase3_metric(key: str, value: float, *, signed: bool = False) -> str:
+    sign = "+" if signed and value >= 0 else ""
+    if key in {"success_rate", "pass_at_k", "pass_hat_k"}:
+        return f"{sign}{value:.1%}"
+    if "cost" in key:
+        return f"{sign}{value:.6f} CNY"
+    if key.endswith("seconds"):
+        return f"{sign}{value:.3f} s"
+    return f"{sign}{value:.1f}"
+
+
+def _phase3_typical_cases(
+    rows: list[dict[str, Any]],
+    by_task: dict[str, str],
+    role_names: dict[str, str],
+) -> list[tuple[str, str, str, str]]:
+    cases: list[tuple[str, str, str, str]] = []
+    for category in ("improvement", "regression", "persistent_failure", "stable_success"):
+        task_id = next((task for task, value in by_task.items() if value == category), None)
+        if task_id is None:
+            continue
+        baseline = _task_trial_statuses(rows, role_names["baseline"], task_id)
+        candidate = _task_trial_statuses(rows, role_names["candidate"], task_id)
+        cases.append((category, task_id, baseline, candidate))
+    return cases
+
+
+def _task_trial_statuses(rows: list[dict[str, Any]], agent_name: str, task_id: str) -> str:
+    statuses = [
+        "pass" if row["success"] else "fail"
+        for row in sorted(rows, key=lambda row: _trial_key(row))
+        if row["agent_name"] == agent_name and row["task_id"] == task_id
+    ]
+    return ", ".join(statuses)

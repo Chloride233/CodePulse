@@ -25,7 +25,7 @@ from codepulse.benchmark.pilot import (
     load_pilot_manifest,
     validate_pilot_manifest,
 )
-from codepulse.benchmark.pilot_report import write_pilot_reports
+from codepulse.benchmark.pilot_report import write_phase3_reports, write_pilot_reports
 from codepulse.config import DEFAULT_RESULTS_DIR
 from codepulse.data.aacr_bench import AacrBenchLoader
 from codepulse.data.custom_loader import CustomDatasetLoader
@@ -327,6 +327,30 @@ def benchmark_pilot_run(
     if not stopped_reasons:
         write_pilot_reports(output)
     click.echo(json.dumps(summary, ensure_ascii=False))
+
+
+@benchmark_group.command(name="phase3-report")
+@click.option(
+    "--manifest",
+    "manifest_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to the frozen Phase 3 JSON manifest.",
+)
+@click.option(
+    "--run-dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False),
+    help="Directory containing the complete Phase 3 trials.jsonl file.",
+)
+def benchmark_phase3_report(manifest_path: str, run_dir: str) -> None:
+    """Generate a Phase 3 paired comparison report from frozen Trial records."""
+    try:
+        manifest = load_pilot_manifest(manifest_path)
+        markdown_path, html_path = write_phase3_reports(run_dir, manifest)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Wrote {markdown_path} and {html_path}")
 
 
 # ---------------------------------------------------------------------------

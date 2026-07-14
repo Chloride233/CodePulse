@@ -263,6 +263,58 @@ def test_pilot_preflight_cli_valid_manifest_passes(tmp_path: Path) -> None:
     assert "Pilot preflight passed" in result.output
 
 
+def test_phase3_report_cli_writes_report(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    assert all(isinstance(agent, dict) for agent in agents)
+    agents[0]["role"] = "baseline"
+    agents[1]["role"] = "candidate"
+    agents[1]["model_version"] = agents[0]["model_version"]
+    agents[1]["provider_model_version"] = agents[0]["provider_model_version"]
+    manifest.update(
+        {
+            "protocol_version": "phase3-evolution-v1",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 3,
+            "seed": 20260714,
+        }
+    )
+    manifest_path = tmp_path / "phase3-manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    rows = [
+        {
+            "agent_name": agent["name"],
+            "task_id": task_id,
+            "repetition": repetition,
+            "success": agent["role"] == "candidate",
+            "failure_type": None if agent["role"] == "candidate" else "wrong_answer",
+            "metrics": {
+                "duration_seconds": 1.0,
+                "total_tokens": 100,
+                "cost_cny_off_peak": 0.001,
+                "cost_cny_peak": 0.002,
+            },
+        }
+        for agent in agents
+        for task_id in PILOT_TASK_IDS
+        for repetition in range(3)
+    ]
+    (run_dir / "trials.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
+    )
+
+    result = CliRunner().invoke(
+        benchmark_group,
+        ["phase3-report", "--manifest", str(manifest_path), "--run-dir", str(run_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert (run_dir / "phase3-report.md").is_file()
+
+
 def test_pilot_run_cli_exposes_opt_in_evidence_capture() -> None:
     result = CliRunner().invoke(benchmark_group, ["pilot-run", "--help"])
 
