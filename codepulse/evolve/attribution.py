@@ -58,8 +58,13 @@ class SampleAttribution:
         Returns:
             归因类型。
         """
-        old_pass = old_score >= self.pass_threshold
-        new_pass = new_score >= self.pass_threshold
+        return self.classify_states(
+            old_score >= self.pass_threshold,
+            new_score >= self.pass_threshold,
+        )
+
+    def classify_states(self, old_pass: bool, new_pass: bool) -> AttributionType:
+        """Classify an explicitly evaluated baseline/candidate pass state."""
 
         if not old_pass and new_pass:
             return AttributionType.IMPROVEMENT
@@ -69,6 +74,19 @@ class SampleAttribution:
             return AttributionType.PERSISTENT_FAILURE
         else:
             return AttributionType.STABLE_SUCCESS
+
+    def classify_all_states(
+        self,
+        old_states: dict[str, bool],
+        new_states: dict[str, bool],
+    ) -> dict[str, AttributionType]:
+        """Classify matching task pass states without score-threshold conversion."""
+        if old_states.keys() != new_states.keys():
+            raise ValueError("baseline and candidate task states must have identical coverage")
+        return {
+            task_id: self.classify_states(old_states[task_id], new_states[task_id])
+            for task_id in old_states
+        }
 
     def classify_all(
         self,

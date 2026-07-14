@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from codepulse.eval.comparison import align_exact
+from codepulse.evolve.attribution import SampleAttribution
 
 
 def _nearest_rank(values: list[float], quantile: float) -> float:
@@ -97,6 +98,31 @@ def compare_phase3_pilot(
     }
 
 
+def classify_phase3_pilot(
+    rows: list[dict[str, Any]], manifest: dict[str, Any]
+) -> dict[str, Any]:
+    """Classify each frozen task from its baseline and candidate pass^3 state."""
+    compare_phase3_pilot(rows, manifest)
+    role_names = _phase3_role_names(manifest)
+    baseline_states = _task_pass_hat_states(rows, role_names["baseline"])
+    candidate_states = _task_pass_hat_states(rows, role_names["candidate"])
+    attribution = SampleAttribution()
+    by_task = attribution.classify_all_states(baseline_states, candidate_states)
+    summary = attribution.report(by_task)
+    return {
+        "by_task": {task_id: category.value for task_id, category in by_task.items()},
+        "summary": {
+            "improvements": summary.improvements,
+            "regressions": summary.regressions,
+            "persistent_failures": summary.persistent_failures,
+            "stable_successes": summary.stable_successes,
+            "improvement_rate": summary.improvement_rate,
+            "regression_rate": summary.regression_rate,
+            "total": summary.total,
+        },
+    }
+
+
 def _phase3_role_names(manifest: dict[str, Any]) -> dict[str, str]:
     agents = manifest.get("agents")
     if not isinstance(agents, list):
@@ -133,6 +159,14 @@ def _phase3_expected_keys(manifest: dict[str, Any]) -> set[tuple[str, int]]:
     if n_trials != 3:
         raise ValueError("phase3-evolution-v1 requires exactly three trials per task")
     return {(task_id, repetition) for task_id in task_ids for repetition in range(n_trials)}
+
+
+def _task_pass_hat_states(rows: list[dict[str, Any]], agent_name: str) -> dict[str, bool]:
+    by_task: dict[str, list[bool]] = defaultdict(list)
+    for row in rows:
+        if row["agent_name"] == agent_name:
+            by_task[row["task_id"]].append(bool(row["success"]))
+    return {task_id: all(successes) for task_id, successes in by_task.items()}
 
 
 def _phase3_metrics(summary: dict[str, Any]) -> dict[str, float]:

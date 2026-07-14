@@ -28,6 +28,10 @@ class TestSampleAttribution:
         """通过 → 通过 = 稳定成功。"""
         assert self.attr.classify(90, 95) == AttributionType.STABLE_SUCCESS
 
+    def test_classify_states_uses_explicit_passes(self) -> None:
+        """显式通过状态不依赖分数阈值。"""
+        assert self.attr.classify_states(False, True) == AttributionType.IMPROVEMENT
+
     def test_classify_all(self) -> None:
         """批量分类。"""
         old = {"t1": 60, "t2": 90, "t3": 50, "t4": 90}
@@ -37,6 +41,16 @@ class TestSampleAttribution:
         assert result["t2"] == AttributionType.REGRESSION
         assert result["t3"] == AttributionType.PERSISTENT_FAILURE
         assert result["t4"] == AttributionType.STABLE_SUCCESS
+
+    def test_classify_all_states_rejects_coverage_drift(self) -> None:
+        """状态归因要求基线与候选覆盖完全一致。"""
+        result = self.attr.classify_all_states({"t1": False}, {"t1": True})
+        assert result["t1"] == AttributionType.IMPROVEMENT
+
+        import pytest
+
+        with pytest.raises(ValueError, match="identical coverage"):
+            self.attr.classify_all_states({"t1": False}, {"t2": True})
 
     def test_report(self) -> None:
         """生成报告。"""

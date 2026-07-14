@@ -33,3 +33,7 @@ and model-version drift.
 When results are available, `compare_phase3_pilot()` compares the two frozen roles by
 `(task_id, repetition)`. It rejects duplicate, missing, or unpaired trials before
 reporting success rate, `pass@3`, `pass^3`, token, CNY cost, and latency deltas.
+
+`classify_phase3_pilot()` uses each role's `pass^3` state per task to count
+improvements, regressions, persistent failures, and stable successes. It reports
+observed categories only; a real run is still required before making a benefit claim.

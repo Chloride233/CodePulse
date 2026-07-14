@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from codepulse.benchmark.pilot_report import compare_phase3_pilot, summarize_pilot
+from codepulse.benchmark.pilot_report import (
+    classify_phase3_pilot,
+    compare_phase3_pilot,
+    summarize_pilot,
+)
 
 
 def test_pilot_report_pass_metrics_and_nearest_rank() -> None:
@@ -103,3 +107,49 @@ def test_phase3_pilot_rejects_trials_missing_from_both_roles() -> None:
 
     with pytest.raises(ValueError, match="does not match the frozen task set"):
         compare_phase3_pilot(incomplete, _phase3_manifest())
+
+
+def test_phase3_pilot_classifies_pass_hat_states() -> None:
+    manifest = _phase3_manifest()
+    manifest["task_ids"] = ["improvement", "regression", "persistent", "stable"]
+    outcomes = {
+        "baseline": ((False, False, False), (True, True, True), (False, False, False), (True, True, True)),
+        "candidate": ((True, True, True), (False, False, False), (False, False, False), (True, True, True)),
+    }
+    rows: list[dict[str, object]] = []
+    for agent_name, task_outcomes in outcomes.items():
+        for task_id, successes in zip(manifest["task_ids"], task_outcomes, strict=True):
+            for repetition, success in enumerate(successes):
+                rows.append(
+                    {
+                        "agent_name": agent_name,
+                        "task_id": task_id,
+                        "repetition": repetition,
+                        "success": success,
+                        "failure_type": None if success else "wrong_answer",
+                        "metrics": {
+                            "duration_seconds": 1.0,
+                            "total_tokens": 100,
+                            "cost_cny_off_peak": 0.001,
+                            "cost_cny_peak": 0.002,
+                        },
+                    }
+                )
+
+    result = classify_phase3_pilot(rows, manifest)
+
+    assert result["by_task"] == {
+        "improvement": "improvement",
+        "regression": "regression",
+        "persistent": "persistent_failure",
+        "stable": "stable_success",
+    }
+    assert result["summary"] == {
+        "improvements": 1,
+        "regressions": 1,
+        "persistent_failures": 1,
+        "stable_successes": 1,
+        "improvement_rate": 0.25,
+        "regression_rate": 0.25,
+        "total": 4,
+    }
