@@ -247,6 +247,7 @@ def validate_pilot_manifest(manifest: dict[str, Any], repo_root: str | Path) -> 
             _validate_agent(errors, agent, index, root)
         if protocol_version == "phase3-evolution-v1":
             _validate_phase3_roles(errors, agents)
+            _validate_phase3_candidate_provenance(errors, manifest, agents, root)
 
     _validate_file(errors, manifest.get("dataset"), "source_path", "source_sha256", root)
     _validate_file(errors, manifest.get("dataset"), "task_path", "task_sha256", root)
@@ -331,6 +332,111 @@ def _validate_phase3_roles(errors: list[str], agents: list[object]) -> None:
     model_versions = {agent.get("model_version") for agent in typed_agents}
     if len(model_versions) != 1:
         errors.append("phase3 baseline and candidate must use the same model_version")
+
+
+def _validate_phase3_candidate_provenance(
+    errors: list[str], manifest: dict[str, Any], agents: list[object], root: Path
+) -> None:
+    """Require a candidate to bind back to failed, held-out training evidence."""
+    section = manifest.get("candidate_provenance")
+    if not isinstance(section, dict):
+        errors.append("candidate_provenance must be an object")
+        return
+    raw_path = section.get("path")
+    expected_digest = section.get("sha256")
+    if not isinstance(raw_path, str) or not raw_path:
+        errors.append("candidate_provenance.path is required")
+        return
+    if not isinstance(expected_digest, str) or SHA256_PATTERN.fullmatch(expected_digest) is None:
+        errors.append("candidate_provenance.sha256 must be a SHA-256 hex digest")
+        return
+    provenance_path = root / raw_path
+    if not provenance_path.is_file():
+        errors.append(f"candidate_provenance.path does not exist: {raw_path}")
+        return
+    if sha256_file(provenance_path) != expected_digest:
+        errors.append(f"candidate_provenance.sha256 mismatch for {raw_path}")
+        return
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"candidate_provenance cannot be loaded: {exc}")
+        return
+    if not isinstance(provenance, dict):
+        errors.append("candidate_provenance must contain a JSON object")
+        return
+    if provenance.get("protocol_version") != "skillopt-candidate-v1":
+        errors.append("candidate_provenance.protocol_version must equal 'skillopt-candidate-v1'")
+
+    roles = {
+        agent.get("role"): agent
+        for agent in agents
+        if isinstance(agent, dict) and isinstance(agent.get("role"), str)
+    }
+    baseline = roles.get("baseline")
+    candidate = roles.get("candidate")
+    if not isinstance(baseline, dict) or not isinstance(candidate, dict):
+        return
+    _require_provenance_match(
+        errors, provenance, "baseline_profile_path", baseline.get("profile_path")
+    )
+    _require_provenance_match(
+        errors, provenance, "baseline_profile_sha256", baseline.get("profile_sha256")
+    )
+    _require_provenance_match(
+        errors, provenance, "candidate_profile_path", candidate.get("profile_path")
+    )
+    _require_provenance_match(
+        errors, provenance, "candidate_profile_sha256", candidate.get("profile_sha256")
+    )
+
+    training_path = provenance.get("training_trials_path")
+    training_digest = provenance.get("training_trials_sha256")
+    if not isinstance(training_path, str) or not training_path:
+        errors.append("candidate_provenance.training_trials_path is required")
+        return
+    if not isinstance(training_digest, str) or SHA256_PATTERN.fullmatch(training_digest) is None:
+        errors.append("candidate_provenance.training_trials_sha256 must be a SHA-256 hex digest")
+        return
+    trials_path = root / training_path
+    if not trials_path.is_file():
+        errors.append(f"candidate_provenance.training_trials_path does not exist: {training_path}")
+        return
+    if sha256_file(trials_path) != training_digest:
+        errors.append(
+            f"candidate_provenance.training_trials_sha256 mismatch for {training_path}"
+        )
+        return
+    source_task_ids = provenance.get("source_task_ids")
+    if not isinstance(source_task_ids, list) or not source_task_ids or not all(
+        isinstance(task_id, str) and task_id for task_id in source_task_ids
+    ):
+        errors.append("candidate_provenance.source_task_ids must be a non-empty string list")
+        return
+    try:
+        rows = [json.loads(line) for line in trials_path.read_text(encoding="utf-8").splitlines() if line]
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"candidate_provenance.training_trials cannot be loaded: {exc}")
+        return
+    failed_task_ids = {
+        row.get("task_id")
+        for row in rows
+        if isinstance(row, dict)
+        and row.get("agent_name") == baseline.get("name")
+        and not bool(row.get("success"))
+    }
+    if not set(source_task_ids).issubset(failed_task_ids):
+        errors.append("candidate_provenance.source_task_ids must reference failed baseline trials")
+    if set(source_task_ids) & set(manifest.get("task_ids", [])):
+        errors.append("candidate_provenance.source_task_ids must not overlap evaluation tasks")
+
+
+def _require_provenance_match(
+    errors: list[str], provenance: dict[str, Any], key: str, expected: object
+) -> None:
+    """Require provenance metadata to equal the frozen manifest value."""
+    if provenance.get(key) != expected:
+        errors.append(f"candidate_provenance.{key} must match the frozen manifest")
 
 
 def _validate_file(

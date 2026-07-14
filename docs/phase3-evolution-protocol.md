@@ -1,15 +1,15 @@
 # Phase 3 Evolution Protocol
 
-Status: frozen, not yet run
+Status: evaluation template frozen; trace-derived candidate not yet available
 Protocol version: `phase3-evolution-v1`
 Issue: [#3](https://github.com/Chloride233/CodePulse/issues/3)
 
 ## Frozen comparison
 
-`deepseek-v4-flash-direct` is the baseline and
-`deepseek-v4-flash-iterative` is the candidate. They use the same pinned V4 Flash
-model version and are distinguished only by their hashed profiles. This is a
-controlled candidate comparison, not evidence that SkillOpt has improved an Agent.
+`deepseek-v4-flash-direct` is the baseline. The frozen iterative profile is only a
+controlled-comparison template, not a SkillOpt candidate. A final evaluation requires
+a newly materialized candidate and a provenance file that binds its profile to failed,
+disjoint baseline training trials.
 
 The HumanEval task order, source and task-list hashes, seed, dependencies, sandbox
 limits, pricing schedule and budget are fixed in
@@ -34,7 +34,9 @@ codepulse benchmark preflight --manifest experiments/phase3-evolution-v1/manifes
 ```
 
 The preflight rejects task, profile, dataset, dependency, environment, budget, role,
-and model-version drift.
+model-version drift, and a candidate without matching trace provenance. It also checks
+that the provenance source tasks failed for the frozen baseline and are absent from the
+evaluation task set.
 
 When results are available, `compare_phase3_pilot()` compares the two frozen roles by
 `(task_id, repetition)`. It rejects duplicate, missing, or unpaired trials before

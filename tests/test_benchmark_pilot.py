@@ -77,6 +77,42 @@ def _manifest(root: Path) -> dict[str, object]:
     }
 
 
+def _phase3_provenance(root: Path, agents: list[object]) -> dict[str, str]:
+    typed_agents = [agent for agent in agents if isinstance(agent, dict)]
+    assert len(typed_agents) == 2
+    baseline, candidate = typed_agents
+    trials_path = root / "training-trials.jsonl"
+    trials_path.write_text(
+        json.dumps(
+            {
+                "agent_name": baseline["name"],
+                "task_id": "HumanEval/100",
+                "success": False,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    provenance_path = root / "candidate-provenance.json"
+    provenance_path.write_text(
+        json.dumps(
+            {
+                "protocol_version": "skillopt-candidate-v1",
+                "baseline_profile_path": baseline["profile_path"],
+                "baseline_profile_sha256": baseline["profile_sha256"],
+                "training_trials_path": trials_path.name,
+                "training_trials_sha256": sha256_file(trials_path),
+                "source_task_ids": ["HumanEval/100"],
+                "candidate_profile_path": candidate["profile_path"],
+                "candidate_profile_sha256": candidate["profile_sha256"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {"path": provenance_path.name, "sha256": sha256_file(provenance_path)}
+
+
 def test_pilot_preflight_valid_manifest_passes(tmp_path: Path) -> None:
     assert validate_pilot_manifest(_manifest(tmp_path), tmp_path) == []
 
@@ -163,6 +199,7 @@ def test_phase3_evolution_preflight_accepts_paired_manifest(tmp_path: Path) -> N
             "task_ids": PILOT_TASK_IDS,
             "n_trials": 3,
             "seed": 20260714,
+            "candidate_provenance": _phase3_provenance(tmp_path, agents),
         }
     )
 
@@ -235,6 +272,62 @@ def test_phase3_evolution_preflight_rejects_unpaired_or_cross_model_agents(tmp_p
     assert "phase3 baseline and candidate must use the same model_version" in errors
 
 
+def test_phase3_evolution_preflight_rejects_static_candidate_without_provenance(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    assert all(isinstance(agent, dict) for agent in agents)
+    agents[0]["role"] = "baseline"
+    agents[1]["role"] = "candidate"
+    agents[1]["model_version"] = agents[0]["model_version"]
+    agents[1]["provider_model_version"] = agents[0]["provider_model_version"]
+    manifest.update(
+        {
+            "protocol_version": "phase3-evolution-v1",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 3,
+            "seed": 20260714,
+        }
+    )
+
+    assert "candidate_provenance must be an object" in validate_pilot_manifest(manifest, tmp_path)
+
+
+def test_phase3_evolution_preflight_rejects_nonfailed_or_overlapping_source_task(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    assert all(isinstance(agent, dict) for agent in agents)
+    agents[0]["role"] = "baseline"
+    agents[1]["role"] = "candidate"
+    agents[1]["model_version"] = agents[0]["model_version"]
+    agents[1]["provider_model_version"] = agents[0]["provider_model_version"]
+    provenance = _phase3_provenance(tmp_path, agents)
+    provenance_path = tmp_path / provenance["path"]
+    payload = json.loads(provenance_path.read_text(encoding="utf-8"))
+    payload["source_task_ids"] = ["HumanEval/0"]
+    provenance_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    provenance["sha256"] = sha256_file(provenance_path)
+    manifest.update(
+        {
+            "protocol_version": "phase3-evolution-v1",
+            "task_ids": PILOT_TASK_IDS,
+            "n_trials": 3,
+            "seed": 20260714,
+            "candidate_provenance": provenance,
+        }
+    )
+
+    errors = validate_pilot_manifest(manifest, tmp_path)
+
+    assert "candidate_provenance.source_task_ids must reference failed baseline trials" in errors
+    assert "candidate_provenance.source_task_ids must not overlap evaluation tasks" in errors
+
+
 def test_phase2_diagnostic_repository_manifest_hashes_match() -> None:
     manifest = load_pilot_manifest(
         ROOT / "experiments" / "phase2-diagnostic-v1" / "manifest.json"
@@ -259,12 +352,12 @@ def test_phase2_hard_diagnostic_repository_manifest_hashes_match() -> None:
     assert validate_pilot_manifest(manifest, ROOT) == []
 
 
-def test_phase3_evolution_repository_manifest_hashes_match() -> None:
+def test_phase3_evolution_repository_manifest_requires_trace_derived_candidate() -> None:
     manifest = load_pilot_manifest(
         ROOT / "experiments" / "phase3-evolution-v1" / "manifest.json"
     )
 
-    assert validate_pilot_manifest(manifest, ROOT) == []
+    assert "candidate_provenance must be an object" in validate_pilot_manifest(manifest, ROOT)
 
 
 def test_pilot_preflight_mutable_model_and_hash_mismatch_fail(tmp_path: Path) -> None:
