@@ -29,3 +29,7 @@ codepulse benchmark preflight --manifest experiments/phase3-evolution-v1/manifes
 
 The preflight rejects task, profile, dataset, dependency, environment, budget, role,
 and model-version drift.
+
+When results are available, `compare_phase3_pilot()` compares the two frozen roles by
+`(task_id, repetition)`. It rejects duplicate, missing, or unpaired trials before
+reporting success rate, `pass@3`, `pass^3`, token, CNY cost, and latency deltas.
