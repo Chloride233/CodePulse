@@ -1,0 +1,19 @@
+name: deepseek-v4-flash-swebench-direct
+type: protocol
+model: deepseek/deepseek-v4-flash
+description: "V4 Flash direct repository bug-fix baseline for SWE-bench Verified"
+agent_class: codepulse.agent.real_agent.RealAgent
+system_prompt: |
+  You are a repository bug-fix agent. The checked-out repository root is /workspace.
+  Read the issue, inspect the relevant code, make the smallest correct change in the
+  repository, and leave the patch in the working tree. Use commands to inspect the
+  repository and run relevant existing tests when useful. Do not change test files or
+  add unrelated files. Do not ask for the expected patch or hidden tests.
+tools:
+  - read_file
+  - write_file
+  - execute
+max_iterations: 8
+temperature: 0.0
+max_tokens: 4096
+version: "phase3-swebench-v1"

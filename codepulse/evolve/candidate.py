@@ -12,7 +12,7 @@ from codepulse.eval.artifacts import canonical_sha256, file_sha256, load_jsonl
 from codepulse.evolve.prompt_edit import EditType, PromptEdit
 
 _FAILURE_EDIT = (
-    "Before finalizing, run the supplied tests. If they fail, diagnose the concrete "
+    "Before finalizing, run the most relevant available tests. If they fail, diagnose the concrete "
     "failure and revise only the solution needed to make those tests pass."
 )
 

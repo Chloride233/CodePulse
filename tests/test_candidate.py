@@ -54,7 +54,7 @@ def test_candidate_materializes_trace_derived_prompt_and_provenance(tmp_path: Pa
     assert candidate.name == "baseline-skillopt-v1"
     assert candidate.max_iterations == 2
     assert candidate.temperature == 0.0
-    assert "Before finalizing, run the supplied tests." in candidate.system_prompt
+    assert "Before finalizing, run the most relevant available tests." in candidate.system_prompt
     assert result["source_task_ids"] == ["train-1"]
     assert json.loads(provenance_path.read_text(encoding="utf-8"))["candidate_profile_sha256"]
 

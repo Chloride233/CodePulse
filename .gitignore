@@ -36,6 +36,10 @@ experiments/*/manifest.json
 !experiments/phase3-evolution-v1/manifest.json
 !experiments/phase3-training-v1/manifest.json
 !experiments/phase3-training-v2/manifest.json
+!experiments/phase3-swebench-training-v1/manifest.json
+!datasets/swe-bench/
+datasets/swe-bench/*
+!datasets/swe-bench/phase3-swebench-v1.jsonl
 
 # IDE
 .idea/
@@ -70,3 +74,8 @@ Thumbs.db
 # Project specific
 datasets/swe-bench/
 datasets/aacr-bench/
+
+# Reproducible Phase 3 SWE-bench subset (all other SWE-bench data stays local)
+!datasets/swe-bench/
+datasets/swe-bench/*
+!datasets/swe-bench/phase3-swebench-v1.jsonl

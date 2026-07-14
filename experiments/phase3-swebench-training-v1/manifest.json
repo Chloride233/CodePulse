@@ -1,0 +1,41 @@
+{
+  "protocol_version": "phase3-swebench-training-v1",
+  "benchmark": "swe-bench-verified",
+  "dataset": {
+    "task_path": "datasets/swe-bench/phase3-swebench-v1.jsonl",
+    "task_sha256": "19fbccc4ee2814743ce3d75581c31700e84bf08767ea0388dd93e0854efa5413",
+    "source_name": "princeton-nlp/SWE-bench_Verified",
+    "source_revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a"
+  },
+  "task_ids": [
+    "django__django-10097",
+    "sympy__sympy-19495",
+    "scikit-learn__scikit-learn-15100",
+    "django__django-13449",
+    "django__django-15127"
+  ],
+  "n_trials": 1,
+  "seed": 20260717,
+  "agents": [
+    {
+      "role": "baseline",
+      "name": "deepseek-v4-flash-swebench-direct",
+      "model_version": "deepseek/deepseek-v4-flash",
+      "provider_model_version": "deepseek-v4-flash",
+      "profile_path": "agents/deepseek-v4-flash-swebench-direct.yaml",
+      "profile_sha256": "8073039192ca57d74efcae2ed507a43eed66eebdbff64524db0f3e78143d06d9"
+    }
+  ],
+  "runner": {
+    "harness_version": "swebench==4.1.0",
+    "architecture": "x86_64",
+    "timeout_seconds": 900,
+    "network": "none"
+  },
+  "budget": {
+    "total_cny": 20.0,
+    "per_agent_cny": 20.0,
+    "per_trial_cny": 4.0
+  },
+  "codepulse_commit": "008c3625508667b3da5445468aa1394c796b1d50"
+}
