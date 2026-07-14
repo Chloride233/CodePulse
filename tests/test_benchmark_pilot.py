@@ -11,6 +11,7 @@ from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.pilot import (
     DIAGNOSTIC_HARD_TASK_IDS,
     DIAGNOSTIC_TASK_IDS,
+    PHASE3_TRAINING_TASK_IDS,
     PILOT_TASK_IDS,
     PilotBudgetGuard,
     build_pilot_schedule,
@@ -161,6 +162,28 @@ def test_phase3_evolution_preflight_accepts_paired_manifest(tmp_path: Path) -> N
             "task_ids": PILOT_TASK_IDS,
             "n_trials": 3,
             "seed": 20260714,
+        }
+    )
+
+    assert validate_pilot_manifest(manifest, tmp_path) == []
+
+
+def test_phase3_training_preflight_accepts_disjoint_baseline_manifest(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    agents = manifest["agents"]
+    assert isinstance(agents, list)
+    manifest.update(
+        {
+            "protocol_version": "phase3-training-v1",
+            "task_ids": PHASE3_TRAINING_TASK_IDS,
+            "n_trials": 1,
+            "seed": 20260715,
+            "agents": agents[:1],
+            "budget": {
+                "total_cny": 1.0,
+                "per_agent_cny": 1.0,
+                "per_trial_cny": 0.1,
+            },
         }
     )
 

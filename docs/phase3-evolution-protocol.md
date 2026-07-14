@@ -15,6 +15,10 @@ The HumanEval task order, source and task-list hashes, seed, dependencies, sandb
 limits, pricing schedule and budget are fixed in
 `experiments/phase3-evolution-v1/manifest.json`.
 
+Before that evaluation, `phase3-training-v1` runs the disjoint HumanEval/100-109
+training set once with the baseline. A failed training Trial is the only permitted
+source for the `PromptEdit` used to materialize the candidate profile and provenance.
+
 ## Planned scale and preflight
 
 The frozen run has 20 tasks, 3 trials per task, and 2 roles: 120 planned calls. Its

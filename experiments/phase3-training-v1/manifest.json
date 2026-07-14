@@ -1,0 +1,52 @@
+{
+  "protocol_version": "phase3-training-v1",
+  "benchmark": "humaneval",
+  "task_ids": [
+    "HumanEval/100", "HumanEval/101", "HumanEval/102", "HumanEval/103", "HumanEval/104",
+    "HumanEval/105", "HumanEval/106", "HumanEval/107", "HumanEval/108", "HumanEval/109"
+  ],
+  "n_trials": 1,
+  "seed": 20260715,
+  "agents": [
+    {
+      "role": "baseline",
+      "name": "deepseek-v4-flash-direct",
+      "provider": "deepseek",
+      "model_version": "deepseek/deepseek-v4-flash",
+      "provider_model_version": "deepseek-v4-flash",
+      "profile_path": "agents/deepseek-v4-flash-direct.yaml",
+      "profile_sha256": "4d3a546b1d38fb069c2e01df3dbc48da2da6d1ba78149a03c629406f5a957b7d"
+    }
+  ],
+  "dataset": {
+    "source_path": "datasets/humaneval/HumanEval.jsonl.gz",
+    "source_sha256": "b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef",
+    "task_path": "datasets/humaneval/phase2-diagnostic-v3.jsonl",
+    "task_sha256": "a6c07e3ffd22392a44ea1950d609988a7bc91fb92575cec6e282310955e8483d"
+  },
+  "dependencies": {
+    "lockfile": "experiments/pilot-v1/requirements.lock",
+    "lockfile_sha256": "f4584ea0ac4e7d5b9c0357849a279449cc33e967d7f4596a4cd1d6227536b82e"
+  },
+  "codepulse_commit": "9bd54680b6d710deff92f872ede6a9b776096af7",
+  "environment": {
+    "image_digest": "sha256:fcb59a48cd9017b030ebb32f2a7cddfba839b26c7137d3be16b60f986a919396",
+    "cpus": 2,
+    "memory_mb": 2048,
+    "network": "none",
+    "timeout_seconds": 300
+  },
+  "budget": {
+    "total_cny": 1.0,
+    "per_agent_cny": 1.0,
+    "per_trial_cny": 0.1
+  },
+  "pricing": {
+    "currency": "CNY",
+    "unit_tokens": 1000000,
+    "schedule_status": "pending_official_schedule",
+    "off_peak": {"cache_hit": 0.02, "cache_miss": 1.0, "output": 2.0},
+    "peak": {"cache_hit": 0.04, "cache_miss": 2.0, "output": 4.0},
+    "budget_tier": "peak"
+  }
+}
