@@ -129,6 +129,44 @@ class TestValidationGateInit:
         gate = ValidationGate(harness=mock_harness, dataset=sample_tasks)
         assert gate.dataset is sample_tasks
 
+
+class TestPhase3ValidationGate:
+    """冻结 Phase 3 指标的离线门禁测试。"""
+
+    def test_accepts_stable_improvement_within_budget(self) -> None:
+        result = ValidationGate.validate_phase3(
+            {
+                "candidate": {"cost_cny_peak": 0.04},
+                "deltas": {"success_rate": 0.2, "pass_hat_k": 0.1},
+            },
+            {"summary": {"regressions": 0}},
+            [0.01, 0.02, 0.01],
+            {"per_trial_cny": 0.1, "per_agent_cny": 5.0},
+        )
+
+        assert result["accepted"] is True
+        assert result["rejection_reasons"] == []
+
+    def test_rejects_regression_or_budget_violation(self) -> None:
+        result = ValidationGate.validate_phase3(
+            {
+                "candidate": {"cost_cny_peak": 5.1},
+                "deltas": {"success_rate": -0.1, "pass_hat_k": -0.2},
+            },
+            {"summary": {"regressions": 1}},
+            [0.11],
+            {"per_trial_cny": 0.1, "per_agent_cny": 5.0},
+        )
+
+        assert result["accepted"] is False
+        assert result["rejection_reasons"] == [
+            "per_trial_budget_exceeded",
+            "per_agent_budget_exceeded",
+            "regression_detected",
+            "success_rate_regression",
+            "no_stable_improvement",
+        ]
+
     def test_empty_dataset(self, mock_harness: MagicMock) -> None:
         """应支持空数据集。"""
         gate = ValidationGate(harness=mock_harness, dataset=[])

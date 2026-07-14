@@ -109,6 +109,43 @@ class ValidationGate:
 
         return self._compare(candidate_trajectories, baseline_trajectories)
 
+    @staticmethod
+    def validate_phase3(
+        comparison: dict[str, Any],
+        attribution: dict[str, Any],
+        candidate_peak_costs: list[float],
+        budget: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Accept a frozen Phase 3 candidate only when it is stably safer and in budget."""
+        candidate = comparison["candidate"]
+        deltas = comparison["deltas"]
+        summary = attribution["summary"]
+        per_trial_limit = float(budget["per_trial_cny"])
+        per_agent_limit = float(budget["per_agent_cny"])
+        rejection_reasons: list[str] = []
+
+        if any(cost < 0 for cost in candidate_peak_costs):
+            rejection_reasons.append("invalid_cost_metrics")
+        if any(cost > per_trial_limit for cost in candidate_peak_costs):
+            rejection_reasons.append("per_trial_budget_exceeded")
+        if float(candidate["cost_cny_peak"]) > per_agent_limit:
+            rejection_reasons.append("per_agent_budget_exceeded")
+        if int(summary["regressions"]) > 0:
+            rejection_reasons.append("regression_detected")
+        if float(deltas["success_rate"]) < 0:
+            rejection_reasons.append("success_rate_regression")
+        if float(deltas["pass_hat_k"]) <= 0:
+            rejection_reasons.append("no_stable_improvement")
+
+        return {
+            "accepted": not rejection_reasons,
+            "rejection_reasons": rejection_reasons,
+            "stable_pass_gain": float(deltas["pass_hat_k"]),
+            "success_rate_delta": float(deltas["success_rate"]),
+            "regressions": int(summary["regressions"]),
+            "candidate_peak_cost_cny": float(candidate["cost_cny_peak"]),
+        }
+
     def _compare(
         self,
         candidate_trajs: list[Trajectory],

@@ -11,6 +11,7 @@ from typing import Any
 
 from codepulse.eval.comparison import align_exact
 from codepulse.evolve.attribution import SampleAttribution
+from codepulse.evolve.gate import ValidationGate
 
 
 def _nearest_rank(values: list[float], quantile: float) -> float:
@@ -121,6 +122,40 @@ def classify_phase3_pilot(
             "total": summary.total,
         },
     }
+
+
+def validate_phase3_pilot(
+    rows: list[dict[str, Any]], manifest: dict[str, Any]
+) -> dict[str, Any]:
+    """Apply the Validation Gate to frozen Phase 3 Trial records."""
+    try:
+        comparison = compare_phase3_pilot(rows, manifest)
+        attribution = classify_phase3_pilot(rows, manifest)
+    except ValueError as exc:
+        return {
+            "accepted": False,
+            "rejection_reasons": ["invalid_trial_coverage"],
+            "detail": str(exc),
+        }
+
+    role_names = _phase3_role_names(manifest)
+    candidate_peak_costs = [
+        float(row["metrics"]["cost_cny_peak"])
+        for row in rows
+        if row["agent_name"] == role_names["candidate"]
+    ]
+    budget = manifest.get("budget")
+    if not isinstance(budget, dict):
+        return {
+            "accepted": False,
+            "rejection_reasons": ["invalid_budget"],
+        }
+    return ValidationGate.validate_phase3(
+        comparison,
+        attribution,
+        candidate_peak_costs,
+        budget,
+    )
 
 
 def _phase3_role_names(manifest: dict[str, Any]) -> dict[str, str]:

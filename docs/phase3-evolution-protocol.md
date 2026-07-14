@@ -37,3 +37,7 @@ reporting success rate, `pass@3`, `pass^3`, token, CNY cost, and latency deltas.
 `classify_phase3_pilot()` uses each role's `pass^3` state per task to count
 improvements, regressions, persistent failures, and stable successes. It reports
 observed categories only; a real run is still required before making a benefit claim.
+
+`validate_phase3_pilot()` rejects invalid coverage, any task regression, no positive
+`pass^3` gain, a per-trial peak-cost breach, or a per-role peak-cost breach. It can
+only accept a fully paired, stably improved candidate within the frozen budget.

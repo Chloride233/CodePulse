@@ -8,6 +8,7 @@ from codepulse.benchmark.pilot_report import (
     classify_phase3_pilot,
     compare_phase3_pilot,
     summarize_pilot,
+    validate_phase3_pilot,
 )
 
 
@@ -43,6 +44,7 @@ def _phase3_manifest() -> dict[str, object]:
         "protocol_version": "phase3-evolution-v1",
         "n_trials": 3,
         "task_ids": ["task-0", "task-1"],
+        "budget": {"per_trial_cny": 0.1, "per_agent_cny": 5.0},
         "agents": [
             {"role": "baseline", "name": "baseline"},
             {"role": "candidate", "name": "candidate"},
@@ -153,3 +155,29 @@ def test_phase3_pilot_classifies_pass_hat_states() -> None:
         "regression_rate": 0.25,
         "total": 4,
     }
+
+
+def test_phase3_pilot_gate_accepts_stable_improvement_and_rejects_invalid_rows() -> None:
+    accepted = validate_phase3_pilot(_phase3_rows(), _phase3_manifest())
+
+    assert accepted["accepted"] is True
+    assert accepted["stable_pass_gain"] == pytest.approx(0.5)
+
+    rejected = validate_phase3_pilot(_phase3_rows()[1:], _phase3_manifest())
+
+    assert rejected["accepted"] is False
+    assert rejected["rejection_reasons"] == ["invalid_trial_coverage"]
+
+
+def test_phase3_pilot_gate_rejects_regressive_candidate() -> None:
+    rows = _phase3_rows()
+    for row in rows:
+        if row["task_id"] != "task-0":
+            continue
+        row["success"] = row["agent_name"] == "baseline"
+        row["failure_type"] = None if row["success"] else "wrong_answer"
+
+    rejected = validate_phase3_pilot(rows, _phase3_manifest())
+
+    assert rejected["accepted"] is False
+    assert "regression_detected" in rejected["rejection_reasons"]
