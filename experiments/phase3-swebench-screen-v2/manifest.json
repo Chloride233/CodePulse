@@ -1,0 +1,68 @@
+{
+  "protocol_version": "phase3-swebench-screen-v2",
+  "benchmark": "swe-bench-verified",
+  "dataset": {
+    "task_path": "datasets/swe-bench/phase3-swebench-v3.jsonl",
+    "task_sha256": "1206d5c98a612951d82bda1fe131a30fb29cd3802b3d38e95ce078cd5f2f3408",
+    "source_name": "princeton-nlp/SWE-bench_Verified",
+    "source_revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a"
+  },
+  "task_ids": [
+    "pytest-dev__pytest-10081",
+    "scikit-learn__scikit-learn-13328",
+    "sphinx-doc__sphinx-8621"
+  ],
+  "n_trials": 1,
+  "seed": 20260721,
+  "agents": [
+    {
+      "role": "baseline",
+      "name": "deepseek-v4-flash-swebench-direct-skillopt-v2-tools-v2",
+      "model_version": "deepseek/deepseek-v4-flash",
+      "provider_model_version": "deepseek-v4-flash",
+      "profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v2-tools-v2.yaml",
+      "profile_sha256": "92c4c8805cf1a39cf4c7924f08a3aeb06abcc29c4be2c9c229c5aa039fc0e3f6"
+    },
+    {
+      "role": "candidate",
+      "name": "deepseek-v4-flash-swebench-direct-skillopt-v4",
+      "model_version": "deepseek/deepseek-v4-flash",
+      "provider_model_version": "deepseek-v4-flash",
+      "profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v4.yaml",
+      "profile_sha256": "ded5801269f0ce1f5d3233c8e85b64b1269a99809cef1bfae3657f434da53776"
+    }
+  ],
+  "candidate_provenance": {
+    "path": "experiments/phase3-swebench-screen-v2/candidate-provenance.json",
+    "sha256": "ab8494e71ecb997bd8a1ed2376f84ca763959b215fe5719245334ca94fb93cd9"
+  },
+  "tool_contract_version": "repository-tools-v2",
+  "runner": {
+    "harness_version": "swebench==4.1.0",
+    "architecture": "x86_64",
+    "image_namespace": "swebench",
+    "image_transport_prefix": "dockerproxy.net",
+    "image_digests": {
+      "pytest-dev__pytest-10081": "sha256:cb98e7a43ca4a8499a80ae446d100c6afb9ecac747dfafe1f4eca287a8321ecb",
+      "scikit-learn__scikit-learn-13328": "sha256:9e667cbb7eb011b5c0ec93dac6f00c8ef10b31d2ecf622ab6c8ee98f935258d1",
+      "sphinx-doc__sphinx-8621": "sha256:6eaeb2da91d08b25f8f38c074cc9b5d70f52f31d4b71b233df4789208498ad47"
+    },
+    "cpu_count": 2,
+    "memory_mb": 4096,
+    "timeout_seconds": 900,
+    "network": "none"
+  },
+  "budget": {
+    "total_cny": 2.0,
+    "per_agent_cny": 2.0,
+    "per_trial_cny": 1.0
+  },
+  "acceptance": {
+    "min_candidate_non_empty_patches": 2,
+    "min_candidate_resolved": 2,
+    "require_candidate_resolved_gte_baseline": true,
+    "max_candidate_token_ratio": 1.25,
+    "max_candidate_cost_ratio": 1.25
+  },
+  "codepulse_commit": "863c036e76ee73b2ca114936dafeff2c75497d4c"
+}
