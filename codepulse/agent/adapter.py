@@ -459,6 +459,16 @@ def _load_agent_class(profile: AgentProfile) -> Any:
     if profile.max_iterations:
         kwargs["max_iterations"] = profile.max_iterations
 
+    from codepulse.agent.real_agent import RealAgent
+
+    if isinstance(cls, type) and issubclass(cls, RealAgent):
+        kwargs.update(
+            name=profile.name,
+            max_tokens=profile.max_tokens,
+            temperature=profile.temperature,
+            tool_names=profile.tools,
+        )
+
     return cls(**kwargs)
 
 

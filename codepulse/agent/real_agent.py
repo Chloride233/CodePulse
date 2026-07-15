@@ -64,6 +64,7 @@ class RealAgent:
         temperature: float = 0.0,
         max_iterations: int = 20,
         system_prompt: str | None = None,
+        tool_names: list[str] | None = None,
         tool_registry: ToolRegistry | None = None,
     ) -> None:
         self._name = name
@@ -72,7 +73,7 @@ class RealAgent:
         self._temperature = temperature
         self._max_iterations = max_iterations
         self._system_prompt = system_prompt
-        self._max_iterations = max_iterations
+        self._tool_names = list(tool_names) if tool_names is not None else None
         self._tool_registry = tool_registry  # 延迟初始化，run 时绑定 sandbox
 
     @property
@@ -93,8 +94,6 @@ class RealAgent:
         Returns:
             完整的执行轨迹。
         """
-        import litellm
-
         session_id = f"{task.task_id}-{uuid.uuid4().hex[:8]}"
         transcript = Transcript(
             session_id=session_id,
@@ -102,7 +101,7 @@ class RealAgent:
         )
 
         # 绑定工具到 sandbox
-        registry = self._tool_registry or get_default_registry(sandbox)
+        registry = self._tool_registry or get_default_registry(sandbox, self._tool_names)
         tools_schema = registry.schemas()
         tools_desc = "\n".join(
             f"- **{t['function']['name']}**: {t['function']['description']}"
@@ -116,6 +115,8 @@ class RealAgent:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ]
+
+        import litellm
 
         # 记录累积 token 使用
         total_input = 0

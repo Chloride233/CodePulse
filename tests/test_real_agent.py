@@ -219,6 +219,21 @@ class TestRealAgentRun:
         ]
 
     @patch("litellm.completion")
+    def test_unknown_profile_tool_fails_before_model_call(
+        self, mock_completion: MagicMock
+    ) -> None:
+        agent = RealAgent(tool_names=["read_file", "missing_tool"])
+
+        try:
+            agent.run(_make_task(), MagicMock())
+        except ValueError as exc:
+            assert "missing_tool" in str(exc)
+        else:
+            raise AssertionError("unknown profile tool should fail before execution")
+
+        mock_completion.assert_not_called()
+
+    @patch("litellm.completion")
     def test_task_with_tool_calls(self, mock_completion: MagicMock) -> None:
         """Agent executes tools and continues conversation."""
         agent = RealAgent(max_iterations=5)

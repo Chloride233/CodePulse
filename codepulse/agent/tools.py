@@ -73,26 +73,126 @@ class ReadFileTool(Tool):
                 "type": "string",
                 "description": "File path relative to the workspace root.",
             },
+            "offset": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Optional one-based starting line.",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Optional number of lines to return.",
+            },
         },
         "required": ["path"],
     }
 
-    def execute(self, *, path: str = "", **kwargs: Any) -> ToolCallResult:
+    def execute(
+        self,
+        *,
+        path: str = "",
+        offset: int | None = None,
+        limit: int | None = None,
+        **kwargs: Any,
+    ) -> ToolCallResult:
         if not path:
             return ToolCallResult(output="", error="path is required", success=False)
-        # 使用 cat 读取，避免 Python 解释器依赖
+        for name, value in (("offset", offset), ("limit", limit)):
+            if value is not None and (
+                not isinstance(value, int) or isinstance(value, bool) or value < 1
+            ):
+                return ToolCallResult(
+                    output="", error=f"{name} must be a positive integer", success=False
+                )
+
+        from codepulse.env.sandbox_utils import SandboxUtils
+
+        utils = SandboxUtils(self._sandbox)
         container = self._sandbox.get_active_container()
-        result = self._sandbox.execute(container, f"cat {path}")
-        if result.exit_code != 0:
+        try:
+            content = utils.read_file(container, path)
+        except Exception as exc:
             return ToolCallResult(
                 output="",
-                error=result.stderr.strip() or f"File not found: {path}",
+                error=str(exc),
                 success=False,
             )
-        content = result.stdout
+
+        if offset is not None or limit is not None:
+            lines = content.splitlines(keepends=True)
+            start = (offset or 1) - 1
+            end = start + limit if limit is not None else None
+            content = "".join(lines[start:end])
         if len(content) > 200_000:
             content = content[:200_000] + "\n... (truncated)"
         return ToolCallResult(output=content)
+
+
+class EditFileTool(Tool):
+    """Replace one exact string in a workspace text file."""
+
+    name = "edit_file"
+    description = "Replace exactly one occurrence of text in a workspace file."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "File path relative to the workspace root.",
+            },
+            "old_string": {
+                "type": "string",
+                "description": "Exact existing text to replace.",
+            },
+            "new_string": {
+                "type": "string",
+                "description": "Replacement text.",
+            },
+        },
+        "required": ["path", "old_string", "new_string"],
+    }
+
+    def execute(
+        self,
+        *,
+        path: str = "",
+        old_string: str = "",
+        new_string: str = "",
+        **kwargs: Any,
+    ) -> ToolCallResult:
+        if not path:
+            return ToolCallResult(output="", error="path is required", success=False)
+        if not old_string:
+            return ToolCallResult(
+                output="", error="old_string is required", success=False
+            )
+
+        from codepulse.env.sandbox_utils import SandboxUtils
+
+        utils = SandboxUtils(self._sandbox)
+        container = self._sandbox.get_active_container()
+        try:
+            content = utils.read_file(container, path)
+        except Exception as exc:
+            return ToolCallResult(output="", error=str(exc), success=False)
+
+        matches = content.count(old_string)
+        if matches == 0:
+            return ToolCallResult(
+                output="", error="old_string was not found", success=False
+            )
+        if matches > 1:
+            return ToolCallResult(
+                output="",
+                error=f"old_string matched {matches} occurrences; make it unique",
+                success=False,
+            )
+
+        try:
+            utils.write_file(container, path, content.replace(old_string, new_string, 1))
+        except Exception as exc:
+            return ToolCallResult(output="", error=str(exc), success=False)
+        return ToolCallResult(output=f"File edited: {path}")
 
 
 class WriteFileTool(Tool):
@@ -133,7 +233,10 @@ class ExecuteTool(Tool):
     """在沙箱中执行 shell 命令。"""
 
     name = "execute"
-    description = "Execute a shell command in the workspace. Use this for running tests, installing packages, listing files, etc."
+    description = (
+        "Execute a shell command for repository inspection, targeted transformations, "
+        "and existing checks."
+    )
     parameters = {
         "type": "object",
         "properties": {
@@ -186,7 +289,9 @@ class ToolRegistry:
         return list(self._tools.keys())
 
 
-def get_default_registry(sandbox: SandboxManager) -> ToolRegistry:
+def get_default_registry(
+    sandbox: SandboxManager, tool_names: list[str] | None = None
+) -> ToolRegistry:
     """获取默认工具注册表。
 
     Args:
@@ -195,10 +300,22 @@ def get_default_registry(sandbox: SandboxManager) -> ToolRegistry:
     Returns:
         包含 read_file、write_file、execute 的注册表。
     """
+    tool_types: dict[str, type[Tool]] = {
+        "read_file": ReadFileTool,
+        "edit_file": EditFileTool,
+        "write_file": WriteFileTool,
+        "execute": ExecuteTool,
+    }
+    selected_names = (
+        tool_names if tool_names is not None else ["read_file", "write_file", "execute"]
+    )
+    unknown_names = [name for name in selected_names if name not in tool_types]
+    if unknown_names:
+        raise ValueError(f"Unsupported tool names: {', '.join(unknown_names)}")
+
     registry = ToolRegistry()
-    registry.register(ReadFileTool(sandbox))
-    registry.register(WriteFileTool(sandbox))
-    registry.register(ExecuteTool(sandbox))
+    for name in selected_names:
+        registry.register(tool_types[name](sandbox))
     return registry
 
 

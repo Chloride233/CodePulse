@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from codepulse.agent.tools import (
+    EditFileTool,
     ExecuteTool,
     ReadFileTool,
     ToolCallResult,
@@ -83,6 +84,30 @@ class TestToolRegistry:
 
         assert set(registry.names) == {"read_file", "write_file", "execute"}
 
+    def test_explicit_tool_names_preserve_order(self) -> None:
+        sandbox = MagicMock()
+        registry = get_default_registry(
+            sandbox, ["read_file", "edit_file", "execute"]
+        )
+
+        assert registry.names == ["read_file", "edit_file", "execute"]
+
+    def test_unknown_explicit_tool_name_is_rejected(self) -> None:
+        sandbox = MagicMock()
+
+        try:
+            get_default_registry(sandbox, ["read_file", "missing_tool"])
+        except ValueError as exc:
+            assert "missing_tool" in str(exc)
+        else:
+            raise AssertionError("unknown tool name should be rejected")
+
+    def test_explicit_empty_tool_list_stays_empty(self) -> None:
+        registry = get_default_registry(MagicMock(), [])
+
+        assert registry.names == []
+        assert registry.schemas() == []
+
 
 class TestGetDefaultRegistry:
     """Tests for get_default_registry."""
@@ -103,6 +128,8 @@ class TestReadFileTool:
         assert schema["type"] == "function"
         assert schema["function"]["name"] == "read_file"
         assert "path" in schema["function"]["parameters"]["properties"]
+        assert "offset" in schema["function"]["parameters"]["properties"]
+        assert "limit" in schema["function"]["parameters"]["properties"]
 
     def test_missing_path(self) -> None:
         sandbox = MagicMock()
@@ -136,6 +163,106 @@ class TestReadFileTool:
         result = tool.execute(path="nonexistent.py")
         assert result.success is False
 
+    def test_bounded_read_returns_requested_lines(self) -> None:
+        sandbox = MagicMock()
+        exec_result = MagicMock(
+            exit_code=0,
+            stdout="one\ntwo\nthree\nfour\n",
+            stderr="",
+        )
+        sandbox.execute.return_value = exec_result
+
+        result = ReadFileTool(sandbox).execute(path="test.py", offset=2, limit=2)
+
+        assert result.success is True
+        assert result.output == "two\nthree\n"
+
+    def test_bounded_read_rejects_non_positive_values(self) -> None:
+        sandbox = MagicMock()
+        tool = ReadFileTool(sandbox)
+
+        assert tool.execute(path="test.py", offset=0).success is False
+        assert tool.execute(path="test.py", limit=-1).success is False
+        assert tool.execute(path="test.py", offset=True).success is False
+        sandbox.execute.assert_not_called()
+
+    def test_read_quotes_workspace_path(self) -> None:
+        sandbox = MagicMock()
+        sandbox.execute.return_value = MagicMock(
+            exit_code=0, stdout="content", stderr=""
+        )
+
+        ReadFileTool(sandbox).execute(path="dir/file name.py")
+
+        sandbox.execute.assert_called_once_with(
+            sandbox.get_active_container.return_value,
+            "cat '/workspace/dir/file name.py'",
+        )
+
+
+class TestEditFileTool:
+    """Tests for exact, non-destructive file edits."""
+
+    def test_schema_requires_exact_replacement_fields(self) -> None:
+        schema = EditFileTool(MagicMock()).to_schema()["function"]
+
+        assert schema["name"] == "edit_file"
+        assert schema["parameters"]["required"] == [
+            "path",
+            "old_string",
+            "new_string",
+        ]
+        assert "content" not in schema["parameters"]["properties"]
+
+    def test_unique_match_is_replaced(self) -> None:
+        sandbox = MagicMock()
+        tool = EditFileTool(sandbox)
+
+        with patch("codepulse.env.sandbox_utils.SandboxUtils") as utils_cls:
+            utils = utils_cls.return_value
+            utils.read_file.return_value = "before old after"
+
+            result = tool.execute(
+                path="module.py", old_string="old", new_string="new"
+            )
+
+        assert result.success is True
+        utils.write_file.assert_called_once_with(
+            sandbox.get_active_container.return_value,
+            "module.py",
+            "before new after",
+        )
+
+    def test_zero_match_does_not_write(self) -> None:
+        sandbox = MagicMock()
+        tool = EditFileTool(sandbox)
+
+        with patch("codepulse.env.sandbox_utils.SandboxUtils") as utils_cls:
+            utils = utils_cls.return_value
+            utils.read_file.return_value = "unchanged"
+            result = tool.execute(
+                path="module.py", old_string="missing", new_string="new"
+            )
+
+        assert result.success is False
+        assert "not found" in result.error
+        utils.write_file.assert_not_called()
+
+    def test_multiple_matches_do_not_write(self) -> None:
+        sandbox = MagicMock()
+        tool = EditFileTool(sandbox)
+
+        with patch("codepulse.env.sandbox_utils.SandboxUtils") as utils_cls:
+            utils = utils_cls.return_value
+            utils.read_file.return_value = "old and old"
+            result = tool.execute(
+                path="module.py", old_string="old", new_string="new"
+            )
+
+        assert result.success is False
+        assert "2 occurrences" in result.error
+        utils.write_file.assert_not_called()
+
 
 class TestExecuteTool:
     """Tests for ExecuteTool."""
@@ -146,6 +273,7 @@ class TestExecuteTool:
         schema = tool.to_schema()
         assert schema["function"]["name"] == "execute"
         assert "command" in schema["function"]["parameters"]["properties"]
+        assert "install" not in schema["function"]["description"].lower()
 
     def test_missing_command(self) -> None:
         sandbox = MagicMock()

@@ -5,6 +5,7 @@ from typing import Any
 from codepulse.agent.adapter import AgentProfile, AgentResult, run_adapter_trials, run_agent
 from codepulse.agent.real_agent import RealAgent
 from codepulse.agent.tools import (
+    EditFileTool,
     ExecuteTool,
     ReadFileTool,
     Tool,
@@ -26,6 +27,8 @@ def create_agent(profile: AgentProfile) -> Any:
             max_tokens=profile.max_tokens,
             temperature=profile.temperature,
             max_iterations=profile.max_iterations,
+            system_prompt=profile.system_prompt or None,
+            tool_names=profile.tools,
         )
     else:
         raise ValueError(f"不支持的 Agent 类型: {profile.type}")
@@ -34,6 +37,7 @@ def create_agent(profile: AgentProfile) -> Any:
 __all__ = [
     "AgentProfile",
     "AgentResult",
+    "EditFileTool",
     "ExecuteTool",
     "ReadFileTool",
     "RealAgent",

@@ -194,6 +194,20 @@ class TestLoadAgentClass:
         agent = _load_agent_class(profile)
         assert agent.model == "my-model"
 
+    def test_real_agent_receives_frozen_profile_tools(self):
+        profile = AgentProfile(
+            name="repository-agent",
+            type="protocol",
+            model="model-v1",
+            agent_class="codepulse.agent.real_agent.RealAgent",
+            tools=["read_file", "edit_file", "execute"],
+        )
+
+        agent = _load_agent_class(profile)
+
+        assert agent.name == "repository-agent"
+        assert agent._tool_names == ["read_file", "edit_file", "execute"]
+
     def test_missing_agent_class(self):
         profile = AgentProfile(name="bad", type="protocol", agent_class="")
         with pytest.raises(ValueError, match="agent_class"):

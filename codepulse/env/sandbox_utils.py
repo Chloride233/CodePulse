@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import shlex
 import tarfile
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -115,7 +116,8 @@ class SandboxUtils:
             SandboxError: 读取失败。
         """
         relative_path = _workspace_relative_path(path)
-        result = self._sandbox.execute(container, f"cat /workspace/{relative_path}")
+        workspace_path = shlex.quote(f"/workspace/{relative_path}")
+        result = self._sandbox.execute(container, f"cat {workspace_path}")
         if result.exit_code != 0:
             from codepulse.env.sandbox import SandboxError
 
