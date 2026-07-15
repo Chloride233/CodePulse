@@ -361,7 +361,15 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
     output.mkdir(parents=True, exist_ok=True)
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     sandbox = SandboxManager()
-    total_cost = 0.0
+    budget = manifest["budget"]
+    guard = PilotBudgetGuard(
+        planned_trials=len(manifest["task_ids"]),
+        total_limit_cny=float(budget["total_cny"]),
+        per_agent_limit_cny=float(budget["per_agent_cny"]),
+        per_trial_limit_cny=float(budget["per_trial_cny"]),
+    )
+    expected_model = str(agent["provider_model_version"])
+    stopped_reasons: list[str] = []
     with trials_path.open("w", encoding="utf-8") as trial_file:
         for index, task_id in enumerate(manifest["task_ids"], start=1):
             click.echo(f"[{index}/5] {task_id} baseline")
@@ -371,21 +379,56 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
                 sandbox,
                 timeout_seconds=int(runner["timeout_seconds"]),
                 architecture=str(runner["architecture"]),
+                image_namespace=str(runner["image_namespace"]),
+                image_digest=str(runner["image_digests"][task_id]),
+                cpu_count=int(runner["cpu_count"]),
+                memory_mb=int(runner["memory_mb"]),
             )
             peak_cost = deepseek_v4_flash_cost_cny(
                 int(trial.metrics["input_tokens"]), int(trial.metrics["output_tokens"]),
                 int(trial.metrics["cache_tokens"]), "peak"
             )
-            total_cost += peak_cost
+            off_peak_cost = deepseek_v4_flash_cost_cny(
+                int(trial.metrics["input_tokens"]), int(trial.metrics["output_tokens"]),
+                int(trial.metrics["cache_tokens"]), "off_peak"
+            )
+            versions = trial.outcome.get("provider_model_versions", [])
+            provider_failure = trial.outcome.get("failure_type")
+            failure_type = (
+                provider_failure
+                if isinstance(provider_failure, str)
+                else (None if trial.success else "wrong_answer")
+            )
+            stopped_reasons = guard.record_trial(profile.name, peak_cost, failure_type)
+            if versions and versions != [expected_model]:
+                stopped_reasons.append("model_version_drift")
             record = {
                 "trial_id": f"{task_id}--r0--{profile.name}",
                 "task_id": task_id, "repetition": 0, "agent_name": profile.name,
+                "provider_model_versions": versions,
                 "success": trial.success, "outcome": trial.outcome,
-                "metrics": {**trial.metrics, "cost_cny_peak": peak_cost},
+                "scores": {"functional": 1.0 if trial.success else 0.0},
+                "metrics": {
+                    **trial.metrics,
+                    "cost_cny_off_peak": off_peak_cost,
+                    "cost_cny_peak": peak_cost,
+                },
+                "failure_type": failure_type,
+                "stop_reasons": stopped_reasons,
+                "started_at": datetime.now(UTC).isoformat(),
             }
             trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
             trial_file.flush()
-    summary = {"completed_trials": 5, "total_cost_cny_peak": round(total_cost, 6)}
+            if stopped_reasons:
+                break
+    summary = {
+        "status": "aborted" if stopped_reasons else "completed",
+        "completed_trials": guard.completed_trials,
+        "planned_trials": len(manifest["task_ids"]),
+        "total_cost_cny_peak": round(guard.total_cost_cny, 6),
+        "agent_costs_cny_peak": guard.agent_costs_cny,
+        "stop_reasons": stopped_reasons,
+    }
     (output / "run-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     click.echo(json.dumps(summary))
 

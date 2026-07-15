@@ -38,7 +38,28 @@ def test_candidate_materializes_trace_derived_prompt_and_provenance(tmp_path: Pa
         "\n".join(
             json.dumps(row)
             for row in (
-                {"agent_name": "baseline", "task_id": "train-1", "success": False},
+                {
+                    "trial_id": "train-1--r0--baseline",
+                    "agent_name": "baseline",
+                    "task_id": "train-1",
+                    "success": False,
+                    "failure_type": "wrong_answer",
+                    "outcome": {
+                        "patch": "diff --git a/a.py b/a.py",
+                        "trace": {
+                            "events": [
+                                {
+                                    "event_type": "tool_call",
+                                    "content": {
+                                        "tool": "read_file",
+                                        "arguments": {"path": "/workspace/a.py"},
+                                        "success": True,
+                                    },
+                                }
+                            ]
+                        },
+                    },
+                },
                 {"agent_name": "baseline", "task_id": "train-2", "success": True},
             )
         )
@@ -54,8 +75,9 @@ def test_candidate_materializes_trace_derived_prompt_and_provenance(tmp_path: Pa
     assert candidate.name == "baseline-skillopt-v1"
     assert candidate.max_iterations == 2
     assert candidate.temperature == 0.0
-    assert "Before finalizing, run the most relevant available tests." in candidate.system_prompt
+    assert "run the most relevant existing tests" in candidate.system_prompt
     assert result["source_task_ids"] == ["train-1"]
+    assert result["trace_analysis"]["selected_pattern"] == "no_verification"
     assert json.loads(provenance_path.read_text(encoding="utf-8"))["candidate_profile_sha256"]
 
 
@@ -68,7 +90,7 @@ def test_candidate_refuses_training_without_failures(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="no failed baseline task"):
+    with pytest.raises(ValueError, match="no eligible failed baseline task"):
         materialize_candidate(
             baseline_path,
             trials_path,

@@ -29,6 +29,16 @@
   "runner": {
     "harness_version": "swebench==4.1.0",
     "architecture": "x86_64",
+    "image_namespace": "swebench",
+    "image_digests": {
+      "django__django-10097": "sha256:148894532806828ddd882c6617387910c1be8d064e2496fbe7ec046a30eff6fb",
+      "sympy__sympy-19495": "sha256:1a6ba622719535b662d9c0c23736eb172e8d5f04be7881894d027babe476cf07",
+      "scikit-learn__scikit-learn-15100": "sha256:66f6adf23e703d16e567eeb9f4e1e6886787bec0b80efecba055632532c7cc93",
+      "django__django-13449": "sha256:0d6bc13f6bedf6c649a1d9696d3ae25eafa80421b8a0c112eb744ab86dc4a691",
+      "django__django-15127": "sha256:a77031639e285b906d2a0997bf10176a8d4ba6d6b479872670c74bf5f11ec403"
+    },
+    "cpu_count": 2,
+    "memory_mb": 4096,
     "timeout_seconds": 900,
     "network": "none"
   },

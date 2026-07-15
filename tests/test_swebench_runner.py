@@ -11,6 +11,8 @@ from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.swebench_runner import (
     OfficialHarness,
     _evaluate_patch,
+    _prepare_official_image,
+    _start_isolated_container,
     _task_from_instance,
     validate_swebench_training_manifest,
 )
@@ -77,7 +79,6 @@ def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch
 
     harness = OfficialHarness(
         make_test_spec=lambda *_: None,
-        build_instance_images=lambda *_: None,
         build_container=lambda *_: None,
         setup_logger=lambda *_: None,
         close_logger=lambda *_: None,
@@ -98,3 +99,79 @@ def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch
     assert commands == ["git reset --hard HEAD && git clean -fd && git apply --verbose /tmp/patch.diff"]
     assert report == {"repo__issue-1": {"resolved": True}}
     assert output == "tests passed"
+
+
+def test_swebench_runner_prepares_frozen_official_image_by_digest() -> None:
+    calls: list[tuple[str, str]] = []
+
+    class Image:
+        def tag(self, repository: str, *, tag: str) -> None:
+            calls.append((repository, tag))
+
+    class Images:
+        def get(self, image_ref: str) -> Image:
+            calls.append(("get", image_ref))
+            return Image()
+
+    client = type("Client", (), {"images": Images()})()
+    test_spec = type(
+        "TestSpec",
+        (),
+        {"instance_image_key": "swebench/sweb.eval.x86_64.repo_1776_repo-1:latest"},
+    )()
+
+    image_ref = _prepare_official_image(client, test_spec, "sha256:" + "a" * 64)
+
+    assert image_ref == (
+        "swebench/sweb.eval.x86_64.repo_1776_repo-1@sha256:" + "a" * 64
+    )
+    assert calls == [
+        ("get", image_ref),
+        ("swebench/sweb.eval.x86_64.repo_1776_repo-1", "latest"),
+    ]
+
+
+def test_swebench_runner_starts_container_with_frozen_limits_and_no_network() -> None:
+    calls: list[object] = []
+
+    class Container:
+        attrs: dict[str, object] = {"NetworkSettings": {"Networks": {"bridge": {}}}}
+
+        def update(self, **kwargs: object) -> None:
+            calls.append(("update", kwargs))
+
+        def start(self) -> None:
+            calls.append("start")
+
+        def reload(self) -> None:
+            calls.append("reload")
+
+    class Network:
+        def disconnect(self, container: object, *, force: bool) -> None:
+            calls.append(("disconnect", container, force))
+
+    class Networks:
+        def get(self, name: str) -> Network:
+            calls.append(("network", name))
+            return Network()
+
+    container = Container()
+    client = type("Client", (), {"networks": Networks()})()
+
+    _start_isolated_container(client, container, 2, 4096)
+
+    assert calls == [
+        (
+            "update",
+            {
+                "cpu_period": 100_000,
+                "cpu_quota": 200_000,
+                "mem_limit": "4096m",
+                "memswap_limit": "4096m",
+            },
+        ),
+        "start",
+        "reload",
+        ("network", "bridge"),
+        ("disconnect", container, True),
+    ]

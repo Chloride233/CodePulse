@@ -1,8 +1,54 @@
 # Phase 3 Evolution Protocol
 
-Status: evaluation template frozen; trace-derived candidate not yet available
+Status: HumanEval training saturated; repository training frozen but not yet run
 Protocol version: `phase3-evolution-v1`
 Issue: [#3](https://github.com/Chloride233/CodePulse/issues/3)
+
+## Current evidence status
+
+The two disjoint HumanEval training cohorts completed with 20/20 successful baseline
+trials. Their peak-price costs were CNY 0.084882 and CNY 0.083796. Because neither
+cohort contains a failed baseline trial, they cannot legally produce the Phase 3
+candidate and do not prove self-evolution benefit.
+
+The repository-level route is frozen in
+`experiments/phase3-swebench-training-v1/manifest.json`. It uses five SWE-bench
+Verified training instances and keeps eight disjoint instances in the dataset snapshot
+for later evaluation selection. All seven previous local attempts stopped before the
+first trial and produced empty JSONL files, so they contain no model calls or benchmark
+results.
+
+The runner now pulls official `swebench` instance images by immutable digest instead
+of rebuilding base, environment, and instance layers. A no-model smoke test ran the
+oldest frozen Django image on the local ARM Mac through x86 emulation with Python
+3.5.6. The real container limits were also verified at 2 CPUs, 4096 MiB memory, no
+additional swap, and no attached Docker network. The 13 frozen images total 17.416 GiB
+when summing registry layer sizes before cross-image deduplication. This removes the
+known need for a separate x86 build server; the complete real-model run is still
+pending.
+
+Before the first repository training call, run only the focused checks:
+
+```bash
+.venv/bin/pytest tests/test_swebench_runner.py tests/test_candidate.py --no-cov
+.venv/bin/ruff check codepulse/benchmark/swebench_runner.py codepulse/benchmark/cli.py codepulse/evolve/candidate.py tests/test_swebench_runner.py tests/test_candidate.py
+.venv/bin/mypy codepulse/benchmark/swebench_runner.py codepulse/benchmark/cli.py codepulse/evolve/candidate.py tests/test_swebench_runner.py tests/test_candidate.py
+.venv/bin/python -m codepulse.cli benchmark swebench-training-preflight --manifest experiments/phase3-swebench-training-v1/manifest.json --repo-root .
+```
+
+Then run the baseline training cohort into a new output directory. A failed trial must
+retain its Agent patch and observable trace. Candidate materialization ignores
+infrastructure failures and deterministically chooses one PromptEdit from the dominant
+trace failure pattern, adding no backward-pass model call.
+
+```bash
+.venv/bin/python -m codepulse.cli benchmark swebench-training-run --manifest experiments/phase3-swebench-training-v1/manifest.json --output-dir results/phase3/swebench-training-v1-official-images --repo-root .
+```
+
+Do not start a final comparison until the candidate and its provenance exist and a
+separate held-out SWE-bench baseline/candidate manifest has been frozen. The existing
+HumanEval `phase3-evolution-v1` manifest remains a comparison/reporting template; it
+must not be reported as the repository-level final experiment.
 
 ## Frozen comparison
 

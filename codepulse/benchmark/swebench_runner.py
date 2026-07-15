@@ -8,7 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from codepulse.agent.adapter import AgentProfile, _load_agent_class
+from docker.errors import ImageNotFound
+
+from codepulse.agent.adapter import (
+    AgentProfile,
+    _is_provider_auth_error,
+    _load_agent_class,
+    _serialize_transcript,
+)
 from codepulse.data.models import Difficulty, Task, TaskCategory, TaskSource
 from codepulse.env.sandbox import Container, ResourceLimits, SandboxManager
 from codepulse.eval.artifacts import canonical_sha256, file_sha256
@@ -22,7 +29,6 @@ class OfficialHarness:
     """Official SWE-bench operations used by a single repository trial."""
 
     make_test_spec: Callable[..., Any]
-    build_instance_images: Callable[..., Any]
     build_container: Callable[..., Any]
     setup_logger: Callable[..., Any]
     close_logger: Callable[..., Any]
@@ -105,6 +111,40 @@ def validate_swebench_training_manifest(
         errors.append(f"baseline profile_path does not exist: {profile_path}")
     elif file_sha256(profile) != profile_digest:
         errors.append(f"baseline profile_sha256 mismatch for {profile_path}")
+    runner = manifest.get("runner")
+    if not isinstance(runner, dict):
+        return errors + ["runner must be an object"]
+    if runner.get("harness_version") != "swebench==4.1.0":
+        errors.append("runner.harness_version must equal 'swebench==4.1.0'")
+    if runner.get("architecture") != "x86_64":
+        errors.append("runner.architecture must equal 'x86_64'")
+    if runner.get("image_namespace") != "swebench":
+        errors.append("runner.image_namespace must equal 'swebench'")
+    if runner.get("timeout_seconds") != 900:
+        errors.append("runner.timeout_seconds must equal 900")
+    if runner.get("cpu_count") != 2:
+        errors.append("runner.cpu_count must equal 2")
+    if runner.get("memory_mb") != 4096:
+        errors.append("runner.memory_mb must equal 4096")
+    if runner.get("network") != "none":
+        errors.append("runner.network must equal 'none'")
+    image_digests = runner.get("image_digests")
+    if not isinstance(image_digests, dict) or set(image_digests) != set(task_ids or []):
+        errors.append("runner.image_digests must cover exactly the frozen task_ids")
+    elif not all(
+        isinstance(digest, str)
+        and digest.startswith("sha256:")
+        and len(digest) == 71
+        and all(character in "0123456789abcdef" for character in digest[7:])
+        for digest in image_digests.values()
+    ):
+        errors.append("runner.image_digests values must be sha256 digests")
+    if manifest.get("budget") != {
+        "total_cny": 20.0,
+        "per_agent_cny": 20.0,
+        "per_trial_cny": 4.0,
+    }:
+        errors.append("budget must equal the frozen SWE-bench training limits")
     return errors
 
 
@@ -115,14 +155,20 @@ def run_swebench_trial(
     *,
     timeout_seconds: int,
     architecture: str,
+    image_namespace: str,
+    image_digest: str,
+    cpu_count: int,
+    memory_mb: int,
 ) -> SWEbenchTrial:
     """Run one Agent in an official repository image and grade its submitted patch."""
     harness = _official_harness()
-    test_spec = harness.make_test_spec(instance, arch=architecture)
-    client = sandbox._client
-    harness.build_instance_images(
-        client, [test_spec], max_workers=1, tag="latest", env_image_tag="latest"
+    test_spec = harness.make_test_spec(
+        instance,
+        namespace=image_namespace,
+        arch=architecture,
     )
+    client = sandbox._client
+    image_ref = _prepare_official_image(client, test_spec, image_digest)
     log_path = Path("results") / "swebench-harness" / str(instance["instance_id"]) / "agent.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger = harness.setup_logger(str(instance["instance_id"]), log_path)
@@ -131,11 +177,15 @@ def run_swebench_trial(
         official_container = harness.build_container(
             test_spec, client, "codepulse", logger, False, False
         )
-        official_container.start()
+        _start_isolated_container(client, official_container, cpu_count, memory_mb)
         container = Container(
             id=str(official_container.id),
             image=str(test_spec.instance_image_key),
-            resource_limits=ResourceLimits(timeout_seconds=timeout_seconds),
+            resource_limits=ResourceLimits(
+                cpu_count=cpu_count,
+                memory_mb=memory_mb,
+                timeout_seconds=timeout_seconds,
+            ),
         )
         _bind_workspace(sandbox, container)
         task = _task_from_instance(instance)
@@ -143,6 +193,17 @@ def run_swebench_trial(
         sandbox.set_active_container(container)
         transcript = agent.run(task, sandbox)
         sandbox.clear_active_container()
+        error_event = next(
+            (event for event in reversed(transcript.events) if event.event_type == "error"),
+            None,
+        )
+        failure_type = None
+        if error_event is not None:
+            failure_type = (
+                "provider_auth_error"
+                if _is_provider_auth_error(error_event.content)
+                else "provider_error"
+            )
         patch_result = sandbox.execute(container, "cd /testbed && git diff")
         report, test_output = _evaluate_patch(
             harness, official_container, test_spec, instance, patch_result.stdout, timeout_seconds
@@ -153,8 +214,12 @@ def run_swebench_trial(
             outcome={
                 "official_resolved": resolved,
                 "official_report": report,
+                "instance_image": image_ref,
+                "patch": patch_result.stdout,
                 "patch_sha256": canonical_sha256(patch_result.stdout),
                 "test_output": test_output[:4096],
+                "trace": _serialize_transcript(transcript),
+                "failure_type": failure_type,
                 "provider_model_versions": transcript.agent_config.get(
                     "provider_model_versions", []
                 ),
@@ -173,6 +238,35 @@ def run_swebench_trial(
         if official_container is not None:
             official_container.remove(force=True)
         harness.close_logger(logger)
+
+
+def _prepare_official_image(client: Any, test_spec: Any, digest: str) -> str:
+    """Pull the frozen official image by digest and expose its expected local tag."""
+    repository, tag = str(test_spec.instance_image_key).rsplit(":", 1)
+    image_ref = f"{repository}@{digest}"
+    try:
+        image = client.images.get(image_ref)
+    except ImageNotFound:
+        image = client.images.pull(image_ref)
+    image.tag(repository, tag=tag)
+    return image_ref
+
+
+def _start_isolated_container(
+    client: Any, official_container: Any, cpu_count: int, memory_mb: int
+) -> None:
+    """Apply frozen resource limits and remove every Docker network attachment."""
+    official_container.update(
+        cpu_period=100_000,
+        cpu_quota=cpu_count * 100_000,
+        mem_limit=f"{memory_mb}m",
+        memswap_limit=f"{memory_mb}m",
+    )
+    official_container.start()
+    official_container.reload()
+    networks = official_container.attrs.get("NetworkSettings", {}).get("Networks", {})
+    for network_name in networks:
+        client.networks.get(network_name).disconnect(official_container, force=True)
 
 
 def _task_from_instance(instance: dict[str, Any]) -> Task:
@@ -245,7 +339,6 @@ def _official_harness() -> OfficialHarness:
     try:
         from swebench.harness.docker_build import (  # type: ignore[import-untyped]
             build_container,
-            build_instance_images,
             close_logger,
             setup_logger,
         )
@@ -261,7 +354,6 @@ def _official_harness() -> OfficialHarness:
         ) from exc
     return OfficialHarness(
         make_test_spec=test_spec.make_test_spec,
-        build_instance_images=build_instance_images,
         build_container=build_container,
         setup_logger=setup_logger,
         close_logger=close_logger,
