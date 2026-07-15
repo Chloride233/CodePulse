@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from click.testing import CliRunner
+from docker.errors import ImageNotFound
 
 from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.swebench_runner import (
@@ -83,6 +84,11 @@ def test_swebench_runner_evolution_manifest_accepts_frozen_held_out_inputs() -> 
         (root / "experiments/phase3-swebench-evolution-v3/manifest.json").read_text()
     )
     assert validate_swebench_evolution_manifest(v3_manifest, root) == []
+
+    v4_manifest = json.loads(
+        (root / "experiments/phase3-swebench-evolution-v4/manifest.json").read_text()
+    )
+    assert validate_swebench_evolution_manifest(v4_manifest, root) == []
 
 
 def test_swebench_runner_evolution_preflight_cli_avoids_docker() -> None:
@@ -266,6 +272,48 @@ def test_swebench_runner_prepares_frozen_official_image_by_digest() -> None:
     )
     assert calls == [
         ("get", image_ref),
+        ("swebench/sweb.eval.x86_64.repo_1776_repo-1", "latest"),
+    ]
+
+
+def test_swebench_runner_uses_transport_prefix_without_changing_image_identity() -> None:
+    calls: list[tuple[str, str]] = []
+
+    class Image:
+        def tag(self, repository: str, *, tag: str) -> None:
+            calls.append((repository, tag))
+
+    class Images:
+        def get(self, image_ref: str) -> Image:
+            calls.append(("get", image_ref))
+            raise ImageNotFound("missing")
+
+        def pull(self, image_ref: str) -> Image:
+            calls.append(("pull", image_ref))
+            return Image()
+
+    client = type("Client", (), {"images": Images()})()
+    test_spec = type(
+        "TestSpec",
+        (),
+        {"instance_image_key": "swebench/sweb.eval.x86_64.repo_1776_repo-1:latest"},
+    )()
+    digest = "sha256:" + "a" * 64
+
+    image_ref = _prepare_official_image(
+        client,
+        test_spec,
+        digest,
+        image_transport_prefix="docker.1ms.run",
+    )
+
+    official_ref = f"swebench/sweb.eval.x86_64.repo_1776_repo-1@{digest}"
+    transport_ref = f"docker.1ms.run/swebench/sweb.eval.x86_64.repo_1776_repo-1@{digest}"
+    assert image_ref == official_ref
+    assert calls == [
+        ("get", official_ref),
+        ("get", transport_ref),
+        ("pull", transport_ref),
         ("swebench/sweb.eval.x86_64.repo_1776_repo-1", "latest"),
     ]
 

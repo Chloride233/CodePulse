@@ -73,6 +73,16 @@ SWE_BENCH_EVALUATION_V2_TASK_IDS = [
     "django__django-10554",
     "matplotlib__matplotlib-13989",
 ]
+SWE_BENCH_EVALUATION_V3_TASK_IDS = [
+    "django__django-15741",
+    "pytest-dev__pytest-10081",
+    "sympy__sympy-16886",
+    "scikit-learn__scikit-learn-13328",
+    "pydata__xarray-4629",
+    "psf__requests-5414",
+    "pylint-dev__pylint-7277",
+    "sphinx-doc__sphinx-8621",
+]
 SWE_BENCH_SCREEN_TASK_IDS = [
     "django__django-10554",
     "mwaskom__seaborn-3069",
@@ -168,20 +178,25 @@ def validate_swebench_evolution_manifest(
         "phase3-swebench-evolution-v1",
         "phase3-swebench-evolution-v2",
         "phase3-swebench-evolution-v3",
+        "phase3-swebench-evolution-v4",
     }:
         errors.append("protocol_version must identify a frozen SWE-bench evolution protocol")
     if manifest.get("benchmark") != "swe-bench-verified":
         errors.append("benchmark must equal 'swe-bench-verified'")
-    expected_task_ids = (
-        SWE_BENCH_EVALUATION_V2_TASK_IDS
-        if protocol_version == "phase3-swebench-evolution-v3"
-        else SWE_BENCH_EVALUATION_TASK_IDS
-    )
+    if protocol_version == "phase3-swebench-evolution-v4":
+        expected_task_ids = SWE_BENCH_EVALUATION_V3_TASK_IDS
+    elif protocol_version == "phase3-swebench-evolution-v3":
+        expected_task_ids = SWE_BENCH_EVALUATION_V2_TASK_IDS
+    else:
+        expected_task_ids = SWE_BENCH_EVALUATION_TASK_IDS
     if manifest.get("task_ids") != expected_task_ids:
         errors.append("task_ids must equal the frozen eight-instance evaluation cohort")
     if manifest.get("n_trials") != 3:
         errors.append("n_trials must equal 3")
-    expected_seed = 20260719 if protocol_version == "phase3-swebench-evolution-v3" else 20260718
+    expected_seed = {
+        "phase3-swebench-evolution-v3": 20260719,
+        "phase3-swebench-evolution-v4": 20260720,
+    }.get(str(protocol_version), 20260718)
     if manifest.get("seed") != expected_seed:
         errors.append(f"seed must equal {expected_seed}")
     dataset = manifest.get("dataset")
@@ -198,6 +213,12 @@ def validate_swebench_evolution_manifest(
     for index, agent in enumerate(agents):
         _validate_swebench_agent(errors, agent, root, index)
     _validate_swebench_runner(errors, manifest.get("runner"), expected_task_ids)
+    runner = manifest.get("runner")
+    if protocol_version == "phase3-swebench-evolution-v4" and (
+        not isinstance(runner, dict)
+        or runner.get("image_transport_prefix") != "docker.1ms.run"
+    ):
+        errors.append("runner.image_transport_prefix must equal 'docker.1ms.run' for v4")
     per_trial_limit = 0.2 if protocol_version == "phase3-swebench-evolution-v1" else 1.0
     if manifest.get("budget") != {
         "total_cny": 10.0,
@@ -206,6 +227,9 @@ def validate_swebench_evolution_manifest(
     }:
         errors.append("budget must equal the frozen SWE-bench evolution limits")
     _validate_swebench_candidate_provenance(errors, manifest, agents, root)
+    if protocol_version == "phase3-swebench-evolution-v4":
+        _validate_swebench_v4_dataset(errors, dataset)
+        _validate_swebench_candidate_screen(errors, manifest, root)
     return errors
 
 
@@ -407,6 +431,7 @@ def _validate_swebench_candidate_provenance(
     if not isinstance(provenance, dict) or provenance.get("protocol_version") not in {
         "skillopt-candidate-v1",
         "skillopt-candidate-v2",
+        "skillopt-candidate-v3",
     }:
         errors.append("candidate_provenance.protocol_version must identify a frozen candidate")
         return
@@ -495,6 +520,70 @@ def _validate_swebench_screen_provenance(
         errors.append("screen task_ids must be included in candidate training sources")
 
 
+def _validate_swebench_v4_dataset(errors: list[str], dataset: object) -> None:
+    """Validate the frozen source artifact and metadata-only selection rule for v4."""
+    if not isinstance(dataset, dict):
+        return
+    if dataset.get("source_name") != "princeton-nlp/SWE-bench_Verified":
+        errors.append("dataset.source_name must identify SWE-bench Verified")
+    if dataset.get("source_revision") != "c104f840cc67f8b6eec6f759ebc8b2693d585d4a":
+        errors.append("dataset.source_revision must equal the frozen Verified revision")
+    if dataset.get("source_artifact_sha256") != (
+        "a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd"
+    ):
+        errors.append("dataset.source_artifact_sha256 must equal the frozen Parquet digest")
+    if dataset.get("selection") != {
+        "exclude_snapshots": [
+            "datasets/swe-bench/phase3-swebench-v1.jsonl",
+            "datasets/swe-bench/phase3-swebench-v2.jsonl",
+        ],
+        "difficulty": "<15 min fix",
+        "seed": 20260720,
+        "max_tasks_per_repo": 1,
+    }:
+        errors.append("dataset.selection must equal the frozen metadata-only selection rule")
+
+
+def _validate_swebench_candidate_screen(
+    errors: list[str], manifest: dict[str, Any], root: Path
+) -> None:
+    """Require immutable evidence that candidate v3 passed its training-only screen."""
+    section = manifest.get("candidate_screen")
+    if not isinstance(section, dict):
+        errors.append("candidate_screen must be an object")
+        return
+    path = section.get("path")
+    digest = section.get("sha256")
+    if not isinstance(path, str) or not isinstance(digest, str):
+        errors.append("candidate_screen.path and sha256 are required")
+        return
+    evidence_path = root / path
+    if not evidence_path.is_file() or file_sha256(evidence_path) != digest:
+        errors.append("candidate_screen evidence is missing or hash-mismatched")
+        return
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"candidate_screen evidence cannot be loaded: {exc}")
+        return
+    if not isinstance(evidence, dict) or evidence.get("protocol_version") != (
+        "phase3-swebench-screen-evidence-v1"
+    ):
+        errors.append("candidate_screen evidence has the wrong protocol_version")
+        return
+    if evidence.get("accepted") is not True:
+        errors.append("candidate_screen must be accepted")
+    report_path = evidence.get("screen_report_path")
+    report_digest = evidence.get("screen_report_sha256")
+    if (
+        not isinstance(report_path, str)
+        or not isinstance(report_digest, str)
+        or not (root / report_path).is_file()
+        or file_sha256(root / report_path) != report_digest
+    ):
+        errors.append("candidate_screen report is missing or hash-mismatched")
+
+
 def run_swebench_trial(
     profile: AgentProfile,
     instance: dict[str, Any],
@@ -506,6 +595,7 @@ def run_swebench_trial(
     image_digest: str,
     cpu_count: int,
     memory_mb: int,
+    image_transport_prefix: str = "",
 ) -> SWEbenchTrial:
     """Run one Agent in an official repository image and grade its submitted patch."""
     harness = _official_harness()
@@ -515,7 +605,12 @@ def run_swebench_trial(
         arch=architecture,
     )
     client = sandbox._client
-    image_ref = _prepare_official_image(client, test_spec, image_digest)
+    image_ref = _prepare_official_image(
+        client,
+        test_spec,
+        image_digest,
+        image_transport_prefix=image_transport_prefix,
+    )
     log_path = Path("results") / "swebench-harness" / str(instance["instance_id"]) / "agent.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger = harness.setup_logger(str(instance["instance_id"]), log_path)
@@ -556,21 +651,26 @@ def run_swebench_trial(
             harness, official_container, test_spec, instance, patch_result.stdout, timeout_seconds
         )
         resolved = bool(report.get(str(instance["instance_id"]), {}).get("resolved", False))
+        outcome = {
+            "official_resolved": resolved,
+            "official_report": report,
+            "instance_image": image_ref,
+            "patch": patch_result.stdout,
+            "patch_sha256": canonical_sha256(patch_result.stdout),
+            "test_output": test_output[:4096],
+            "trace": _serialize_transcript(transcript),
+            "failure_type": failure_type,
+            "provider_model_versions": transcript.agent_config.get(
+                "provider_model_versions", []
+            ),
+        }
+        if image_transport_prefix:
+            outcome["image_transport"] = (
+                f"{image_transport_prefix.rstrip('/')}/{image_ref}"
+            )
         return SWEbenchTrial(
             success=resolved,
-            outcome={
-                "official_resolved": resolved,
-                "official_report": report,
-                "instance_image": image_ref,
-                "patch": patch_result.stdout,
-                "patch_sha256": canonical_sha256(patch_result.stdout),
-                "test_output": test_output[:4096],
-                "trace": _serialize_transcript(transcript),
-                "failure_type": failure_type,
-                "provider_model_versions": transcript.agent_config.get(
-                    "provider_model_versions", []
-                ),
-            },
+            outcome=outcome,
             metrics=_transcript_metrics(transcript),
         )
     finally:
@@ -580,14 +680,29 @@ def run_swebench_trial(
         harness.close_logger(logger)
 
 
-def _prepare_official_image(client: Any, test_spec: Any, digest: str) -> str:
+def _prepare_official_image(
+    client: Any,
+    test_spec: Any,
+    digest: str,
+    *,
+    image_transport_prefix: str = "",
+) -> str:
     """Pull the frozen official image by digest and expose its expected local tag."""
     repository, tag = str(test_spec.instance_image_key).rsplit(":", 1)
     image_ref = f"{repository}@{digest}"
     try:
         image = client.images.get(image_ref)
     except ImageNotFound:
-        image = client.images.pull(image_ref)
+        transport_repository = (
+            f"{image_transport_prefix.rstrip('/')}/{repository}"
+            if image_transport_prefix
+            else repository
+        )
+        transport_ref = f"{transport_repository}@{digest}"
+        try:
+            image = client.images.get(transport_ref)
+        except ImageNotFound:
+            image = client.images.pull(transport_ref)
     image.tag(repository, tag=tag)
     return image_ref
 

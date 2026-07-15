@@ -209,7 +209,7 @@ def test_phase3_report_writes_metrics_cases_and_reproduction_commands(tmp_path: 
 
 def test_phase3_report_uses_swebench_reproduction_commands(tmp_path: Path) -> None:
     manifest = _phase3_manifest()
-    manifest["protocol_version"] = "phase3-swebench-evolution-v1"
+    manifest["protocol_version"] = "phase3-swebench-evolution-v4"
     (tmp_path / "trials.jsonl").write_text(
         "\n".join(json.dumps(row) for row in _phase3_rows()) + "\n",
         encoding="utf-8",
@@ -220,3 +220,4 @@ def test_phase3_report_uses_swebench_reproduction_commands(tmp_path: Path) -> No
 
     assert "swebench-evolution-preflight" in markdown
     assert "swebench-evolution-run" in markdown
+    assert "phase3-swebench-evolution-v4/manifest.json" in markdown

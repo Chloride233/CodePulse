@@ -458,6 +458,7 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
                 image_digest=str(runner["image_digests"][task_id]),
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
+                image_transport_prefix=str(runner.get("image_transport_prefix", "")),
             )
             record, stopped_reasons = _swebench_trial_record(
                 trial,
@@ -602,6 +603,7 @@ def benchmark_swebench_screen_run(
                 image_digest=str(runner["image_digests"][task_id]),
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
+                image_transport_prefix=str(runner.get("image_transport_prefix", "")),
             )
             record, stopped_reasons = _swebench_trial_record(
                 trial,
@@ -725,6 +727,7 @@ def benchmark_swebench_evolution_run(
                 image_digest=str(runner["image_digests"][task_id]),
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
+                image_transport_prefix=str(runner.get("image_transport_prefix", "")),
             )
             record, stopped_reasons = _swebench_trial_record(
                 trial,
