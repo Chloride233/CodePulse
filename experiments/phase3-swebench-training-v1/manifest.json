@@ -28,7 +28,7 @@
   ],
   "runner": {
     "harness_version": "swebench==4.1.0",
-    "architecture": "arm64",
+    "architecture": "x86_64",
     "timeout_seconds": 900,
     "network": "none"
   },

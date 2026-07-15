@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import platform
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -115,10 +114,11 @@ def run_swebench_trial(
     sandbox: SandboxManager,
     *,
     timeout_seconds: int,
+    architecture: str,
 ) -> SWEbenchTrial:
     """Run one Agent in an official repository image and grade its submitted patch."""
     harness = _official_harness()
-    test_spec = harness.make_test_spec(instance, arch=_native_architecture())
+    test_spec = harness.make_test_spec(instance, arch=architecture)
     client = sandbox._client
     harness.build_instance_images(
         client, [test_spec], max_workers=1, tag="latest", env_image_tag="latest"
@@ -190,12 +190,6 @@ def _task_from_instance(instance: dict[str, Any]) -> Task:
             "base_commit": str(instance["base_commit"]),
         },
     )
-
-
-def _native_architecture() -> str:
-    """Map the local Docker host architecture to SWE-bench's supported names."""
-    machine = platform.machine().lower()
-    return "arm64" if machine in {"arm64", "aarch64"} else "x86_64"
 
 
 def _bind_workspace(sandbox: SandboxManager, container: Container) -> None:

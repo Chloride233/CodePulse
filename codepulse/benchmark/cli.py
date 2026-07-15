@@ -350,7 +350,8 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
         raise click.ClickException("SWE-bench preflight failed: " + "; ".join(errors))
     dataset = manifest["dataset"]
     agent = manifest["agents"][0]
-    assert isinstance(dataset, dict) and isinstance(agent, dict)
+    runner = manifest["runner"]
+    assert isinstance(dataset, dict) and isinstance(agent, dict) and isinstance(runner, dict)
     instances = load_swebench_instances(root / str(dataset["task_path"]))
     profile = AgentProfile.from_yaml(root / str(agent["profile_path"]))
     output = Path(output_dir)
@@ -365,7 +366,11 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
         for index, task_id in enumerate(manifest["task_ids"], start=1):
             click.echo(f"[{index}/5] {task_id} baseline")
             trial = run_swebench_trial(
-                profile, instances[task_id], sandbox, timeout_seconds=900
+                profile,
+                instances[task_id],
+                sandbox,
+                timeout_seconds=int(runner["timeout_seconds"]),
+                architecture=str(runner["architecture"]),
             )
             peak_cost = deepseek_v4_flash_cost_cny(
                 int(trial.metrics["input_tokens"]), int(trial.metrics["output_tokens"]),
