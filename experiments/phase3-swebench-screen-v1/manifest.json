@@ -1,0 +1,55 @@
+{
+  "protocol_version": "phase3-swebench-screen-v1",
+  "benchmark": "swe-bench-verified",
+  "dataset": {
+    "task_path": "datasets/swe-bench/phase3-swebench-v2.jsonl",
+    "task_sha256": "0c5e69c11e80084960ce31455e6f6c363c3b1f88f92c26135c6c7e679bfc3b03",
+    "source_name": "princeton-nlp/SWE-bench_Verified",
+    "source_revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a"
+  },
+  "task_ids": [
+    "django__django-10554",
+    "mwaskom__seaborn-3069",
+    "psf__requests-1142"
+  ],
+  "n_trials": 1,
+  "seed": 20260720,
+  "agents": [
+    {
+      "role": "candidate",
+      "name": "deepseek-v4-flash-swebench-direct-skillopt-v3",
+      "model_version": "deepseek/deepseek-v4-flash",
+      "provider_model_version": "deepseek-v4-flash",
+      "profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v3.yaml",
+      "profile_sha256": "b6d1c1d42eb673ad2ca14259e1a83586340001f4bd4e429307aa0aae2aaf6a8a"
+    }
+  ],
+  "candidate_provenance": {
+    "path": "experiments/phase3-swebench-screen-v1/candidate-provenance.json",
+    "sha256": "4866bd33e6a68668dd798bbd4efd9f1299e145ffca37369510f48fea08e8e05b"
+  },
+  "runner": {
+    "harness_version": "swebench==4.1.0",
+    "architecture": "x86_64",
+    "image_namespace": "swebench",
+    "image_digests": {
+      "django__django-10554": "sha256:6fe93aa03ebb21c114775461a745e2c5645086436333fc9094aad9c357519117",
+      "mwaskom__seaborn-3069": "sha256:3feccf3ece6ca73c10ee665b62679937b7dbc2db28c35c9b4a1f192ed540e2dd",
+      "psf__requests-1142": "sha256:9b0b13a4a762e809a60424f8fd9ba40b45f87874de87479a771e4e673f937d59"
+    },
+    "cpu_count": 2,
+    "memory_mb": 4096,
+    "timeout_seconds": 900,
+    "network": "none"
+  },
+  "budget": {
+    "total_cny": 2.0,
+    "per_agent_cny": 2.0,
+    "per_trial_cny": 1.0
+  },
+  "acceptance": {
+    "min_non_empty_patches": 2,
+    "min_resolved": 1
+  },
+  "codepulse_commit": "95ac177bcffe6b87a6074eb97fc7d3c47fe95fc5"
+}
