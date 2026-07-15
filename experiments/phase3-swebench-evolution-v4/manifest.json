@@ -59,7 +59,7 @@
     "harness_version": "swebench==4.1.0",
     "architecture": "x86_64",
     "image_namespace": "swebench",
-    "image_transport_prefix": "docker.1ms.run",
+    "image_transport_prefix": "dockerproxy.net",
     "image_digests": {
       "django__django-15741": "sha256:dc13c5ff23bfcfa71332e92e5ffa9c87e84319977e74ad182cd1dd083f658099",
       "pytest-dev__pytest-10081": "sha256:cb98e7a43ca4a8499a80ae446d100c6afb9ecac747dfafe1f4eca287a8321ecb",
@@ -80,5 +80,5 @@
     "per_agent_cny": 5.0,
     "per_trial_cny": 1.0
   },
-  "codepulse_commit": "25965bd80b48f11fd524abd240f50e858b9e4baf"
+  "codepulse_commit": "750c1696fe6c6284a1d4a0776971567a665903fd"
 }
