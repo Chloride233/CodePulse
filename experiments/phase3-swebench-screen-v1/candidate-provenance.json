@@ -1,0 +1,64 @@
+{
+  "protocol_version": "skillopt-candidate-v3",
+  "baseline_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v2.yaml",
+  "baseline_profile_sha256": "8f450a9c7429ec3e82fb01610ab6fb257cd4d3b49468e0e9695d8648f146a863",
+  "training_trials_path": "experiments/phase3-swebench-training-v3/trials.jsonl",
+  "training_trials_sha256": "b181acc32056f2c0d3d3d82db2951fd87d562808f3f382294c37af770bf005da",
+  "source_task_ids": [
+    "astropy__astropy-12907",
+    "django__django-10554",
+    "matplotlib__matplotlib-13989",
+    "mwaskom__seaborn-3069",
+    "pallets__flask-5014",
+    "psf__requests-1142",
+    "pylint-dev__pylint-4551",
+    "pytest-dev__pytest-10051"
+  ],
+  "trace_analysis": {
+    "eligible_failure_count": 20,
+    "pattern_counts": {
+      "iteration_exhaustion": 20
+    },
+    "observed_pattern": "iteration_exhaustion",
+    "selected_pattern": "persistent_iteration_exhaustion",
+    "source_trial_ids": [
+      "astropy__astropy-12907--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "astropy__astropy-12907--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "django__django-10554--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "django__django-10554--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "django__django-10554--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "matplotlib__matplotlib-13989--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "matplotlib__matplotlib-13989--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "matplotlib__matplotlib-13989--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "mwaskom__seaborn-3069--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "mwaskom__seaborn-3069--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "mwaskom__seaborn-3069--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pallets__flask-5014--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pallets__flask-5014--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "psf__requests-1142--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "psf__requests-1142--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "psf__requests-1142--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pylint-dev__pylint-4551--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pylint-dev__pylint-4551--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pylint-dev__pylint-4551--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pytest-dev__pytest-10051--r1--deepseek-v4-flash-swebench-direct-skillopt-v2"
+    ]
+  },
+  "edit": {
+    "edit_id": "skillopt-persistent_iteration_exhaustion-v1",
+    "edit_type": "append",
+    "target_section": "system_prompt",
+    "content": "Stop broad exploration once the relevant code path is identified. If no patch exists, make the smallest defensible code change by iteration 6, then use the remaining iterations to inspect git diff and run a targeted check. Do not spend iterations installing missing dependencies or retrying unavailable network access.",
+    "reasoning": "Observed 'iteration_exhaustion' in 20 of 20 eligible failed baseline traces.",
+    "confidence": 0.7
+  },
+  "edit_sha256": "c81cb7f377f080a017e16113c23110272213252197f2c72f0f41de52df6f28ee",
+  "candidate_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v3.yaml",
+  "candidate_profile_sha256": "b6d1c1d42eb673ad2ca14259e1a83586340001f4bd4e429307aa0aae2aaf6a8a",
+  "profile_changes": {
+    "max_iterations": {
+      "before": 8,
+      "after": 12
+    }
+  }
+}

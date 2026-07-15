@@ -23,6 +23,12 @@ _TRACE_EDITS = {
         "and correction. For an existing large file, use a targeted transformation through execute "
         "instead of replacing the file with partially read content."
     ),
+    "persistent_iteration_exhaustion": (
+        "Stop broad exploration once the relevant code path is identified. If no patch exists, "
+        "make the smallest defensible code change by iteration 6, then use the remaining "
+        "iterations to inspect git diff and run a targeted check. Do not spend iterations "
+        "installing missing dependencies or retrying unavailable network access."
+    ),
     "no_verification": (
         "Before finalizing, run the most relevant existing tests for the changed behavior. If they "
         "fail, diagnose the concrete failure and revise only the necessary code."
@@ -67,7 +73,13 @@ def materialize_candidate(
     pattern_counts = Counter(
         _trace_failure_pattern(row, baseline.max_iterations) for row in failures
     )
-    selected_pattern = pattern_counts.most_common(1)[0][0]
+    observed_pattern = pattern_counts.most_common(1)[0][0]
+    selected_pattern = observed_pattern
+    if (
+        observed_pattern == "iteration_exhaustion"
+        and baseline.metadata.get("skillopt_edit_id") == "skillopt-iteration_exhaustion-v1"
+    ):
+        selected_pattern = "persistent_iteration_exhaustion"
     iteration = _next_skillopt_iteration(baseline)
     edit = PromptEdit(
         edit_id=f"skillopt-{selected_pattern}-v1",
@@ -75,12 +87,19 @@ def materialize_candidate(
         target_section="system_prompt",
         content=_TRACE_EDITS[selected_pattern],
         reasoning=(
-            f"Observed {selected_pattern!r} in {pattern_counts[selected_pattern]} of "
+            f"Observed {observed_pattern!r} in {pattern_counts[observed_pattern]} of "
             f"{len(failures)} eligible failed baseline traces."
         ),
         confidence=0.7,
     )
-    candidate = _apply_system_prompt_edit(baseline, edit, iteration)
+    max_iterations = (
+        max(baseline.max_iterations, 12)
+        if selected_pattern == "persistent_iteration_exhaustion"
+        else baseline.max_iterations
+    )
+    candidate = _apply_system_prompt_edit(
+        baseline, edit, iteration, max_iterations=max_iterations
+    )
     candidate.to_yaml(candidate_path)
     edit_payload = _edit_payload(edit)
     provenance = {
@@ -93,6 +112,7 @@ def materialize_candidate(
         "trace_analysis": {
             "eligible_failure_count": len(failures),
             "pattern_counts": dict(sorted(pattern_counts.items())),
+            "observed_pattern": observed_pattern,
             "selected_pattern": selected_pattern,
             "source_trial_ids": sorted(str(row["trial_id"]) for row in failures),
         },
@@ -101,6 +121,13 @@ def materialize_candidate(
         "candidate_profile_path": str(candidate_path),
         "candidate_profile_sha256": file_sha256(candidate_path),
     }
+    if candidate.max_iterations != baseline.max_iterations:
+        provenance["profile_changes"] = {
+            "max_iterations": {
+                "before": baseline.max_iterations,
+                "after": candidate.max_iterations,
+            }
+        }
     provenance_target.parent.mkdir(parents=True, exist_ok=True)
     provenance_target.write_text(
         json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -148,7 +175,11 @@ def _next_skillopt_iteration(profile: AgentProfile) -> int:
 
 
 def _apply_system_prompt_edit(
-    profile: AgentProfile, edit: PromptEdit, iteration: int
+    profile: AgentProfile,
+    edit: PromptEdit,
+    iteration: int,
+    *,
+    max_iterations: int,
 ) -> AgentProfile:
     if edit.target_section != "system_prompt" or edit.edit_type is not EditType.APPEND:
         raise ValueError("only APPEND edits to system_prompt are supported")
@@ -160,6 +191,7 @@ def _apply_system_prompt_edit(
         name=f"{base_name}-skillopt-v{iteration}",
         description=f"SkillOpt candidate derived from {profile.name}",
         system_prompt=prompt,
+        max_iterations=max_iterations,
         version=f"skillopt-v{iteration}",
         metadata={
             **profile.metadata,

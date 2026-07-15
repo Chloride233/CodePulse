@@ -1,0 +1,25 @@
+{
+  "protocol_version": "phase3-swebench-training-evidence-v3",
+  "source_run": "results/phase3/swebench-evolution-v3",
+  "source_trials_sha256": "92258904465324739989b0525c08cdeebdbda52f649ecfe9cbf203cc0bcfb736",
+  "selection": {
+    "agent_name": "deepseek-v4-flash-swebench-direct-skillopt-v2",
+    "predicate": "outcome.patch == ''",
+    "reason": "An empty patch cannot resolve a verified failing task and remains valid despite the source grader defect."
+  },
+  "source_task_ids": [
+    "astropy__astropy-12907",
+    "django__django-10554",
+    "matplotlib__matplotlib-13989",
+    "mwaskom__seaborn-3069",
+    "pallets__flask-5014",
+    "psf__requests-1142",
+    "pylint-dev__pylint-4551",
+    "pytest-dev__pytest-10051"
+  ],
+  "selected_trials": 20,
+  "training_trials_path": "experiments/phase3-swebench-training-v3/trials.jsonl",
+  "training_trials_sha256": "b181acc32056f2c0d3d3d82db2951fd87d562808f3f382294c37af770bf005da",
+  "raw_source_preserved": true,
+  "grader_fix_commit": "a16495c"
+}

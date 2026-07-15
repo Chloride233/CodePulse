@@ -148,3 +148,64 @@ def test_candidate_second_iteration_targets_exhausted_empty_patch_trace(tmp_path
     assert candidate.metadata["skillopt_iteration"] == 2
     assert result["protocol_version"] == "skillopt-candidate-v2"
     assert result["trace_analysis"]["selected_pattern"] == "iteration_exhaustion"
+
+
+def test_candidate_third_iteration_escalates_persistent_exhaustion(tmp_path: Path) -> None:
+    baseline_path = tmp_path / "baseline-v2.yaml"
+    trials_path = tmp_path / "trials.jsonl"
+    candidate_path = tmp_path / "candidate-v3.yaml"
+    provenance_path = tmp_path / "provenance-v3.json"
+    profile = AgentProfile(
+        name="baseline-skillopt-v2",
+        type="protocol",
+        model="model-v1",
+        agent_class="codepulse.agent.real_agent.RealAgent",
+        system_prompt="Solve the task.\nMake a targeted edit by iteration 4.",
+        tools=["read_file", "write_file", "execute"],
+        max_iterations=8,
+        metadata={
+            "skillopt_iteration": 2,
+            "skillopt_edit_id": "skillopt-iteration_exhaustion-v1",
+        },
+    )
+    profile.to_yaml(baseline_path)
+    trials_path.write_text(
+        json.dumps(
+            {
+                "trial_id": "train-1--r0--baseline-skillopt-v2",
+                "agent_name": "baseline-skillopt-v2",
+                "task_id": "train-1",
+                "success": False,
+                "failure_type": "wrong_answer",
+                "outcome": {
+                    "patch": "",
+                    "trace": {
+                        "events": [{"event_type": "llm_call"} for _ in range(8)]
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = materialize_candidate(
+        baseline_path, trials_path, candidate_path, provenance_path
+    )
+    candidate = AgentProfile.from_yaml(candidate_path)
+
+    assert candidate.name == "baseline-skillopt-v3"
+    assert candidate.max_iterations == 12
+    assert candidate.metadata["skillopt_iteration"] == 3
+    assert candidate.metadata["skillopt_edit_id"] == (
+        "skillopt-persistent_iteration_exhaustion-v1"
+    )
+    assert "smallest defensible code change by iteration 6" in candidate.system_prompt
+    assert result["protocol_version"] == "skillopt-candidate-v3"
+    assert result["trace_analysis"]["observed_pattern"] == "iteration_exhaustion"
+    assert result["trace_analysis"]["selected_pattern"] == (
+        "persistent_iteration_exhaustion"
+    )
+    assert result["profile_changes"] == {
+        "max_iterations": {"before": 8, "after": 12}
+    }
