@@ -1,0 +1,15 @@
+{
+  "protocol_version": "phase3-swebench-training-evidence-v2",
+  "source_run": "results/phase3/swebench-evolution-v2",
+  "source_trials_sha256": "90b2fe8c870b9c974cdc9231a5130d11724d58d392ba1ad3def836107c9a99a4",
+  "source_gate_report_sha256": "92878e9c836e97863f5a030accc509f7436579e90c6764058499a74c62cd76db",
+  "training_trials_path": "experiments/phase3-swebench-training-v2/trials.jsonl",
+  "training_trials_sha256": "84d2d0855e0538ef17d246900026263f826bf90cbd8ac36ec5828d9acc7340d4",
+  "completed_trials": 24,
+  "eligible_functional_failures": 23,
+  "excluded_infrastructure_failures": 1,
+  "source_gate_accepted": false,
+  "source_gate_rejection_reasons": [
+    "no_stable_improvement"
+  ]
+}

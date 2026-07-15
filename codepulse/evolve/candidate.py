@@ -18,6 +18,11 @@ _TRACE_EDITS = {
         "Before finalizing, confirm that the working tree contains a concrete, minimal code change "
         "that addresses the reported behavior."
     ),
+    "iteration_exhaustion": (
+        "Make the first targeted code edit by iteration 4 and reserve later iterations for tests "
+        "and correction. For an existing large file, use a targeted transformation through execute "
+        "instead of replacing the file with partially read content."
+    ),
     "no_verification": (
         "Before finalizing, run the most relevant existing tests for the changed behavior. If they "
         "fail, diagnose the concrete failure and revise only the necessary code."
@@ -59,8 +64,11 @@ def materialize_candidate(
         raise ValueError("training trials contain no eligible failed baseline task")
 
     source_task_ids = sorted({str(row["task_id"]) for row in failures})
-    pattern_counts = Counter(_trace_failure_pattern(row) for row in failures)
+    pattern_counts = Counter(
+        _trace_failure_pattern(row, baseline.max_iterations) for row in failures
+    )
     selected_pattern = pattern_counts.most_common(1)[0][0]
+    iteration = _next_skillopt_iteration(baseline)
     edit = PromptEdit(
         edit_id=f"skillopt-{selected_pattern}-v1",
         edit_type=EditType.APPEND,
@@ -72,11 +80,11 @@ def materialize_candidate(
         ),
         confidence=0.7,
     )
-    candidate = _apply_system_prompt_edit(baseline, edit)
+    candidate = _apply_system_prompt_edit(baseline, edit, iteration)
     candidate.to_yaml(candidate_path)
     edit_payload = _edit_payload(edit)
     provenance = {
-        "protocol_version": "skillopt-candidate-v1",
+        "protocol_version": f"skillopt-candidate-v{iteration}",
         "baseline_profile_path": str(baseline_path),
         "baseline_profile_sha256": file_sha256(baseline_path),
         "training_trials_path": str(training_path),
@@ -100,7 +108,7 @@ def materialize_candidate(
     return provenance
 
 
-def _trace_failure_pattern(row: dict[str, Any]) -> str:
+def _trace_failure_pattern(row: dict[str, Any], max_iterations: int | None = None) -> str:
     """Classify one observable failed trial into a deterministic prompt-edit signal."""
     outcome = row.get("outcome")
     if not isinstance(outcome, dict):
@@ -113,6 +121,9 @@ def _trace_failure_pattern(row: dict[str, Any]) -> str:
     if not isinstance(events, list) or not all(isinstance(event, dict) for event in events):
         raise ValueError("failed training trial trace.events must be a list of objects")
     if not patch.strip():
+        llm_calls = sum(event.get("event_type") == "llm_call" for event in events)
+        if max_iterations is not None and llm_calls >= max_iterations:
+            return "iteration_exhaustion"
         return "empty_patch"
 
     tool_calls = [event for event in events if event.get("event_type") == "tool_call"]
@@ -129,19 +140,30 @@ def _trace_failure_pattern(row: dict[str, Any]) -> str:
     return "insufficient_verification"
 
 
-def _apply_system_prompt_edit(profile: AgentProfile, edit: PromptEdit) -> AgentProfile:
+def _next_skillopt_iteration(profile: AgentProfile) -> int:
+    current = profile.metadata.get("skillopt_iteration")
+    if isinstance(current, int) and current >= 1:
+        return current + 1
+    return 2 if "skillopt_edit_id" in profile.metadata else 1
+
+
+def _apply_system_prompt_edit(
+    profile: AgentProfile, edit: PromptEdit, iteration: int
+) -> AgentProfile:
     if edit.target_section != "system_prompt" or edit.edit_type is not EditType.APPEND:
         raise ValueError("only APPEND edits to system_prompt are supported")
     prompt = "\n".join(part for part in (profile.system_prompt.strip(), edit.content) if part)
     payload = _edit_payload(edit)
+    base_name = profile.name.rsplit("-skillopt-v", 1)[0]
     return replace(
         profile,
-        name=f"{profile.name}-skillopt-v1",
+        name=f"{base_name}-skillopt-v{iteration}",
         description=f"SkillOpt candidate derived from {profile.name}",
         system_prompt=prompt,
-        version="skillopt-v1",
+        version=f"skillopt-v{iteration}",
         metadata={
             **profile.metadata,
+            "skillopt_iteration": iteration,
             "skillopt_edit_id": edit.edit_id,
             "skillopt_edit_sha256": canonical_sha256(payload),
         },

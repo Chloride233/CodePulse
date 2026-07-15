@@ -17,6 +17,7 @@ _PHASE3_PROTOCOLS = {
     "phase3-evolution-v1",
     "phase3-swebench-evolution-v1",
     "phase3-swebench-evolution-v2",
+    "phase3-swebench-evolution-v3",
 }
 
 

@@ -63,6 +63,16 @@ SWE_BENCH_EVALUATION_TASK_IDS = [
     "matplotlib__matplotlib-23299",
     "django__django-16139",
 ]
+SWE_BENCH_EVALUATION_V2_TASK_IDS = [
+    "astropy__astropy-12907",
+    "mwaskom__seaborn-3069",
+    "pallets__flask-5014",
+    "psf__requests-1142",
+    "pylint-dev__pylint-4551",
+    "pytest-dev__pytest-10051",
+    "django__django-10554",
+    "matplotlib__matplotlib-13989",
+]
 
 
 def load_swebench_instances(path: str | Path) -> dict[str, dict[str, Any]]:
@@ -146,19 +156,26 @@ def validate_swebench_evolution_manifest(
     if protocol_version not in {
         "phase3-swebench-evolution-v1",
         "phase3-swebench-evolution-v2",
+        "phase3-swebench-evolution-v3",
     }:
         errors.append("protocol_version must identify a frozen SWE-bench evolution protocol")
     if manifest.get("benchmark") != "swe-bench-verified":
         errors.append("benchmark must equal 'swe-bench-verified'")
-    if manifest.get("task_ids") != SWE_BENCH_EVALUATION_TASK_IDS:
+    expected_task_ids = (
+        SWE_BENCH_EVALUATION_V2_TASK_IDS
+        if protocol_version == "phase3-swebench-evolution-v3"
+        else SWE_BENCH_EVALUATION_TASK_IDS
+    )
+    if manifest.get("task_ids") != expected_task_ids:
         errors.append("task_ids must equal the frozen eight-instance evaluation cohort")
     if manifest.get("n_trials") != 3:
         errors.append("n_trials must equal 3")
-    if manifest.get("seed") != 20260718:
-        errors.append("seed must equal 20260718")
+    expected_seed = 20260719 if protocol_version == "phase3-swebench-evolution-v3" else 20260718
+    if manifest.get("seed") != expected_seed:
+        errors.append(f"seed must equal {expected_seed}")
     dataset = manifest.get("dataset")
     instances = _validate_swebench_dataset(errors, dataset, root)
-    if instances is not None and any(task_id not in instances for task_id in SWE_BENCH_EVALUATION_TASK_IDS):
+    if instances is not None and any(task_id not in instances for task_id in expected_task_ids):
         errors.append("task_ids must all exist in the frozen SWE-bench snapshot")
     agents = manifest.get("agents")
     if not isinstance(agents, list) or len(agents) != 2 or not all(isinstance(agent, dict) for agent in agents):
@@ -169,7 +186,7 @@ def validate_swebench_evolution_manifest(
         errors.append("agents must contain one baseline and one candidate role")
     for index, agent in enumerate(agents):
         _validate_swebench_agent(errors, agent, root, index)
-    _validate_swebench_runner(errors, manifest.get("runner"), SWE_BENCH_EVALUATION_TASK_IDS)
+    _validate_swebench_runner(errors, manifest.get("runner"), expected_task_ids)
     per_trial_limit = 0.2 if protocol_version == "phase3-swebench-evolution-v1" else 1.0
     if manifest.get("budget") != {
         "total_cny": 10.0,
@@ -271,8 +288,11 @@ def _validate_swebench_candidate_provenance(
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"candidate_provenance cannot be loaded: {exc}")
         return
-    if not isinstance(provenance, dict) or provenance.get("protocol_version") != "skillopt-candidate-v1":
-        errors.append("candidate_provenance.protocol_version must equal 'skillopt-candidate-v1'")
+    if not isinstance(provenance, dict) or provenance.get("protocol_version") not in {
+        "skillopt-candidate-v1",
+        "skillopt-candidate-v2",
+    }:
+        errors.append("candidate_provenance.protocol_version must identify a frozen candidate")
         return
     roles = {agent.get("role"): agent for agent in agents}
     baseline = roles.get("baseline", {})

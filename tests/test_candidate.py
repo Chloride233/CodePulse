@@ -78,6 +78,7 @@ def test_candidate_materializes_trace_derived_prompt_and_provenance(tmp_path: Pa
     assert "run the most relevant existing tests" in candidate.system_prompt
     assert result["source_task_ids"] == ["train-1"]
     assert result["trace_analysis"]["selected_pattern"] == "no_verification"
+    assert result["protocol_version"] == "skillopt-candidate-v1"
     assert json.loads(provenance_path.read_text(encoding="utf-8"))["candidate_profile_sha256"]
 
 
@@ -97,3 +98,53 @@ def test_candidate_refuses_training_without_failures(tmp_path: Path) -> None:
             tmp_path / "candidate.yaml",
             tmp_path / "provenance.json",
         )
+
+
+def test_candidate_second_iteration_targets_exhausted_empty_patch_trace(tmp_path: Path) -> None:
+    baseline_path = tmp_path / "baseline-v1.yaml"
+    trials_path = tmp_path / "trials.jsonl"
+    candidate_path = tmp_path / "candidate-v2.yaml"
+    provenance_path = tmp_path / "provenance-v2.json"
+    profile = AgentProfile(
+        name="baseline-skillopt-v1",
+        type="protocol",
+        model="model-v1",
+        agent_class="codepulse.agent.real_agent.RealAgent",
+        system_prompt="Solve the task.\nMake a concrete change.",
+        tools=["read_file", "write_file", "execute"],
+        max_iterations=2,
+        metadata={"skillopt_edit_id": "skillopt-empty_patch-v1"},
+    )
+    profile.to_yaml(baseline_path)
+    trials_path.write_text(
+        json.dumps(
+            {
+                "trial_id": "train-1--r0--baseline-skillopt-v1",
+                "agent_name": "baseline-skillopt-v1",
+                "task_id": "train-1",
+                "success": False,
+                "failure_type": "wrong_answer",
+                "outcome": {
+                    "patch": "",
+                    "trace": {
+                        "events": [
+                            {"event_type": "llm_call"},
+                            {"event_type": "llm_call"},
+                        ]
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = materialize_candidate(
+        baseline_path, trials_path, candidate_path, provenance_path
+    )
+    candidate = AgentProfile.from_yaml(candidate_path)
+
+    assert candidate.name == "baseline-skillopt-v2"
+    assert candidate.metadata["skillopt_iteration"] == 2
+    assert result["protocol_version"] == "skillopt-candidate-v2"
+    assert result["trace_analysis"]["selected_pattern"] == "iteration_exhaustion"

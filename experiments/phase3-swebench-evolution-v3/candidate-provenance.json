@@ -1,0 +1,61 @@
+{
+  "protocol_version": "skillopt-candidate-v2",
+  "baseline_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v1.yaml",
+  "baseline_profile_sha256": "4b89905aafdabc665a413cbaded67ad292485caa584d4e61d990760a4c354073",
+  "training_trials_path": "experiments/phase3-swebench-training-v2/trials.jsonl",
+  "training_trials_sha256": "84d2d0855e0538ef17d246900026263f826bf90cbd8ac36ec5828d9acc7340d4",
+  "source_task_ids": [
+    "django__django-14771",
+    "django__django-16139",
+    "matplotlib__matplotlib-23299",
+    "pydata__xarray-3993",
+    "pydata__xarray-4695",
+    "sphinx-doc__sphinx-8595",
+    "sphinx-doc__sphinx-9602",
+    "sympy__sympy-24562"
+  ],
+  "trace_analysis": {
+    "eligible_failure_count": 23,
+    "pattern_counts": {
+      "empty_patch": 2,
+      "iteration_exhaustion": 21
+    },
+    "selected_pattern": "iteration_exhaustion",
+    "source_trial_ids": [
+      "django__django-14771--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "django__django-14771--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "django__django-14771--r2--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "django__django-16139--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "django__django-16139--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "django__django-16139--r2--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "matplotlib__matplotlib-23299--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "matplotlib__matplotlib-23299--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "matplotlib__matplotlib-23299--r2--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "pydata__xarray-3993--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "pydata__xarray-3993--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "pydata__xarray-3993--r2--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "pydata__xarray-4695--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "pydata__xarray-4695--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "pydata__xarray-4695--r2--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sphinx-doc__sphinx-8595--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sphinx-doc__sphinx-8595--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sphinx-doc__sphinx-8595--r2--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sphinx-doc__sphinx-9602--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sphinx-doc__sphinx-9602--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sympy__sympy-24562--r0--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sympy__sympy-24562--r1--deepseek-v4-flash-swebench-direct-skillopt-v1",
+      "sympy__sympy-24562--r2--deepseek-v4-flash-swebench-direct-skillopt-v1"
+    ]
+  },
+  "edit": {
+    "edit_id": "skillopt-iteration_exhaustion-v1",
+    "edit_type": "append",
+    "target_section": "system_prompt",
+    "content": "Make the first targeted code edit by iteration 4 and reserve later iterations for tests and correction. For an existing large file, use a targeted transformation through execute instead of replacing the file with partially read content.",
+    "reasoning": "Observed 'iteration_exhaustion' in 21 of 23 eligible failed baseline traces.",
+    "confidence": 0.7
+  },
+  "edit_sha256": "05c6e75eee322a826c9d1233e37d34257efe6b91b26094f99abc6feaf51832e9",
+  "candidate_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v2.yaml",
+  "candidate_profile_sha256": "8f450a9c7429ec3e82fb01610ab6fb257cd4d3b49468e0e9695d8648f146a863"
+}
