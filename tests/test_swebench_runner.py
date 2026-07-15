@@ -9,6 +9,8 @@ from click.testing import CliRunner
 
 from codepulse.benchmark.cli import benchmark_group
 from codepulse.benchmark.swebench_runner import (
+    OfficialHarness,
+    _evaluate_patch,
     _task_from_instance,
     validate_swebench_training_manifest,
 )
@@ -56,3 +58,43 @@ def test_swebench_runner_training_preflight_cli_avoids_docker() -> None:
 
     assert result.exit_code == 0
     assert "preflight passed" in result.output
+
+
+def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch(
+) -> None:
+    commands: list[str] = []
+
+    class OfficialContainer:
+        def exec_run(self, command: str, **_: object) -> object:
+            commands.append(command)
+            return type("Result", (), {"exit_code": 0, "output": b""})()
+
+    def copy_to_container(*_: object) -> None:
+        return None
+
+    def exec_run_with_timeout(*_: object) -> tuple[str, bool, float]:
+        return "tests passed", False, 0.0
+
+    harness = OfficialHarness(
+        make_test_spec=lambda *_: None,
+        build_instance_images=lambda *_: None,
+        build_container=lambda *_: None,
+        setup_logger=lambda *_: None,
+        close_logger=lambda *_: None,
+        copy_to_container=copy_to_container,
+        exec_run_with_timeout=exec_run_with_timeout,
+        get_eval_report=lambda *_: {"repo__issue-1": {"resolved": True}},
+    )
+
+    report, output = _evaluate_patch(
+        harness,
+        OfficialContainer(),
+        type("TestSpec", (), {"eval_script": "echo tests"})(),
+        {"instance_id": "repo__issue-1"},
+        "diff --git a/a.py b/a.py",
+        60,
+    )
+
+    assert commands == ["git reset --hard HEAD && git clean -fd && git apply --verbose /tmp/patch.diff"]
+    assert report == {"repo__issue-1": {"resolved": True}}
+    assert output == "tests passed"

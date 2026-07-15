@@ -219,7 +219,9 @@ def _evaluate_patch(
         eval_path.write_text(str(test_spec.eval_script), encoding="utf-8")
         harness.copy_to_container(official_container, patch_path, PurePosixPath("/tmp/patch.diff"))
         apply_result = official_container.exec_run(
-            "git apply --verbose /tmp/patch.diff", workdir="/testbed", user="root"
+            "git reset --hard HEAD && git clean -fd && git apply --verbose /tmp/patch.diff",
+            workdir="/testbed",
+            user="root",
         )
         if apply_result.exit_code != 0:
             return {}, apply_result.output.decode("utf-8", errors="replace")
