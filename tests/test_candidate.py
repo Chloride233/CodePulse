@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 from codepulse.agent.adapter import AgentProfile
-from codepulse.evolve.candidate import materialize_candidate
+from codepulse.eval.artifacts import file_sha256
+from codepulse.evolve.candidate import (
+    materialize_candidate,
+    materialize_resource_bounded_candidate,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -209,3 +213,140 @@ def test_candidate_third_iteration_escalates_persistent_exhaustion(tmp_path: Pat
     assert result["profile_changes"] == {
         "max_iterations": {"before": 8, "after": 12}
     }
+
+
+def _write_resource_bounded_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
+    baseline_path = tmp_path / "baseline-v2-tools-v2.yaml"
+    training_path = tmp_path / "training.jsonl"
+    training_evidence_path = tmp_path / "training-evidence.json"
+    rejected_evidence_path = tmp_path / "rejected-evidence.json"
+    profile = AgentProfile(
+        name="repository-agent-skillopt-v2-tools-v2",
+        type="protocol",
+        model="model-v1",
+        agent_class="codepulse.agent.real_agent.RealAgent",
+        system_prompt=(
+            "Solve the task.\n"
+            "Before finalizing, confirm that the working tree contains a concrete, "
+            "minimal code change that addresses the reported behavior.\n"
+            "Make the first targeted code edit by iteration 4 and reserve later "
+            "iterations for tests and correction. For an existing large file, use a "
+            "targeted transformation through execute instead of replacing the file "
+            "with partially read content."
+        ),
+        tools=["read_file", "edit_file", "write_file", "execute"],
+        max_iterations=8,
+        metadata={
+            "skillopt_iteration": 2,
+            "skillopt_edit_id": "skillopt-iteration_exhaustion-v1",
+            "tool_contract_version": "repository-tools-v2",
+        },
+    )
+    profile.to_yaml(baseline_path)
+    training_path.write_text(
+        json.dumps(
+            {
+                "trial_id": "task-1--r0--source-v2",
+                "agent_name": "source-v2",
+                "task_id": "task-1",
+                "success": False,
+                "failure_type": "wrong_answer",
+                "patch_empty": True,
+                "llm_calls": 8,
+                "iteration_exhausted": True,
+                "unsupported_edit_calls": 1,
+                "bounded_read_requests": 2,
+                "offline_package_attempts": 0,
+                "whole_file_write_calls": 1,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    training_evidence_path.write_text(
+        json.dumps(
+            {
+                "protocol_version": "phase3-swebench-training-evidence-v4",
+                "training_trials_path": str(training_path),
+                "training_trials_sha256": file_sha256(training_path),
+                "selected_trials": 1,
+                "feature_counts": {
+                    "empty_patches": 1,
+                    "iteration_exhausted": 1,
+                    "unsupported_edit_calls": 1,
+                    "bounded_read_requests": 2,
+                    "offline_package_attempts": 0,
+                    "whole_file_write_calls": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    rejected_evidence_path.write_text(
+        json.dumps(
+            {
+                "protocol_version": "phase3-swebench-evolution-evidence-v4",
+                "validation_gate": {
+                    "accepted": False,
+                    "rejection_reasons": ["no_stable_improvement"],
+                },
+                "phase3_complete": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return baseline_path, training_evidence_path, rejected_evidence_path
+
+
+def test_candidate_fourth_iteration_replaces_rejected_resource_policy(
+    tmp_path: Path,
+) -> None:
+    baseline_path, training_evidence_path, rejected_evidence_path = (
+        _write_resource_bounded_inputs(tmp_path)
+    )
+    candidate_path = tmp_path / "candidate-v4.yaml"
+    provenance_path = tmp_path / "provenance-v4.json"
+
+    result = materialize_resource_bounded_candidate(
+        baseline_path,
+        training_evidence_path,
+        rejected_evidence_path,
+        candidate_path,
+        provenance_path,
+    )
+    candidate = AgentProfile.from_yaml(candidate_path)
+
+    assert candidate.name == "repository-agent-skillopt-v4"
+    assert candidate.max_iterations == 8
+    assert candidate.tools == ["read_file", "edit_file", "write_file", "execute"]
+    assert "use at most two iterations" in candidate.system_prompt.lower()
+    assert "Before finalizing, confirm" not in candidate.system_prompt
+    assert "Make the first targeted code edit" not in candidate.system_prompt
+    assert candidate.metadata["skillopt_iteration"] == 4
+    assert candidate.metadata["tool_contract_version"] == "repository-tools-v2"
+    assert result["protocol_version"] == "skillopt-candidate-v4"
+    assert result["edit"]["edit_type"] == "replace"
+    assert result["profile_changes"]["max_iterations"] == {"before": 8, "after": 8}
+    assert result["rejected_candidate_evidence_sha256"] == file_sha256(
+        rejected_evidence_path
+    )
+
+
+def test_candidate_fourth_iteration_requires_rejected_prior_candidate(
+    tmp_path: Path,
+) -> None:
+    baseline_path, training_evidence_path, rejected_evidence_path = (
+        _write_resource_bounded_inputs(tmp_path)
+    )
+    rejected = json.loads(rejected_evidence_path.read_text(encoding="utf-8"))
+    rejected["validation_gate"]["accepted"] = True
+    rejected_evidence_path.write_text(json.dumps(rejected), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be rejected"):
+        materialize_resource_bounded_candidate(
+            baseline_path,
+            training_evidence_path,
+            rejected_evidence_path,
+            tmp_path / "candidate-v4.yaml",
+            tmp_path / "provenance-v4.json",
+        )

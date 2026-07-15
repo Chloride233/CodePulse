@@ -1,0 +1,43 @@
+{
+  "protocol_version": "phase3-swebench-training-evidence-v4",
+  "source_run": "results/phase3/swebench-evolution-v4",
+  "source_trials_sha256": "3a8973e3d0b5b9def33a5833077259bc1cce4e9e3c5439b9ca51fa325e863fb2",
+  "source_evidence_path": "experiments/phase3-swebench-evolution-v4/evidence.json",
+  "source_evidence_sha256": "0374ed15c331e134ba8561594a1e6ca78548ec323a561ef3e5d755f6482a01cb",
+  "selection": {
+    "agent_name": "deepseek-v4-flash-swebench-direct-skillopt-v2",
+    "predicate": "success == false and failure_type == 'wrong_answer'",
+    "excluded_failure_types": [
+      "provider_auth_error",
+      "provider_error",
+      "agent_error",
+      "sandbox_error",
+      "grader_error"
+    ]
+  },
+  "feature_schema": [
+    "patch_empty",
+    "llm_calls",
+    "iteration_exhausted",
+    "unsupported_edit_calls",
+    "bounded_read_requests",
+    "offline_package_attempts",
+    "whole_file_write_calls"
+  ],
+  "training_trials_path": "experiments/phase3-swebench-training-v4/trials.jsonl",
+  "training_trials_sha256": "cc9f35d729811f25d80c10814c2e96af737c4da7fb7117cfd9b4c3782f50c7b5",
+  "selected_trials": 18,
+  "source_tasks": 7,
+  "feature_counts": {
+    "empty_patches": 18,
+    "iteration_exhausted": 16,
+    "unsupported_edit_calls": 1,
+    "bounded_read_requests": 9,
+    "offline_package_attempts": 0,
+    "whole_file_write_calls": 2
+  },
+  "oracle_content_included": false,
+  "raw_source_preserved": true,
+  "grader_fix_commit": "a16495c",
+  "tool_contract_commit": "80140b8"
+}

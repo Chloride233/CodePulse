@@ -1,0 +1,38 @@
+agent_class: codepulse.agent.real_agent.RealAgent
+description: Resource-bounded SkillOpt candidate derived from deepseek-v4-flash-swebench-direct-skillopt-v2-tools-v2
+max_iterations: 8
+max_tokens: 4096
+metadata:
+  skillopt_edit_id: skillopt-resource_bounded_execution-v1
+  skillopt_edit_sha256: 486331a84595a374e92ac38c04b8f704eba36c9ca9d17340c6aed2398e8fd42d
+  skillopt_iteration: 4
+  tool_contract_version: repository-tools-v2
+model: deepseek/deepseek-v4-flash
+name: deepseek-v4-flash-swebench-direct-skillopt-v4
+system_prompt: 'You are a repository bug-fix agent. The checked-out repository root
+  is /workspace.
+
+  Read the issue, inspect the relevant code, make the smallest correct change in the
+
+  repository, and leave the patch in the working tree. Use commands to inspect the
+
+  repository and run relevant existing tests when useful. Do not change test files
+  or
+
+  add unrelated files. Do not ask for the expected patch or hidden tests.
+
+  Use at most two iterations to identify the likely code path, then make one exact,
+  minimal edit by iteration 4. Use edit_file for a unique text replacement and never
+  overwrite a file from a partial read. Use the repository''s existing environment;
+  do not spend iterations installing unavailable dependencies or retrying network
+  access. Use the remaining iterations for one targeted check and git diff. If a test
+  cannot start for an environment reason, retain a defensible patch and verify it
+  statically instead of reverting to an empty diff.'
+temperature: 0.0
+tools:
+- read_file
+- edit_file
+- write_file
+- execute
+type: protocol
+version: skillopt-v4

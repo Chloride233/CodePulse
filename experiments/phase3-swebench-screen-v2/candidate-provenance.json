@@ -1,0 +1,73 @@
+{
+  "protocol_version": "skillopt-candidate-v4",
+  "baseline_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v2-tools-v2.yaml",
+  "baseline_profile_sha256": "92c4c8805cf1a39cf4c7924f08a3aeb06abcc29c4be2c9c229c5aa039fc0e3f6",
+  "training_evidence_path": "experiments/phase3-swebench-training-v4/evidence.json",
+  "training_evidence_sha256": "7a708058daf0ecaa6f6283fe20254267bc0de50cf21d948c25563cc33944af83",
+  "training_trials_path": "experiments/phase3-swebench-training-v4/trials.jsonl",
+  "training_trials_sha256": "cc9f35d729811f25d80c10814c2e96af737c4da7fb7117cfd9b4c3782f50c7b5",
+  "rejected_candidate_evidence_path": "experiments/phase3-swebench-evolution-v4/evidence.json",
+  "rejected_candidate_evidence_sha256": "0374ed15c331e134ba8561594a1e6ca78548ec323a561ef3e5d755f6482a01cb",
+  "source_task_ids": [
+    "django__django-15741",
+    "psf__requests-5414",
+    "pydata__xarray-4629",
+    "pytest-dev__pytest-10081",
+    "scikit-learn__scikit-learn-13328",
+    "sphinx-doc__sphinx-8621",
+    "sympy__sympy-16886"
+  ],
+  "trace_analysis": {
+    "eligible_failure_count": 18,
+    "feature_counts": {
+      "empty_patches": 18,
+      "iteration_exhausted": 16,
+      "unsupported_edit_calls": 1,
+      "bounded_read_requests": 9,
+      "offline_package_attempts": 0,
+      "whole_file_write_calls": 2
+    },
+    "selected_pattern": "resource_bounded_execution",
+    "source_trial_ids": [
+      "django__django-15741--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "django__django-15741--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "psf__requests-5414--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "psf__requests-5414--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "psf__requests-5414--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pydata__xarray-4629--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pytest-dev__pytest-10081--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pytest-dev__pytest-10081--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "pytest-dev__pytest-10081--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "scikit-learn__scikit-learn-13328--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "scikit-learn__scikit-learn-13328--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "scikit-learn__scikit-learn-13328--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "sphinx-doc__sphinx-8621--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "sphinx-doc__sphinx-8621--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "sphinx-doc__sphinx-8621--r2--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "sympy__sympy-16886--r0--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "sympy__sympy-16886--r1--deepseek-v4-flash-swebench-direct-skillopt-v2",
+      "sympy__sympy-16886--r2--deepseek-v4-flash-swebench-direct-skillopt-v2"
+    ]
+  },
+  "edit": {
+    "edit_id": "skillopt-resource_bounded_execution-v1",
+    "edit_type": "replace",
+    "target_section": "system_prompt",
+    "content": "You are a repository bug-fix agent. The checked-out repository root is /workspace.\nRead the issue, inspect the relevant code, make the smallest correct change in the\nrepository, and leave the patch in the working tree. Use commands to inspect the\nrepository and run relevant existing tests when useful. Do not change test files or\nadd unrelated files. Do not ask for the expected patch or hidden tests.\nUse at most two iterations to identify the likely code path, then make one exact, minimal edit by iteration 4. Use edit_file for a unique text replacement and never overwrite a file from a partial read. Use the repository's existing environment; do not spend iterations installing unavailable dependencies or retrying network access. Use the remaining iterations for one targeted check and git diff. If a test cannot start for an environment reason, retain a defensible patch and verify it statically instead of reverting to an empty diff.",
+    "reasoning": "Observed 18 empty patches and 16 iteration-exhausted traces across 18 eligible v2 failures after v3 failed the stable-improvement gate.",
+    "confidence": 0.7
+  },
+  "edit_sha256": "486331a84595a374e92ac38c04b8f704eba36c9ca9d17340c6aed2398e8fd42d",
+  "tool_contract_version": "repository-tools-v2",
+  "candidate_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v4.yaml",
+  "candidate_profile_sha256": "ded5801269f0ce1f5d3233c8e85b64b1269a99809cef1bfae3657f434da53776",
+  "profile_changes": {
+    "max_iterations": {
+      "before": 8,
+      "after": 8
+    },
+    "system_prompt": {
+      "operation": "replace"
+    }
+  }
+}
