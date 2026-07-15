@@ -1,0 +1,26 @@
+{
+  "accepted": false,
+  "rejection_reasons": [
+    "insufficient_candidate_non_empty_patches",
+    "insufficient_candidate_resolved",
+    "candidate_token_ratio_exceeded"
+  ],
+  "completed_trials": 6,
+  "baseline": {
+    "non_empty_patches": 0,
+    "resolved": 0,
+    "total_tokens": 94780,
+    "total_cost_cny_peak": 0.089264
+  },
+  "candidate": {
+    "non_empty_patches": 0,
+    "resolved": 0,
+    "total_tokens": 122609,
+    "total_cost_cny_peak": 0.10917
+  },
+  "candidate_token_ratio": 1.293617,
+  "candidate_cost_ratio": 1.223001,
+  "infrastructure_failures": 0,
+  "total_cost_cny_peak": 0.198434,
+  "max_trial_cost_cny_peak": 0.057345
+}
