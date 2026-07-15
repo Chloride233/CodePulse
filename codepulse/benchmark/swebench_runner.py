@@ -73,6 +73,17 @@ SWE_BENCH_EVALUATION_V2_TASK_IDS = [
     "django__django-10554",
     "matplotlib__matplotlib-13989",
 ]
+SWE_BENCH_SCREEN_TASK_IDS = [
+    "django__django-10554",
+    "mwaskom__seaborn-3069",
+    "psf__requests-1142",
+]
+_SCREEN_INFRA_FAILURES = {
+    "provider_auth_error",
+    "provider_error",
+    "agent_error",
+    "sandbox_error",
+}
 
 
 def load_swebench_instances(path: str | Path) -> dict[str, dict[str, Any]]:
@@ -196,6 +207,111 @@ def validate_swebench_evolution_manifest(
         errors.append("budget must equal the frozen SWE-bench evolution limits")
     _validate_swebench_candidate_provenance(errors, manifest, agents, root)
     return errors
+
+
+def validate_swebench_screen_manifest(
+    manifest: dict[str, Any], repo_root: str | Path
+) -> list[str]:
+    """Validate the frozen low-cost candidate-v3 training screen."""
+    root = Path(repo_root)
+    errors: list[str] = []
+    if manifest.get("protocol_version") != "phase3-swebench-screen-v1":
+        errors.append("protocol_version must equal 'phase3-swebench-screen-v1'")
+    if manifest.get("benchmark") != "swe-bench-verified":
+        errors.append("benchmark must equal 'swe-bench-verified'")
+    if manifest.get("task_ids") != SWE_BENCH_SCREEN_TASK_IDS:
+        errors.append("task_ids must equal the frozen three-instance screen cohort")
+    if manifest.get("n_trials") != 1:
+        errors.append("n_trials must equal 1")
+    if manifest.get("seed") != 20260720:
+        errors.append("seed must equal 20260720")
+
+    instances = _validate_swebench_dataset(errors, manifest.get("dataset"), root)
+    if instances is not None and any(
+        task_id not in instances for task_id in SWE_BENCH_SCREEN_TASK_IDS
+    ):
+        errors.append("task_ids must all exist in the frozen SWE-bench snapshot")
+
+    agents = manifest.get("agents")
+    if not isinstance(agents, list) or len(agents) != 1 or not isinstance(agents[0], dict):
+        errors.append("agents must contain exactly one candidate entry")
+        agent: dict[str, Any] = {}
+    else:
+        agent = agents[0]
+        _validate_swebench_agent(errors, agent, root, 0)
+        if agent.get("role") != "candidate":
+            errors.append("screen agent role must equal 'candidate'")
+
+    _validate_swebench_runner(errors, manifest.get("runner"), SWE_BENCH_SCREEN_TASK_IDS)
+    if manifest.get("budget") != {
+        "total_cny": 2.0,
+        "per_agent_cny": 2.0,
+        "per_trial_cny": 1.0,
+    }:
+        errors.append("budget must equal the frozen screen limits")
+    if manifest.get("acceptance") != {
+        "min_non_empty_patches": 2,
+        "min_resolved": 1,
+    }:
+        errors.append("acceptance must equal the frozen screen thresholds")
+    _validate_swebench_screen_provenance(errors, manifest, agent, root)
+    return errors
+
+
+def evaluate_swebench_screen(
+    rows: list[dict[str, Any]], manifest: dict[str, Any]
+) -> dict[str, Any]:
+    """Evaluate a complete training screen without weakening the final Phase 3 Gate."""
+    agents = manifest.get("agents")
+    if not isinstance(agents, list) or len(agents) != 1 or not isinstance(agents[0], dict):
+        raise ValueError("screen manifest requires exactly one agent")
+    agent_name = agents[0].get("name")
+    task_ids = manifest.get("task_ids")
+    if not isinstance(agent_name, str) or not isinstance(task_ids, list):
+        raise ValueError("screen manifest requires agent name and task_ids")
+    expected = {(str(task_id), 0, agent_name) for task_id in task_ids}
+    actual = {
+        (str(row.get("task_id")), row.get("repetition"), str(row.get("agent_name")))
+        for row in rows
+    }
+    if len(actual) != len(rows) or actual != expected:
+        raise ValueError("screen trial coverage does not match the frozen task set")
+
+    acceptance = manifest.get("acceptance")
+    budget = manifest.get("budget")
+    if not isinstance(acceptance, dict) or not isinstance(budget, dict):
+        raise ValueError("screen manifest requires acceptance and budget")
+    non_empty_patches = sum(
+        bool(str(row.get("outcome", {}).get("patch", "")).strip()) for row in rows
+    )
+    resolved = sum(bool(row.get("success")) for row in rows)
+    infrastructure_failures = sum(
+        row.get("failure_type") in _SCREEN_INFRA_FAILURES for row in rows
+    )
+    costs = [float(row.get("metrics", {}).get("cost_cny_peak", 0.0)) for row in rows]
+    total_cost = round(sum(costs), 6)
+    max_trial_cost = max(costs, default=0.0)
+    rejection_reasons: list[str] = []
+    if non_empty_patches < int(acceptance["min_non_empty_patches"]):
+        rejection_reasons.append("insufficient_non_empty_patches")
+    if resolved < int(acceptance["min_resolved"]):
+        rejection_reasons.append("insufficient_resolved")
+    if infrastructure_failures:
+        rejection_reasons.append("infrastructure_failure")
+    if max_trial_cost > float(budget["per_trial_cny"]):
+        rejection_reasons.append("per_trial_budget_exceeded")
+    if total_cost > float(budget["total_cny"]):
+        rejection_reasons.append("total_budget_exceeded")
+    return {
+        "accepted": not rejection_reasons,
+        "rejection_reasons": rejection_reasons,
+        "completed_trials": len(rows),
+        "non_empty_patches": non_empty_patches,
+        "resolved": resolved,
+        "infrastructure_failures": infrastructure_failures,
+        "total_cost_cny_peak": total_cost,
+        "max_trial_cost_cny_peak": max_trial_cost,
+    }
 
 
 def _validate_swebench_dataset(
@@ -331,6 +447,52 @@ def _validate_swebench_candidate_provenance(
         errors.append("candidate_provenance.source_task_ids must reference failed baseline trials")
     if isinstance(source_ids, list) and set(source_ids) & set(manifest.get("task_ids", [])):
         errors.append("candidate_provenance.source_task_ids must not overlap evaluation tasks")
+
+
+def _validate_swebench_screen_provenance(
+    errors: list[str], manifest: dict[str, Any], agent: dict[str, Any], root: Path
+) -> None:
+    """Bind the training screen to the candidate-v3 profile and source traces."""
+    section = manifest.get("candidate_provenance")
+    if not isinstance(section, dict):
+        errors.append("candidate_provenance must be an object")
+        return
+    path = section.get("path")
+    digest = section.get("sha256")
+    if not isinstance(path, str) or not isinstance(digest, str):
+        errors.append("candidate_provenance.path and sha256 are required")
+        return
+    provenance_path = root / path
+    if not provenance_path.is_file() or file_sha256(provenance_path) != digest:
+        errors.append("candidate_provenance file is missing or hash-mismatched")
+        return
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"candidate_provenance cannot be loaded: {exc}")
+        return
+    if not isinstance(provenance, dict) or provenance.get("protocol_version") != (
+        "skillopt-candidate-v3"
+    ):
+        errors.append("candidate_provenance.protocol_version must equal 'skillopt-candidate-v3'")
+        return
+    for key, expected in (
+        ("candidate_profile_path", agent.get("profile_path")),
+        ("candidate_profile_sha256", agent.get("profile_sha256")),
+    ):
+        if provenance.get(key) != expected:
+            errors.append(f"candidate_provenance.{key} must match the frozen manifest")
+    trials_path = provenance.get("training_trials_path")
+    trials_digest = provenance.get("training_trials_sha256")
+    if not isinstance(trials_path, str) or not isinstance(trials_digest, str):
+        errors.append("candidate_provenance training trials binding is required")
+    elif not (root / trials_path).is_file() or file_sha256(root / trials_path) != trials_digest:
+        errors.append("candidate_provenance training trials are missing or hash-mismatched")
+    source_ids = provenance.get("source_task_ids")
+    if not isinstance(source_ids, list) or not set(manifest.get("task_ids", [])).issubset(
+        set(source_ids)
+    ):
+        errors.append("screen task_ids must be included in candidate training sources")
 
 
 def run_swebench_trial(

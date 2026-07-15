@@ -15,7 +15,9 @@ from codepulse.benchmark.swebench_runner import (
     _start_isolated_container,
     _task_from_instance,
     _transcript_metrics,
+    evaluate_swebench_screen,
     validate_swebench_evolution_manifest,
+    validate_swebench_screen_manifest,
     validate_swebench_training_manifest,
 )
 
@@ -98,6 +100,70 @@ def test_swebench_runner_evolution_preflight_cli_avoids_docker() -> None:
 
     assert result.exit_code == 0
     assert "candidate, provenance, and tasks are frozen" in result.output
+
+
+def test_swebench_runner_screen_manifest_accepts_frozen_training_inputs() -> None:
+    root = Path(__file__).parents[1]
+    manifest = json.loads(
+        (root / "experiments/phase3-swebench-screen-v1/manifest.json").read_text()
+    )
+
+    assert validate_swebench_screen_manifest(manifest, root) == []
+
+
+def test_swebench_runner_screen_preflight_cli_avoids_docker() -> None:
+    root = Path(__file__).parents[1]
+    result = CliRunner().invoke(
+        benchmark_group,
+        [
+            "swebench-screen-preflight",
+            "--manifest",
+            str(root / "experiments/phase3-swebench-screen-v1/manifest.json"),
+            "--repo-root",
+            str(root),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "screen preflight passed" in result.output
+
+
+def test_swebench_runner_screen_requires_patches_resolution_and_budget() -> None:
+    manifest = {
+        "task_ids": ["task-1", "task-2", "task-3"],
+        "agents": [{"name": "candidate"}],
+        "acceptance": {"min_non_empty_patches": 2, "min_resolved": 1},
+        "budget": {"total_cny": 2.0, "per_agent_cny": 2.0, "per_trial_cny": 1.0},
+    }
+    rows = [
+        {
+            "task_id": f"task-{index}",
+            "repetition": 0,
+            "agent_name": "candidate",
+            "success": index == 1,
+            "outcome": {"patch": "diff" if index < 3 else ""},
+            "metrics": {"cost_cny_peak": 0.2},
+            "failure_type": "wrong_answer" if index > 1 else None,
+        }
+        for index in range(1, 4)
+    ]
+
+    accepted = evaluate_swebench_screen(rows, manifest)
+    assert accepted == {
+        "accepted": True,
+        "rejection_reasons": [],
+        "completed_trials": 3,
+        "non_empty_patches": 2,
+        "resolved": 1,
+        "infrastructure_failures": 0,
+        "total_cost_cny_peak": 0.6,
+        "max_trial_cost_cny_peak": 0.2,
+    }
+
+    rows[0]["success"] = False
+    rejected = evaluate_swebench_screen(rows, manifest)
+    assert rejected["accepted"] is False
+    assert rejected["rejection_reasons"] == ["insufficient_resolved"]
 
 
 def test_swebench_runner_evolution_resume_rejects_manifest_drift(tmp_path: Path) -> None:
