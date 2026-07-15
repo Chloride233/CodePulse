@@ -216,9 +216,9 @@ def validate_swebench_evolution_manifest(
     runner = manifest.get("runner")
     if protocol_version == "phase3-swebench-evolution-v4" and (
         not isinstance(runner, dict)
-        or runner.get("image_transport_prefix") != "docker.1ms.run"
+        or runner.get("image_transport_prefix") != "dockerproxy.net"
     ):
-        errors.append("runner.image_transport_prefix must equal 'docker.1ms.run' for v4")
+        errors.append("runner.image_transport_prefix must equal 'dockerproxy.net' for v4")
     per_trial_limit = 0.2 if protocol_version == "phase3-swebench-evolution-v1" else 1.0
     if manifest.get("budget") != {
         "total_cny": 10.0,

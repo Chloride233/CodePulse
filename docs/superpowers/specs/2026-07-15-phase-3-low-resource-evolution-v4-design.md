@@ -101,7 +101,7 @@ container network`, with a 900-second trial timeout.
 ## Image Transport
 
 Experiment identity is the official `swebench/...@sha256` digest. Retrieval may use the
-reachable `docker.1ms.run` prefix, but the mirror is transport only. The runner will pull
+reachable `dockerproxy.net` prefix, but the mirror is transport only. The runner will pull
 the mirror reference by the frozen digest, tag it with the official image key expected by
 SWE-bench, and record both the official identity and transport reference in the outcome.
 Existing v1-v3 manifests without a transport prefix remain valid.
