@@ -142,8 +142,12 @@ def validate_swebench_evolution_manifest(
     """Validate the frozen held-out SWE-bench paired-comparison manifest."""
     root = Path(repo_root)
     errors: list[str] = []
-    if manifest.get("protocol_version") != "phase3-swebench-evolution-v1":
-        errors.append("protocol_version must equal 'phase3-swebench-evolution-v1'")
+    protocol_version = manifest.get("protocol_version")
+    if protocol_version not in {
+        "phase3-swebench-evolution-v1",
+        "phase3-swebench-evolution-v2",
+    }:
+        errors.append("protocol_version must identify a frozen SWE-bench evolution protocol")
     if manifest.get("benchmark") != "swe-bench-verified":
         errors.append("benchmark must equal 'swe-bench-verified'")
     if manifest.get("task_ids") != SWE_BENCH_EVALUATION_TASK_IDS:
@@ -166,7 +170,12 @@ def validate_swebench_evolution_manifest(
     for index, agent in enumerate(agents):
         _validate_swebench_agent(errors, agent, root, index)
     _validate_swebench_runner(errors, manifest.get("runner"), SWE_BENCH_EVALUATION_TASK_IDS)
-    if manifest.get("budget") != {"total_cny": 10.0, "per_agent_cny": 5.0, "per_trial_cny": 0.2}:
+    per_trial_limit = 0.2 if protocol_version == "phase3-swebench-evolution-v1" else 1.0
+    if manifest.get("budget") != {
+        "total_cny": 10.0,
+        "per_agent_cny": 5.0,
+        "per_trial_cny": per_trial_limit,
+    }:
         errors.append("budget must equal the frozen SWE-bench evolution limits")
     _validate_swebench_candidate_provenance(errors, manifest, agents, root)
     return errors

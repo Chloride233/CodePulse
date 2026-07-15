@@ -1,0 +1,15 @@
+{
+  "protocol_version": "phase3-swebench-evolution-abort-v1",
+  "status": "aborted",
+  "completed_trials": 7,
+  "planned_trials": 48,
+  "total_cost_cny_peak": 0.673573,
+  "trigger_trial": "pydata__xarray-3993--r0--deepseek-v4-flash-swebench-direct",
+  "trigger_trial_cost_cny_peak": 0.255537,
+  "stop_reasons": [
+    "per_trial_budget_reached"
+  ],
+  "manifest_sha256": "e417ef53f2a5ed1f5268d021953aa0314447502e5c66794aa0d84982221bddc6",
+  "trials_sha256": "2879a702978bdbc90537c9bd8742e93d017b0a6b0fa92f2e24aec9f56f64c4a8",
+  "run_summary_sha256": "41fc297454ae925b89c051e5c35508178e4dd09721cf4ca24b2fa08452083838"
+}

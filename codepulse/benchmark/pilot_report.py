@@ -13,7 +13,11 @@ from codepulse.eval.comparison import align_exact
 from codepulse.evolve.attribution import SampleAttribution
 from codepulse.evolve.gate import ValidationGate
 
-_PHASE3_PROTOCOLS = {"phase3-evolution-v1", "phase3-swebench-evolution-v1"}
+_PHASE3_PROTOCOLS = {
+    "phase3-evolution-v1",
+    "phase3-swebench-evolution-v1",
+    "phase3-swebench-evolution-v2",
+}
 
 
 def _nearest_rank(values: list[float], quantile: float) -> float:
@@ -364,11 +368,13 @@ def _render_phase3_report(
 
 
 def _phase3_reproduction_commands(manifest: dict[str, Any]) -> list[str]:
-    if manifest.get("protocol_version") == "phase3-swebench-evolution-v1":
+    protocol_version = str(manifest.get("protocol_version"))
+    if protocol_version.startswith("phase3-swebench-evolution-"):
+        version = protocol_version.rsplit("-", 1)[-1]
         return [
-            "codepulse benchmark swebench-evolution-preflight --manifest experiments/phase3-swebench-evolution-v1/manifest.json --repo-root .",
-            "codepulse benchmark swebench-evolution-run --manifest experiments/phase3-swebench-evolution-v1/manifest.json --output-dir results/phase3/swebench-evolution-v1 --repo-root . --resume",
-            "codepulse benchmark phase3-report --manifest experiments/phase3-swebench-evolution-v1/manifest.json --run-dir results/phase3/swebench-evolution-v1",
+            f"codepulse benchmark swebench-evolution-preflight --manifest experiments/phase3-swebench-evolution-{version}/manifest.json --repo-root .",
+            f"codepulse benchmark swebench-evolution-run --manifest experiments/phase3-swebench-evolution-{version}/manifest.json --output-dir results/phase3/swebench-evolution-{version} --repo-root . --resume",
+            f"codepulse benchmark phase3-report --manifest experiments/phase3-swebench-evolution-{version}/manifest.json --run-dir results/phase3/swebench-evolution-{version}",
         ]
     return [
         "codepulse benchmark preflight --manifest experiments/phase3-evolution-v1/manifest.json",

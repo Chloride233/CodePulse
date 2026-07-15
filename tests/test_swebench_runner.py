@@ -72,6 +72,11 @@ def test_swebench_runner_evolution_manifest_accepts_frozen_held_out_inputs() -> 
 
     assert validate_swebench_evolution_manifest(manifest, root) == []
 
+    v2_manifest = json.loads(
+        (root / "experiments/phase3-swebench-evolution-v2/manifest.json").read_text()
+    )
+    assert validate_swebench_evolution_manifest(v2_manifest, root) == []
+
 
 def test_swebench_runner_evolution_preflight_cli_avoids_docker() -> None:
     root = Path(__file__).parents[1]
