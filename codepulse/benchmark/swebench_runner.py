@@ -88,6 +88,11 @@ SWE_BENCH_SCREEN_TASK_IDS = [
     "mwaskom__seaborn-3069",
     "psf__requests-1142",
 ]
+SWE_BENCH_SCREEN_V2_TASK_IDS = [
+    "pytest-dev__pytest-10081",
+    "scikit-learn__scikit-learn-13328",
+    "sphinx-doc__sphinx-8621",
+]
 _SCREEN_INFRA_FAILURES = {
     "provider_auth_error",
     "provider_error",
@@ -236,49 +241,74 @@ def validate_swebench_evolution_manifest(
 def validate_swebench_screen_manifest(
     manifest: dict[str, Any], repo_root: str | Path
 ) -> list[str]:
-    """Validate the frozen low-cost candidate-v3 training screen."""
+    """Validate a frozen low-cost SWE-bench training screen."""
     root = Path(repo_root)
     errors: list[str] = []
-    if manifest.get("protocol_version") != "phase3-swebench-screen-v1":
-        errors.append("protocol_version must equal 'phase3-swebench-screen-v1'")
+    protocol_version = manifest.get("protocol_version")
+    if protocol_version not in {
+        "phase3-swebench-screen-v1",
+        "phase3-swebench-screen-v2",
+    }:
+        errors.append("protocol_version must identify a frozen SWE-bench screen")
+    screen_v2 = protocol_version == "phase3-swebench-screen-v2"
+    expected_task_ids = (
+        SWE_BENCH_SCREEN_V2_TASK_IDS if screen_v2 else SWE_BENCH_SCREEN_TASK_IDS
+    )
     if manifest.get("benchmark") != "swe-bench-verified":
         errors.append("benchmark must equal 'swe-bench-verified'")
-    if manifest.get("task_ids") != SWE_BENCH_SCREEN_TASK_IDS:
+    if manifest.get("task_ids") != expected_task_ids:
         errors.append("task_ids must equal the frozen three-instance screen cohort")
     if manifest.get("n_trials") != 1:
         errors.append("n_trials must equal 1")
-    if manifest.get("seed") != 20260720:
-        errors.append("seed must equal 20260720")
+    expected_seed = 20260721 if screen_v2 else 20260720
+    if manifest.get("seed") != expected_seed:
+        errors.append(f"seed must equal {expected_seed}")
 
     instances = _validate_swebench_dataset(errors, manifest.get("dataset"), root)
     if instances is not None and any(
-        task_id not in instances for task_id in SWE_BENCH_SCREEN_TASK_IDS
+        task_id not in instances for task_id in expected_task_ids
     ):
         errors.append("task_ids must all exist in the frozen SWE-bench snapshot")
 
     agents = manifest.get("agents")
-    if not isinstance(agents, list) or len(agents) != 1 or not isinstance(agents[0], dict):
-        errors.append("agents must contain exactly one candidate entry")
-        agent: dict[str, Any] = {}
-    else:
-        agent = agents[0]
-        _validate_swebench_agent(errors, agent, root, 0)
-        if agent.get("role") != "candidate":
-            errors.append("screen agent role must equal 'candidate'")
+    expected_agent_count = 2 if screen_v2 else 1
+    if (
+        not isinstance(agents, list)
+        or len(agents) != expected_agent_count
+        or not all(isinstance(agent, dict) for agent in agents)
+    ):
+        errors.append(f"agents must contain exactly {expected_agent_count} screen entries")
+        agents = []
+    for index, agent in enumerate(agents):
+        _validate_swebench_agent(errors, agent, root, index)
+    roles = {agent.get("role") for agent in agents}
+    expected_roles = {"baseline", "candidate"} if screen_v2 else {"candidate"}
+    if roles != expected_roles:
+        errors.append("screen agent roles do not match the frozen protocol")
 
-    _validate_swebench_runner(errors, manifest.get("runner"), SWE_BENCH_SCREEN_TASK_IDS)
+    _validate_swebench_runner(errors, manifest.get("runner"), expected_task_ids)
     if manifest.get("budget") != {
         "total_cny": 2.0,
         "per_agent_cny": 2.0,
         "per_trial_cny": 1.0,
     }:
         errors.append("budget must equal the frozen screen limits")
-    if manifest.get("acceptance") != {
-        "min_non_empty_patches": 2,
-        "min_resolved": 1,
-    }:
+    expected_acceptance = (
+        {
+            "min_candidate_non_empty_patches": 2,
+            "min_candidate_resolved": 2,
+            "require_candidate_resolved_gte_baseline": True,
+            "max_candidate_token_ratio": 1.25,
+            "max_candidate_cost_ratio": 1.25,
+        }
+        if screen_v2
+        else {"min_non_empty_patches": 2, "min_resolved": 1}
+    )
+    if manifest.get("acceptance") != expected_acceptance:
         errors.append("acceptance must equal the frozen screen thresholds")
-    _validate_swebench_screen_provenance(errors, manifest, agent, root)
+    if screen_v2 and manifest.get("tool_contract_version") != "repository-tools-v2":
+        errors.append("tool_contract_version must equal 'repository-tools-v2'")
+    _validate_swebench_screen_provenance(errors, manifest, agents, root)
     return errors
 
 
@@ -286,6 +316,8 @@ def evaluate_swebench_screen(
     rows: list[dict[str, Any]], manifest: dict[str, Any]
 ) -> dict[str, Any]:
     """Evaluate a complete training screen without weakening the final Phase 3 Gate."""
+    if manifest.get("protocol_version") == "phase3-swebench-screen-v2":
+        return _evaluate_swebench_screen_v2(rows, manifest)
     agents = manifest.get("agents")
     if not isinstance(agents, list) or len(agents) != 1 or not isinstance(agents[0], dict):
         raise ValueError("screen manifest requires exactly one agent")
@@ -332,6 +364,112 @@ def evaluate_swebench_screen(
         "completed_trials": len(rows),
         "non_empty_patches": non_empty_patches,
         "resolved": resolved,
+        "infrastructure_failures": infrastructure_failures,
+        "total_cost_cny_peak": total_cost,
+        "max_trial_cost_cny_peak": max_trial_cost,
+    }
+
+
+def _evaluate_swebench_screen_v2(
+    rows: list[dict[str, Any]], manifest: dict[str, Any]
+) -> dict[str, Any]:
+    agents = manifest.get("agents")
+    task_ids = manifest.get("task_ids")
+    if (
+        not isinstance(agents, list)
+        or len(agents) != 2
+        or not all(isinstance(agent, dict) for agent in agents)
+        or not isinstance(task_ids, list)
+    ):
+        raise ValueError("screen v2 manifest requires paired agents and task_ids")
+    role_names = {str(agent.get("role")): agent.get("name") for agent in agents}
+    if set(role_names) != {"baseline", "candidate"} or not all(
+        isinstance(name, str) and name for name in role_names.values()
+    ):
+        raise ValueError("screen v2 manifest requires baseline and candidate names")
+    expected = {
+        (str(task_id), 0, str(agent_name))
+        for task_id in task_ids
+        for agent_name in role_names.values()
+    }
+    actual = {
+        (str(row.get("task_id")), row.get("repetition"), str(row.get("agent_name")))
+        for row in rows
+    }
+    if len(actual) != len(rows) or actual != expected:
+        raise ValueError("screen trial coverage does not match the frozen paired task set")
+
+    acceptance = manifest.get("acceptance")
+    budget = manifest.get("budget")
+    if not isinstance(acceptance, dict) or not isinstance(budget, dict):
+        raise ValueError("screen manifest requires acceptance and budget")
+
+    def agent_stats(agent_name: object) -> dict[str, int | float]:
+        agent_rows = [row for row in rows if row.get("agent_name") == agent_name]
+        return {
+            "non_empty_patches": sum(
+                bool(str(row.get("outcome", {}).get("patch", "")).strip())
+                for row in agent_rows
+            ),
+            "resolved": sum(bool(row.get("success")) for row in agent_rows),
+            "total_tokens": sum(
+                int(row.get("metrics", {}).get("total_tokens", 0))
+                for row in agent_rows
+            ),
+            "total_cost_cny_peak": round(
+                sum(
+                    float(row.get("metrics", {}).get("cost_cny_peak", 0.0))
+                    for row in agent_rows
+                ),
+                6,
+            ),
+        }
+
+    baseline = agent_stats(role_names["baseline"])
+    candidate = agent_stats(role_names["candidate"])
+    baseline_tokens = int(baseline["total_tokens"])
+    candidate_tokens = int(candidate["total_tokens"])
+    baseline_cost = float(baseline["total_cost_cny_peak"])
+    candidate_cost = float(candidate["total_cost_cny_peak"])
+    token_ratio = (
+        round(candidate_tokens / baseline_tokens, 6) if baseline_tokens else None
+    )
+    cost_ratio = round(candidate_cost / baseline_cost, 6) if baseline_cost else None
+    infrastructure_failures = sum(
+        row.get("failure_type") in _SCREEN_INFRA_FAILURES for row in rows
+    )
+    costs = [float(row.get("metrics", {}).get("cost_cny_peak", 0.0)) for row in rows]
+    total_cost = round(sum(costs), 6)
+    max_trial_cost = max(costs, default=0.0)
+    rejection_reasons: list[str] = []
+    if int(candidate["non_empty_patches"]) < int(
+        acceptance["min_candidate_non_empty_patches"]
+    ):
+        rejection_reasons.append("insufficient_candidate_non_empty_patches")
+    if int(candidate["resolved"]) < int(acceptance["min_candidate_resolved"]):
+        rejection_reasons.append("insufficient_candidate_resolved")
+    if acceptance["require_candidate_resolved_gte_baseline"] and int(
+        candidate["resolved"]
+    ) < int(baseline["resolved"]):
+        rejection_reasons.append("candidate_resolved_below_baseline")
+    if candidate_tokens > baseline_tokens * float(acceptance["max_candidate_token_ratio"]):
+        rejection_reasons.append("candidate_token_ratio_exceeded")
+    if candidate_cost > baseline_cost * float(acceptance["max_candidate_cost_ratio"]):
+        rejection_reasons.append("candidate_cost_ratio_exceeded")
+    if infrastructure_failures:
+        rejection_reasons.append("infrastructure_failure")
+    if max_trial_cost > float(budget["per_trial_cny"]):
+        rejection_reasons.append("per_trial_budget_exceeded")
+    if total_cost > float(budget["total_cny"]):
+        rejection_reasons.append("total_budget_exceeded")
+    return {
+        "accepted": not rejection_reasons,
+        "rejection_reasons": rejection_reasons,
+        "completed_trials": len(rows),
+        "baseline": baseline,
+        "candidate": candidate,
+        "candidate_token_ratio": token_ratio,
+        "candidate_cost_ratio": cost_ratio,
         "infrastructure_failures": infrastructure_failures,
         "total_cost_cny_peak": total_cost,
         "max_trial_cost_cny_peak": max_trial_cost,
@@ -475,9 +613,9 @@ def _validate_swebench_candidate_provenance(
 
 
 def _validate_swebench_screen_provenance(
-    errors: list[str], manifest: dict[str, Any], agent: dict[str, Any], root: Path
+    errors: list[str], manifest: dict[str, Any], agents: list[dict[str, Any]], root: Path
 ) -> None:
-    """Bind the training screen to the candidate-v3 profile and source traces."""
+    """Bind the training screen to its candidate profile and source traces."""
     section = manifest.get("candidate_provenance")
     if not isinstance(section, dict):
         errors.append("candidate_provenance must be an object")
@@ -496,17 +634,37 @@ def _validate_swebench_screen_provenance(
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"candidate_provenance cannot be loaded: {exc}")
         return
-    if not isinstance(provenance, dict) or provenance.get("protocol_version") != (
-        "skillopt-candidate-v3"
-    ):
-        errors.append("candidate_provenance.protocol_version must equal 'skillopt-candidate-v3'")
+    protocol_version = manifest.get("protocol_version")
+    expected_provenance = (
+        "skillopt-candidate-v4"
+        if protocol_version == "phase3-swebench-screen-v2"
+        else "skillopt-candidate-v3"
+    )
+    if not isinstance(provenance, dict) or provenance.get(
+        "protocol_version"
+    ) != expected_provenance:
+        errors.append(
+            f"candidate_provenance.protocol_version must equal {expected_provenance!r}"
+        )
         return
+    roles = {agent.get("role"): agent for agent in agents}
+    agent = roles.get("candidate", {})
     for key, expected in (
         ("candidate_profile_path", agent.get("profile_path")),
         ("candidate_profile_sha256", agent.get("profile_sha256")),
     ):
         if provenance.get(key) != expected:
             errors.append(f"candidate_provenance.{key} must match the frozen manifest")
+    if protocol_version == "phase3-swebench-screen-v2":
+        baseline = roles.get("baseline", {})
+        for key, expected in (
+            ("baseline_profile_path", baseline.get("profile_path")),
+            ("baseline_profile_sha256", baseline.get("profile_sha256")),
+        ):
+            if provenance.get(key) != expected:
+                errors.append(f"candidate_provenance.{key} must match the frozen manifest")
+        if provenance.get("tool_contract_version") != "repository-tools-v2":
+            errors.append("candidate_provenance must freeze repository-tools-v2")
     trials_path = provenance.get("training_trials_path")
     trials_digest = provenance.get("training_trials_sha256")
     if not isinstance(trials_path, str) or not isinstance(trials_digest, str):

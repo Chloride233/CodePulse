@@ -172,6 +172,64 @@ def test_swebench_runner_screen_requires_patches_resolution_and_budget() -> None
     assert rejected["rejection_reasons"] == ["insufficient_resolved"]
 
 
+def test_swebench_runner_screen_v2_requires_paired_functional_and_resource_gain() -> None:
+    manifest = {
+        "protocol_version": "phase3-swebench-screen-v2",
+        "task_ids": ["task-1", "task-2", "task-3"],
+        "agents": [
+            {"role": "baseline", "name": "baseline"},
+            {"role": "candidate", "name": "candidate"},
+        ],
+        "acceptance": {
+            "min_candidate_non_empty_patches": 2,
+            "min_candidate_resolved": 2,
+            "require_candidate_resolved_gte_baseline": True,
+            "max_candidate_token_ratio": 1.25,
+            "max_candidate_cost_ratio": 1.25,
+        },
+        "budget": {"total_cny": 2.0, "per_agent_cny": 2.0, "per_trial_cny": 1.0},
+    }
+    rows = []
+    for agent_name in ("baseline", "candidate"):
+        for index in range(1, 4):
+            candidate = agent_name == "candidate"
+            rows.append(
+                {
+                    "task_id": f"task-{index}",
+                    "repetition": 0,
+                    "agent_name": agent_name,
+                    "success": index <= (2 if candidate else 1),
+                    "outcome": {"patch": "diff" if candidate or index == 1 else ""},
+                    "metrics": {
+                        "total_tokens": 40 if candidate else 34,
+                        "cost_cny_peak": 0.12 if candidate else 0.1,
+                    },
+                    "failure_type": None,
+                }
+            )
+
+    accepted = evaluate_swebench_screen(rows, manifest)
+
+    assert accepted["accepted"] is True
+    assert accepted["completed_trials"] == 6
+    assert accepted["baseline"]["resolved"] == 1
+    assert accepted["candidate"]["resolved"] == 2
+    assert accepted["candidate_token_ratio"] == 1.176471
+    assert accepted["candidate_cost_ratio"] == 1.2
+
+    for row in rows:
+        if row["agent_name"] == "candidate":
+            row["metrics"]["total_tokens"] = 50
+            row["metrics"]["cost_cny_peak"] = 0.13
+    rejected = evaluate_swebench_screen(rows, manifest)
+
+    assert rejected["accepted"] is False
+    assert rejected["rejection_reasons"] == [
+        "candidate_token_ratio_exceeded",
+        "candidate_cost_ratio_exceeded",
+    ]
+
+
 def test_swebench_runner_evolution_resume_rejects_manifest_drift(tmp_path: Path) -> None:
     root = Path(__file__).parents[1]
     output = tmp_path / "run"

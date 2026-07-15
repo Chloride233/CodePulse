@@ -505,7 +505,7 @@ def benchmark_swebench_evolution_preflight(manifest_path: str, repo_root: str) -
 @click.option("--manifest", "manifest_path", required=True, type=click.Path(exists=True, dir_okay=False))
 @click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
 def benchmark_swebench_screen_preflight(manifest_path: str, repo_root: str) -> None:
-    """Validate the frozen candidate-v3 training screen without contacting Docker."""
+    """Validate a frozen SWE-bench training screen without contacting Docker."""
     errors = validate_swebench_screen_manifest(load_pilot_manifest(manifest_path), repo_root)
     if errors:
         raise click.ClickException("SWE-bench screen preflight failed: " + "; ".join(errors))
@@ -523,7 +523,7 @@ def benchmark_swebench_screen_run(
     repo_root: str,
     resume: bool,
 ) -> None:
-    """Run the frozen three-task candidate-v3 training screen."""
+    """Run a frozen three-task SWE-bench training screen."""
     from codepulse.agent.adapter import AgentProfile
     from codepulse.env.sandbox import SandboxManager
 
@@ -535,13 +535,20 @@ def benchmark_swebench_screen_run(
     dataset = manifest["dataset"]
     runner = manifest["runner"]
     budget = manifest["budget"]
-    agent = manifest["agents"][0]
-    assert all(isinstance(item, dict) for item in (dataset, runner, budget, agent))
+    agents = manifest["agents"]
+    assert all(isinstance(item, dict) for item in (dataset, runner, budget))
+    assert isinstance(agents, list) and all(isinstance(item, dict) for item in agents)
     instances = load_swebench_instances(root / str(dataset["task_path"]))
-    profile = AgentProfile.from_yaml(root / str(agent["profile_path"]))
-    expected_model = str(agent["provider_model_version"])
+    profiles = {
+        str(agent["name"]): AgentProfile.from_yaml(root / str(agent["profile_path"]))
+        for agent in agents
+    }
+    expected_models = {
+        str(agent["name"]): str(agent["provider_model_version"])
+        for agent in agents
+    }
     schedule = build_pilot_schedule(
-        manifest["task_ids"], [profile.name], manifest["n_trials"], manifest["seed"]
+        manifest["task_ids"], list(profiles), manifest["n_trials"], manifest["seed"]
     )
     output = Path(output_dir)
     trials_path = output / "trials.jsonl"
@@ -594,7 +601,7 @@ def benchmark_swebench_screen_run(
                 continue
             click.echo(f"[{index}/{len(schedule)}] {task_id} {agent_name}")
             trial = run_swebench_trial(
-                profile,
+                profiles[agent_name],
                 instances[task_id],
                 sandbox,
                 timeout_seconds=int(runner["timeout_seconds"]),
@@ -610,7 +617,7 @@ def benchmark_swebench_screen_run(
                 task_id=task_id,
                 repetition=repetition,
                 agent_name=agent_name,
-                expected_model=expected_model,
+                expected_model=expected_models[agent_name],
                 guard=guard,
             )
             trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
