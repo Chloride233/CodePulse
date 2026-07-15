@@ -541,10 +541,12 @@ def benchmark_swebench_evolution_run(
     if trials_path.exists() and not resume:
         raise click.ClickException(f"Refusing to merge with existing run: {trials_path}")
     output.mkdir(parents=True, exist_ok=True)
-    if resume:
+    if trials_path.exists():
         if not manifest_copy.is_file() or manifest_copy.read_text(encoding="utf-8") != source_manifest:
             raise click.ClickException("Cannot resume: output manifest differs from the frozen manifest")
     else:
+        if manifest_copy.is_file() and manifest_copy.read_text(encoding="utf-8") != source_manifest:
+            raise click.ClickException("Cannot start: output manifest differs from the frozen manifest")
         manifest_copy.write_text(source_manifest, encoding="utf-8")
 
     existing_rows = []
