@@ -125,9 +125,11 @@ def test_phase3_pilot_classifies_pass_hat_states() -> None:
         "baseline": ((False, False, False), (True, True, True), (False, False, False), (True, True, True)),
         "candidate": ((True, True, True), (False, False, False), (False, False, False), (True, True, True)),
     }
+    task_ids = manifest["task_ids"]
+    assert isinstance(task_ids, list)
     rows: list[dict[str, object]] = []
     for agent_name, task_outcomes in outcomes.items():
-        for task_id, successes in zip(manifest["task_ids"], task_outcomes, strict=True):
+        for task_id, successes in zip(task_ids, task_outcomes, strict=True):
             for repetition, success in enumerate(successes):
                 rows.append(
                     {
@@ -203,3 +205,18 @@ def test_phase3_report_writes_metrics_cases_and_reproduction_commands(tmp_path: 
     assert "# CodePulse Phase 3 Comparison Report" in markdown
     assert "| improvement | task-0 | pass, pass, fail | pass, pass, pass |" in markdown
     assert "codepulse benchmark phase3-report" in markdown
+
+
+def test_phase3_report_uses_swebench_reproduction_commands(tmp_path: Path) -> None:
+    manifest = _phase3_manifest()
+    manifest["protocol_version"] = "phase3-swebench-evolution-v1"
+    (tmp_path / "trials.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in _phase3_rows()) + "\n",
+        encoding="utf-8",
+    )
+
+    markdown_path, _ = write_phase3_reports(tmp_path, manifest)
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert "swebench-evolution-preflight" in markdown
+    assert "swebench-evolution-run" in markdown

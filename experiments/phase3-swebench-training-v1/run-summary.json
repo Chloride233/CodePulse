@@ -1,0 +1,10 @@
+{
+  "status": "completed",
+  "completed_trials": 5,
+  "planned_trials": 5,
+  "total_cost_cny_peak": 0.17745,
+  "agent_costs_cny_peak": {
+    "deepseek-v4-flash-swebench-direct": 0.17745
+  },
+  "stop_reasons": []
+}

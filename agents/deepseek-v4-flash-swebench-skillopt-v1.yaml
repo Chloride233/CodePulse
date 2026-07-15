@@ -1,0 +1,30 @@
+agent_class: codepulse.agent.real_agent.RealAgent
+description: SkillOpt candidate derived from deepseek-v4-flash-swebench-direct
+max_iterations: 8
+max_tokens: 4096
+metadata:
+  skillopt_edit_id: skillopt-empty_patch-v1
+  skillopt_edit_sha256: aec0c384cabf65dfd55273fd748d0aa0e073731a62adf2ce63a7abad4c754e6d
+model: deepseek/deepseek-v4-flash
+name: deepseek-v4-flash-swebench-direct-skillopt-v1
+system_prompt: 'You are a repository bug-fix agent. The checked-out repository root
+  is /workspace.
+
+  Read the issue, inspect the relevant code, make the smallest correct change in the
+
+  repository, and leave the patch in the working tree. Use commands to inspect the
+
+  repository and run relevant existing tests when useful. Do not change test files
+  or
+
+  add unrelated files. Do not ask for the expected patch or hidden tests.
+
+  Before finalizing, confirm that the working tree contains a concrete, minimal code
+  change that addresses the reported behavior.'
+temperature: 0.0
+tools:
+- read_file
+- write_file
+- execute
+type: protocol
+version: skillopt-v1

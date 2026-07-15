@@ -18,7 +18,7 @@ from codepulse.agent.adapter import (
 )
 from codepulse.data.models import Difficulty, Task, TaskCategory, TaskSource
 from codepulse.env.sandbox import Container, ResourceLimits, SandboxManager
-from codepulse.eval.artifacts import canonical_sha256, file_sha256
+from codepulse.eval.artifacts import canonical_sha256, file_sha256, load_jsonl
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -44,6 +44,25 @@ class SWEbenchTrial:
     success: bool
     outcome: dict[str, Any]
     metrics: dict[str, Any]
+
+
+SWE_BENCH_TRAINING_TASK_IDS = [
+    "django__django-10097",
+    "sympy__sympy-19495",
+    "scikit-learn__scikit-learn-15100",
+    "django__django-13449",
+    "django__django-15127",
+]
+SWE_BENCH_EVALUATION_TASK_IDS = [
+    "pydata__xarray-4695",
+    "pydata__xarray-3993",
+    "sympy__sympy-24562",
+    "django__django-14771",
+    "sphinx-doc__sphinx-8595",
+    "sphinx-doc__sphinx-9602",
+    "matplotlib__matplotlib-23299",
+    "django__django-16139",
+]
 
 
 def load_swebench_instances(path: str | Path) -> dict[str, dict[str, Any]]:
@@ -76,8 +95,8 @@ def validate_swebench_training_manifest(
     if manifest.get("seed") != 20260717:
         errors.append("seed must equal 20260717")
     task_ids = manifest.get("task_ids")
-    if not isinstance(task_ids, list) or len(task_ids) != 5 or len(set(task_ids)) != 5:
-        errors.append("task_ids must contain exactly five unique training instances")
+    if task_ids != SWE_BENCH_TRAINING_TASK_IDS:
+        errors.append("task_ids must equal the frozen five-instance training cohort")
     dataset = manifest.get("dataset")
     if not isinstance(dataset, dict):
         return errors + ["dataset must be an object"]
@@ -111,25 +130,106 @@ def validate_swebench_training_manifest(
         errors.append(f"baseline profile_path does not exist: {profile_path}")
     elif file_sha256(profile) != profile_digest:
         errors.append(f"baseline profile_sha256 mismatch for {profile_path}")
-    runner = manifest.get("runner")
+    _validate_swebench_runner(errors, manifest.get("runner"), SWE_BENCH_TRAINING_TASK_IDS)
+    if manifest.get("budget") != {"total_cny": 20.0, "per_agent_cny": 20.0, "per_trial_cny": 4.0}:
+        errors.append("budget must equal the frozen SWE-bench training limits")
+    return errors
+
+
+def validate_swebench_evolution_manifest(
+    manifest: dict[str, Any], repo_root: str | Path
+) -> list[str]:
+    """Validate the frozen held-out SWE-bench paired-comparison manifest."""
+    root = Path(repo_root)
+    errors: list[str] = []
+    if manifest.get("protocol_version") != "phase3-swebench-evolution-v1":
+        errors.append("protocol_version must equal 'phase3-swebench-evolution-v1'")
+    if manifest.get("benchmark") != "swe-bench-verified":
+        errors.append("benchmark must equal 'swe-bench-verified'")
+    if manifest.get("task_ids") != SWE_BENCH_EVALUATION_TASK_IDS:
+        errors.append("task_ids must equal the frozen eight-instance evaluation cohort")
+    if manifest.get("n_trials") != 3:
+        errors.append("n_trials must equal 3")
+    if manifest.get("seed") != 20260718:
+        errors.append("seed must equal 20260718")
+    dataset = manifest.get("dataset")
+    instances = _validate_swebench_dataset(errors, dataset, root)
+    if instances is not None and any(task_id not in instances for task_id in SWE_BENCH_EVALUATION_TASK_IDS):
+        errors.append("task_ids must all exist in the frozen SWE-bench snapshot")
+    agents = manifest.get("agents")
+    if not isinstance(agents, list) or len(agents) != 2 or not all(isinstance(agent, dict) for agent in agents):
+        errors.append("agents must contain exactly baseline and candidate entries")
+        agents = []
+    roles = {agent.get("role") for agent in agents}
+    if roles != {"baseline", "candidate"}:
+        errors.append("agents must contain one baseline and one candidate role")
+    for index, agent in enumerate(agents):
+        _validate_swebench_agent(errors, agent, root, index)
+    _validate_swebench_runner(errors, manifest.get("runner"), SWE_BENCH_EVALUATION_TASK_IDS)
+    if manifest.get("budget") != {"total_cny": 10.0, "per_agent_cny": 5.0, "per_trial_cny": 0.2}:
+        errors.append("budget must equal the frozen SWE-bench evolution limits")
+    _validate_swebench_candidate_provenance(errors, manifest, agents, root)
+    return errors
+
+
+def _validate_swebench_dataset(
+    errors: list[str], dataset: object, root: Path
+) -> dict[str, dict[str, Any]] | None:
+    if not isinstance(dataset, dict):
+        errors.append("dataset must be an object")
+        return None
+    path = dataset.get("task_path")
+    digest = dataset.get("task_sha256")
+    if not isinstance(path, str) or not isinstance(digest, str):
+        errors.append("dataset.task_path and dataset.task_sha256 are required")
+        return None
+    snapshot = root / path
+    if not snapshot.is_file():
+        errors.append(f"dataset.task_path does not exist: {path}")
+        return None
+    if file_sha256(snapshot) != digest:
+        errors.append(f"dataset.task_sha256 mismatch for {path}")
+    try:
+        return load_swebench_instances(snapshot)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(f"dataset snapshot cannot be loaded: {exc}")
+        return None
+
+
+def _validate_swebench_agent(errors: list[str], agent: dict[str, Any], root: Path, index: int) -> None:
+    prefix = f"agents[{index}]"
+    if agent.get("role") not in {"baseline", "candidate"}:
+        errors.append(f"{prefix}.role must be baseline or candidate")
+    for key in ("name", "model_version", "provider_model_version"):
+        if not isinstance(agent.get(key), str) or not agent[key]:
+            errors.append(f"{prefix}.{key} is required")
+    profile_path = agent.get("profile_path")
+    profile_digest = agent.get("profile_sha256")
+    if not isinstance(profile_path, str) or not isinstance(profile_digest, str):
+        errors.append(f"{prefix}.profile_path and profile_sha256 are required")
+    elif not (root / profile_path).is_file():
+        errors.append(f"{prefix}.profile_path does not exist: {profile_path}")
+    elif file_sha256(root / profile_path) != profile_digest:
+        errors.append(f"{prefix}.profile_sha256 mismatch for {profile_path}")
+
+
+def _validate_swebench_runner(errors: list[str], runner: object, task_ids: list[str]) -> None:
     if not isinstance(runner, dict):
-        return errors + ["runner must be an object"]
-    if runner.get("harness_version") != "swebench==4.1.0":
-        errors.append("runner.harness_version must equal 'swebench==4.1.0'")
-    if runner.get("architecture") != "x86_64":
-        errors.append("runner.architecture must equal 'x86_64'")
-    if runner.get("image_namespace") != "swebench":
-        errors.append("runner.image_namespace must equal 'swebench'")
-    if runner.get("timeout_seconds") != 900:
-        errors.append("runner.timeout_seconds must equal 900")
-    if runner.get("cpu_count") != 2:
-        errors.append("runner.cpu_count must equal 2")
-    if runner.get("memory_mb") != 4096:
-        errors.append("runner.memory_mb must equal 4096")
-    if runner.get("network") != "none":
-        errors.append("runner.network must equal 'none'")
+        errors.append("runner must be an object")
+        return
+    for key, expected in (
+        ("harness_version", "swebench==4.1.0"),
+        ("architecture", "x86_64"),
+        ("image_namespace", "swebench"),
+        ("timeout_seconds", 900),
+        ("cpu_count", 2),
+        ("memory_mb", 4096),
+        ("network", "none"),
+    ):
+        if runner.get(key) != expected:
+            errors.append(f"runner.{key} must equal {expected!r}")
     image_digests = runner.get("image_digests")
-    if not isinstance(image_digests, dict) or set(image_digests) != set(task_ids or []):
+    if not isinstance(image_digests, dict) or set(image_digests) != set(task_ids):
         errors.append("runner.image_digests must cover exactly the frozen task_ids")
     elif not all(
         isinstance(digest, str)
@@ -139,13 +239,69 @@ def validate_swebench_training_manifest(
         for digest in image_digests.values()
     ):
         errors.append("runner.image_digests values must be sha256 digests")
-    if manifest.get("budget") != {
-        "total_cny": 20.0,
-        "per_agent_cny": 20.0,
-        "per_trial_cny": 4.0,
-    }:
-        errors.append("budget must equal the frozen SWE-bench training limits")
-    return errors
+
+
+def _validate_swebench_candidate_provenance(
+    errors: list[str], manifest: dict[str, Any], agents: list[dict[str, Any]], root: Path
+) -> None:
+    section = manifest.get("candidate_provenance")
+    if not isinstance(section, dict):
+        errors.append("candidate_provenance must be an object")
+        return
+    path = section.get("path")
+    digest = section.get("sha256")
+    if not isinstance(path, str) or not isinstance(digest, str):
+        errors.append("candidate_provenance.path and sha256 are required")
+        return
+    provenance_path = root / path
+    if not provenance_path.is_file() or file_sha256(provenance_path) != digest:
+        errors.append("candidate_provenance file is missing or hash-mismatched")
+        return
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"candidate_provenance cannot be loaded: {exc}")
+        return
+    if not isinstance(provenance, dict) or provenance.get("protocol_version") != "skillopt-candidate-v1":
+        errors.append("candidate_provenance.protocol_version must equal 'skillopt-candidate-v1'")
+        return
+    roles = {agent.get("role"): agent for agent in agents}
+    baseline = roles.get("baseline", {})
+    candidate = roles.get("candidate", {})
+    for key, expected in (
+        ("baseline_profile_path", baseline.get("profile_path")),
+        ("baseline_profile_sha256", baseline.get("profile_sha256")),
+        ("candidate_profile_path", candidate.get("profile_path")),
+        ("candidate_profile_sha256", candidate.get("profile_sha256")),
+    ):
+        if provenance.get(key) != expected:
+            errors.append(f"candidate_provenance.{key} must match the frozen manifest")
+    trials_path = provenance.get("training_trials_path")
+    trials_digest = provenance.get("training_trials_sha256")
+    if not isinstance(trials_path, str) or not isinstance(trials_digest, str):
+        errors.append("candidate_provenance training trials binding is required")
+        return
+    trials_file = root / trials_path
+    if not trials_file.is_file() or file_sha256(trials_file) != trials_digest:
+        errors.append("candidate_provenance training trials are missing or hash-mismatched")
+        return
+    try:
+        rows = load_jsonl(trials_file)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(f"candidate_provenance training trials cannot be loaded: {exc}")
+        return
+    failed = {
+        str(row.get("task_id"))
+        for row in rows
+        if row.get("agent_name") == baseline.get("name")
+        and not bool(row.get("success"))
+        and row.get("failure_type") not in {"provider_auth_error", "provider_error", "agent_error", "sandbox_error"}
+    }
+    source_ids = provenance.get("source_task_ids")
+    if not isinstance(source_ids, list) or not source_ids or not set(source_ids).issubset(failed):
+        errors.append("candidate_provenance.source_task_ids must reference failed baseline trials")
+    if isinstance(source_ids, list) and set(source_ids) & set(manifest.get("task_ids", [])):
+        errors.append("candidate_provenance.source_task_ids must not overlap evaluation tasks")
 
 
 def run_swebench_trial(
@@ -224,14 +380,7 @@ def run_swebench_trial(
                     "provider_model_versions", []
                 ),
             },
-            metrics={
-                "input_tokens": int(transcript.agent_config.get("input_tokens", 0)),
-                "output_tokens": int(transcript.agent_config.get("output_tokens", 0)),
-                "cache_tokens": int(transcript.agent_config.get("cache_tokens", 0)),
-                "total_tokens": transcript.total_tokens,
-                "duration_seconds": transcript.total_duration,
-                "cost_usd": float(transcript.agent_config.get("cost_usd", 0.0)),
-            },
+            metrics=_transcript_metrics(transcript),
         )
     finally:
         sandbox.clear_active_container()
@@ -250,6 +399,20 @@ def _prepare_official_image(client: Any, test_spec: Any, digest: str) -> str:
         image = client.images.pull(image_ref)
     image.tag(repository, tag=tag)
     return image_ref
+
+
+def _transcript_metrics(transcript: Any) -> dict[str, int | float]:
+    """Return comparable token metrics without counting cache hits twice."""
+    input_tokens = int(transcript.agent_config.get("input_tokens", 0))
+    output_tokens = int(transcript.agent_config.get("output_tokens", 0))
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_tokens": int(transcript.agent_config.get("cache_tokens", 0)),
+        "total_tokens": input_tokens + output_tokens,
+        "duration_seconds": transcript.total_duration,
+        "cost_usd": float(transcript.agent_config.get("cost_usd", 0.0)),
+    }
 
 
 def _start_isolated_container(

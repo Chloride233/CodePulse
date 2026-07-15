@@ -27,8 +27,10 @@ from codepulse.benchmark.pilot import (
 )
 from codepulse.benchmark.pilot_report import write_phase3_reports, write_pilot_reports
 from codepulse.benchmark.swebench_runner import (
+    SWEbenchTrial,
     load_swebench_instances,
     run_swebench_trial,
+    validate_swebench_evolution_manifest,
     validate_swebench_training_manifest,
 )
 from codepulse.config import DEFAULT_RESULTS_DIR
@@ -145,6 +147,75 @@ def _save_benchmark_summary(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return summary_path
+
+
+def _swebench_trial_record(
+    trial: SWEbenchTrial,
+    *,
+    task_id: str,
+    repetition: int,
+    agent_name: str,
+    expected_model: str,
+    guard: PilotBudgetGuard,
+) -> tuple[dict[str, Any], list[str]]:
+    """Convert one official trial to the shared Phase 3 record schema."""
+    input_tokens = int(trial.metrics["input_tokens"])
+    output_tokens = int(trial.metrics["output_tokens"])
+    cache_tokens = int(trial.metrics["cache_tokens"])
+    peak_cost = deepseek_v4_flash_cost_cny(
+        input_tokens, output_tokens, cache_tokens, "peak"
+    )
+    off_peak_cost = deepseek_v4_flash_cost_cny(
+        input_tokens, output_tokens, cache_tokens, "off_peak"
+    )
+    versions = trial.outcome.get("provider_model_versions", [])
+    provider_failure = trial.outcome.get("failure_type")
+    failure_type = (
+        provider_failure
+        if isinstance(provider_failure, str)
+        else (None if trial.success else "wrong_answer")
+    )
+    stopped_reasons = guard.record_trial(agent_name, peak_cost, failure_type)
+    if versions and versions != [expected_model]:
+        stopped_reasons.append("model_version_drift")
+    return (
+        {
+            "trial_id": f"{task_id}--r{repetition}--{agent_name}",
+            "task_id": task_id,
+            "repetition": repetition,
+            "agent_name": agent_name,
+            "provider_model_versions": versions,
+            "success": trial.success,
+            "outcome": trial.outcome,
+            "scores": {"functional": 1.0 if trial.success else 0.0},
+            "metrics": {
+                **trial.metrics,
+                "cost_cny_off_peak": off_peak_cost,
+                "cost_cny_peak": peak_cost,
+            },
+            "failure_type": failure_type,
+            "stop_reasons": stopped_reasons,
+            "started_at": datetime.now(UTC).isoformat(),
+        },
+        stopped_reasons,
+    )
+
+
+def _write_swebench_summary(
+    output: Path, guard: PilotBudgetGuard, planned_trials: int, stopped_reasons: list[str]
+) -> None:
+    summary = {
+        "status": "aborted" if stopped_reasons else "completed",
+        "completed_trials": guard.completed_trials,
+        "planned_trials": planned_trials,
+        "total_cost_cny_peak": round(guard.total_cost_cny, 6),
+        "agent_costs_cny_peak": guard.agent_costs_cny,
+        "stop_reasons": stopped_reasons,
+    }
+    (output / "run-summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
+    click.echo(json.dumps(summary))
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +430,9 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
     if trials_path.exists():
         raise click.ClickException(f"Refusing to merge with existing run: {trials_path}")
     output.mkdir(parents=True, exist_ok=True)
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (output / "manifest.json").write_text(
+        Path(manifest_path).read_text(encoding="utf-8"), encoding="utf-8"
+    )
     sandbox = SandboxManager()
     budget = manifest["budget"]
     guard = PilotBudgetGuard(
@@ -384,53 +457,19 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
             )
-            peak_cost = deepseek_v4_flash_cost_cny(
-                int(trial.metrics["input_tokens"]), int(trial.metrics["output_tokens"]),
-                int(trial.metrics["cache_tokens"]), "peak"
+            record, stopped_reasons = _swebench_trial_record(
+                trial,
+                task_id=task_id,
+                repetition=0,
+                agent_name=profile.name,
+                expected_model=expected_model,
+                guard=guard,
             )
-            off_peak_cost = deepseek_v4_flash_cost_cny(
-                int(trial.metrics["input_tokens"]), int(trial.metrics["output_tokens"]),
-                int(trial.metrics["cache_tokens"]), "off_peak"
-            )
-            versions = trial.outcome.get("provider_model_versions", [])
-            provider_failure = trial.outcome.get("failure_type")
-            failure_type = (
-                provider_failure
-                if isinstance(provider_failure, str)
-                else (None if trial.success else "wrong_answer")
-            )
-            stopped_reasons = guard.record_trial(profile.name, peak_cost, failure_type)
-            if versions and versions != [expected_model]:
-                stopped_reasons.append("model_version_drift")
-            record = {
-                "trial_id": f"{task_id}--r0--{profile.name}",
-                "task_id": task_id, "repetition": 0, "agent_name": profile.name,
-                "provider_model_versions": versions,
-                "success": trial.success, "outcome": trial.outcome,
-                "scores": {"functional": 1.0 if trial.success else 0.0},
-                "metrics": {
-                    **trial.metrics,
-                    "cost_cny_off_peak": off_peak_cost,
-                    "cost_cny_peak": peak_cost,
-                },
-                "failure_type": failure_type,
-                "stop_reasons": stopped_reasons,
-                "started_at": datetime.now(UTC).isoformat(),
-            }
             trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
             trial_file.flush()
             if stopped_reasons:
                 break
-    summary = {
-        "status": "aborted" if stopped_reasons else "completed",
-        "completed_trials": guard.completed_trials,
-        "planned_trials": len(manifest["task_ids"]),
-        "total_cost_cny_peak": round(guard.total_cost_cny, 6),
-        "agent_costs_cny_peak": guard.agent_costs_cny,
-        "stop_reasons": stopped_reasons,
-    }
-    (output / "run-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    click.echo(json.dumps(summary))
+    _write_swebench_summary(output, guard, len(manifest["task_ids"]), stopped_reasons)
 
 
 @benchmark_group.command(name="swebench-training-preflight")
@@ -444,6 +483,131 @@ def benchmark_swebench_training_preflight(manifest_path: str, repo_root: str) ->
     if errors:
         raise click.ClickException("SWE-bench preflight failed: " + "; ".join(errors))
     click.echo("SWE-bench training preflight passed: manifest hashes and tasks are frozen.")
+
+
+@benchmark_group.command(name="swebench-evolution-preflight")
+@click.option("--manifest", "manifest_path", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
+def benchmark_swebench_evolution_preflight(manifest_path: str, repo_root: str) -> None:
+    """Validate the frozen held-out paired comparison without contacting Docker."""
+    errors = validate_swebench_evolution_manifest(
+        load_pilot_manifest(manifest_path), repo_root
+    )
+    if errors:
+        raise click.ClickException("SWE-bench evolution preflight failed: " + "; ".join(errors))
+    click.echo("SWE-bench evolution preflight passed: candidate, provenance, and tasks are frozen.")
+
+
+@benchmark_group.command(name="swebench-evolution-run")
+@click.option("--manifest", "manifest_path", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--output-dir", required=True, type=click.Path(file_okay=False))
+@click.option("--repo-root", default=".", type=click.Path(exists=True, file_okay=False))
+@click.option("--resume", is_flag=True, help="Resume a valid partial frozen run.")
+def benchmark_swebench_evolution_run(
+    manifest_path: str,
+    output_dir: str,
+    repo_root: str,
+    resume: bool,
+) -> None:
+    """Run the frozen held-out SWE-bench baseline/candidate comparison."""
+    from codepulse.agent.adapter import AgentProfile
+    from codepulse.env.sandbox import SandboxManager
+
+    root = Path(repo_root)
+    manifest = load_pilot_manifest(manifest_path)
+    errors = validate_swebench_evolution_manifest(manifest, root)
+    if errors:
+        raise click.ClickException("SWE-bench evolution preflight failed: " + "; ".join(errors))
+    dataset = manifest["dataset"]
+    runner = manifest["runner"]
+    budget = manifest["budget"]
+    assert isinstance(dataset, dict) and isinstance(runner, dict) and isinstance(budget, dict)
+    instances = load_swebench_instances(root / str(dataset["task_path"]))
+    profiles = {
+        item["name"]: AgentProfile.from_yaml(root / item["profile_path"])
+        for item in manifest["agents"]
+    }
+    expected_models = {
+        item["name"]: str(item["provider_model_version"])
+        for item in manifest["agents"]
+    }
+    schedule = build_pilot_schedule(
+        manifest["task_ids"], list(profiles), manifest["n_trials"], manifest["seed"]
+    )
+    output = Path(output_dir)
+    trials_path = output / "trials.jsonl"
+    manifest_copy = output / "manifest.json"
+    source_manifest = Path(manifest_path).read_text(encoding="utf-8")
+    if trials_path.exists() and not resume:
+        raise click.ClickException(f"Refusing to merge with existing run: {trials_path}")
+    output.mkdir(parents=True, exist_ok=True)
+    if resume:
+        if not manifest_copy.is_file() or manifest_copy.read_text(encoding="utf-8") != source_manifest:
+            raise click.ClickException("Cannot resume: output manifest differs from the frozen manifest")
+    else:
+        manifest_copy.write_text(source_manifest, encoding="utf-8")
+
+    existing_rows = []
+    if trials_path.exists():
+        existing_rows = [
+            json.loads(line)
+            for line in trials_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    expected_keys = set(schedule)
+    completed_keys: set[tuple[str, int, str]] = set()
+    guard = PilotBudgetGuard(
+        planned_trials=len(schedule),
+        total_limit_cny=float(budget["total_cny"]),
+        per_agent_limit_cny=float(budget["per_agent_cny"]),
+        per_trial_limit_cny=float(budget["per_trial_cny"]),
+    )
+    for row in existing_rows:
+        key = (row.get("task_id"), row.get("repetition"), row.get("agent_name"))
+        if key not in expected_keys or key in completed_keys:
+            raise click.ClickException("Cannot resume: existing trials are duplicate or outside schedule")
+        completed_keys.add(key)
+        reasons = guard.record_trial(
+            str(row["agent_name"]),
+            float(row["metrics"]["cost_cny_peak"]),
+            row.get("failure_type"),
+        )
+        if reasons or row.get("stop_reasons"):
+            raise click.ClickException("Cannot resume a run that already triggered a stop condition")
+
+    sandbox = SandboxManager()
+    stopped_reasons: list[str] = []
+    with trials_path.open("a", encoding="utf-8") as trial_file:
+        for index, (task_id, repetition, agent_name) in enumerate(schedule, start=1):
+            if (task_id, repetition, agent_name) in completed_keys:
+                continue
+            click.echo(f"[{index}/{len(schedule)}] {task_id} r{repetition} {agent_name}")
+            trial = run_swebench_trial(
+                profiles[agent_name],
+                instances[task_id],
+                sandbox,
+                timeout_seconds=int(runner["timeout_seconds"]),
+                architecture=str(runner["architecture"]),
+                image_namespace=str(runner["image_namespace"]),
+                image_digest=str(runner["image_digests"][task_id]),
+                cpu_count=int(runner["cpu_count"]),
+                memory_mb=int(runner["memory_mb"]),
+            )
+            record, stopped_reasons = _swebench_trial_record(
+                trial,
+                task_id=task_id,
+                repetition=repetition,
+                agent_name=agent_name,
+                expected_model=expected_models[agent_name],
+                guard=guard,
+            )
+            trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+            trial_file.flush()
+            if stopped_reasons:
+                break
+    _write_swebench_summary(output, guard, len(schedule), stopped_reasons)
+    if not stopped_reasons and guard.completed_trials == len(schedule):
+        write_phase3_reports(output, manifest)
 
 
 @benchmark_group.command(name="phase3-report")

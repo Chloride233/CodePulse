@@ -13,6 +13,8 @@ from codepulse.eval.comparison import align_exact
 from codepulse.evolve.attribution import SampleAttribution
 from codepulse.evolve.gate import ValidationGate
 
+_PHASE3_PROTOCOLS = {"phase3-evolution-v1", "phase3-swebench-evolution-v1"}
+
 
 def _nearest_rank(values: list[float], quantile: float) -> float:
     return values[math.ceil(quantile * len(values)) - 1]
@@ -64,8 +66,8 @@ def compare_phase3_pilot(
     task and repetition. It returns observed metrics and candidate-minus-baseline
     deltas; it does not interpret those deltas as an improvement claim.
     """
-    if manifest.get("protocol_version") != "phase3-evolution-v1":
-        raise ValueError("Phase 3 comparison requires a phase3-evolution-v1 manifest")
+    if manifest.get("protocol_version") not in _PHASE3_PROTOCOLS:
+        raise ValueError("Phase 3 comparison requires a frozen Phase 3 evolution manifest")
 
     role_names = _phase3_role_names(manifest)
     expected_agents = set(role_names.values())
@@ -320,6 +322,7 @@ def _render_phase3_report(
         for category, task_id, baseline, candidate in cases
     ] or ["| none | - | - | - |"]
     reasons = ", ".join(gate["rejection_reasons"]) or "none"
+    reproduce = _phase3_reproduction_commands(manifest)
     return "\n".join(
         [
             "# CodePulse Phase 3 Comparison Report",
@@ -354,12 +357,24 @@ def _render_phase3_report(
             "## Reproduce",
             "",
             "```bash",
-            "codepulse benchmark preflight --manifest experiments/phase3-evolution-v1/manifest.json",
-            "codepulse benchmark pilot-run --manifest experiments/phase3-evolution-v1/manifest.json --output-dir results/phase3/evolution-v1 --capture-evidence",
-            "codepulse benchmark phase3-report --manifest experiments/phase3-evolution-v1/manifest.json --run-dir results/phase3/evolution-v1",
+            *reproduce,
             "```",
         ]
     )
+
+
+def _phase3_reproduction_commands(manifest: dict[str, Any]) -> list[str]:
+    if manifest.get("protocol_version") == "phase3-swebench-evolution-v1":
+        return [
+            "codepulse benchmark swebench-evolution-preflight --manifest experiments/phase3-swebench-evolution-v1/manifest.json --repo-root .",
+            "codepulse benchmark swebench-evolution-run --manifest experiments/phase3-swebench-evolution-v1/manifest.json --output-dir results/phase3/swebench-evolution-v1 --repo-root . --resume",
+            "codepulse benchmark phase3-report --manifest experiments/phase3-swebench-evolution-v1/manifest.json --run-dir results/phase3/swebench-evolution-v1",
+        ]
+    return [
+        "codepulse benchmark preflight --manifest experiments/phase3-evolution-v1/manifest.json",
+        "codepulse benchmark pilot-run --manifest experiments/phase3-evolution-v1/manifest.json --output-dir results/phase3/evolution-v1 --capture-evidence",
+        "codepulse benchmark phase3-report --manifest experiments/phase3-evolution-v1/manifest.json --run-dir results/phase3/evolution-v1",
+    ]
 
 
 def _format_phase3_metric(key: str, value: float, *, signed: bool = False) -> str:

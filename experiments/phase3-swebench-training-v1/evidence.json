@@ -1,0 +1,13 @@
+{
+  "protocol_version": "phase3-swebench-training-evidence-v1",
+  "source_run": "results/phase3/swebench-training-v1-official-images",
+  "raw_trials_sha256": "434ea3b4f4dadf9c77458fbf5a16005059196ce864beee002d6e6fbc9e8e421f",
+  "normalized_trials_path": "experiments/phase3-swebench-training-v1/trials.jsonl",
+  "normalized_trials_sha256": "69537177073a88c904e065861407b3414328ed3681646b097314f5448d9b46c5",
+  "normalization": "metrics.total_tokens = metrics.input_tokens + metrics.output_tokens; all other fields unchanged",
+  "completed_trials": 5,
+  "resolved_trials": 0,
+  "total_tokens": 256794,
+  "total_cost_cny_peak": 0.17745,
+  "stop_reasons": []
+}

@@ -1,0 +1,40 @@
+{
+  "protocol_version": "skillopt-candidate-v1",
+  "baseline_profile_path": "agents/deepseek-v4-flash-swebench-direct.yaml",
+  "baseline_profile_sha256": "8073039192ca57d74efcae2ed507a43eed66eebdbff64524db0f3e78143d06d9",
+  "training_trials_path": "experiments/phase3-swebench-training-v1/trials.jsonl",
+  "training_trials_sha256": "69537177073a88c904e065861407b3414328ed3681646b097314f5448d9b46c5",
+  "source_task_ids": [
+    "django__django-10097",
+    "django__django-13449",
+    "django__django-15127",
+    "scikit-learn__scikit-learn-15100",
+    "sympy__sympy-19495"
+  ],
+  "trace_analysis": {
+    "eligible_failure_count": 5,
+    "pattern_counts": {
+      "empty_patch": 4,
+      "tool_failure": 1
+    },
+    "selected_pattern": "empty_patch",
+    "source_trial_ids": [
+      "django__django-10097--r0--deepseek-v4-flash-swebench-direct",
+      "django__django-13449--r0--deepseek-v4-flash-swebench-direct",
+      "django__django-15127--r0--deepseek-v4-flash-swebench-direct",
+      "scikit-learn__scikit-learn-15100--r0--deepseek-v4-flash-swebench-direct",
+      "sympy__sympy-19495--r0--deepseek-v4-flash-swebench-direct"
+    ]
+  },
+  "edit": {
+    "edit_id": "skillopt-empty_patch-v1",
+    "edit_type": "append",
+    "target_section": "system_prompt",
+    "content": "Before finalizing, confirm that the working tree contains a concrete, minimal code change that addresses the reported behavior.",
+    "reasoning": "Observed 'empty_patch' in 4 of 5 eligible failed baseline traces.",
+    "confidence": 0.7
+  },
+  "edit_sha256": "aec0c384cabf65dfd55273fd748d0aa0e073731a62adf2ce63a7abad4c754e6d",
+  "candidate_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v1.yaml",
+  "candidate_profile_sha256": "4b89905aafdabc665a413cbaded67ad292485caa584d4e61d990760a4c354073"
+}

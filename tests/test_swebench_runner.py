@@ -14,6 +14,8 @@ from codepulse.benchmark.swebench_runner import (
     _prepare_official_image,
     _start_isolated_container,
     _task_from_instance,
+    _transcript_metrics,
+    validate_swebench_evolution_manifest,
     validate_swebench_training_manifest,
 )
 
@@ -60,6 +62,57 @@ def test_swebench_runner_training_preflight_cli_avoids_docker() -> None:
 
     assert result.exit_code == 0
     assert "preflight passed" in result.output
+
+
+def test_swebench_runner_evolution_manifest_accepts_frozen_held_out_inputs() -> None:
+    root = Path(__file__).parents[1]
+    manifest = json.loads(
+        (root / "experiments/phase3-swebench-evolution-v1/manifest.json").read_text()
+    )
+
+    assert validate_swebench_evolution_manifest(manifest, root) == []
+
+
+def test_swebench_runner_evolution_preflight_cli_avoids_docker() -> None:
+    root = Path(__file__).parents[1]
+    result = CliRunner().invoke(
+        benchmark_group,
+        [
+            "swebench-evolution-preflight",
+            "--manifest",
+            str(root / "experiments/phase3-swebench-evolution-v1/manifest.json"),
+            "--repo-root",
+            str(root),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "candidate, provenance, and tasks are frozen" in result.output
+
+
+def test_swebench_runner_evolution_resume_rejects_manifest_drift(tmp_path: Path) -> None:
+    root = Path(__file__).parents[1]
+    output = tmp_path / "run"
+    output.mkdir()
+    (output / "manifest.json").write_text("{}\n", encoding="utf-8")
+    (output / "trials.jsonl").write_text("", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        benchmark_group,
+        [
+            "swebench-evolution-run",
+            "--manifest",
+            str(root / "experiments/phase3-swebench-evolution-v1/manifest.json"),
+            "--output-dir",
+            str(output),
+            "--repo-root",
+            str(root),
+            "--resume",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "output manifest differs" in result.output
 
 
 def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch(
@@ -175,3 +228,28 @@ def test_swebench_runner_starts_container_with_frozen_limits_and_no_network() ->
         ("network", "bridge"),
         ("disconnect", container, True),
     ]
+
+
+def test_swebench_runner_total_tokens_excludes_cache_double_count() -> None:
+    transcript = type(
+        "Transcript",
+        (),
+        {
+            "agent_config": {
+                "input_tokens": 100,
+                "output_tokens": 20,
+                "cache_tokens": 60,
+                "cost_usd": 0.01,
+            },
+            "total_duration": 1.5,
+        },
+    )()
+
+    assert _transcript_metrics(transcript) == {
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "cache_tokens": 60,
+        "total_tokens": 120,
+        "duration_seconds": 1.5,
+        "cost_usd": 0.01,
+    }
