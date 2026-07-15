@@ -127,10 +127,10 @@ def test_swebench_runner_evolution_resume_rejects_manifest_drift(tmp_path: Path)
 
 def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch(
 ) -> None:
-    commands: list[str] = []
+    commands: list[object] = []
 
     class OfficialContainer:
-        def exec_run(self, command: str, **_: object) -> object:
+        def exec_run(self, command: object, **_: object) -> object:
             commands.append(command)
             return type("Result", (), {"exit_code": 0, "output": b""})()
 
@@ -140,6 +140,12 @@ def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch
     def exec_run_with_timeout(*_: object) -> tuple[str, bool, float]:
         return "tests passed", False, 0.0
 
+    def get_eval_report(
+        _: object, __: object, ___: object, include_tests_status: bool
+    ) -> dict[str, object]:
+        assert include_tests_status is True
+        return {"repo__issue-1": {"resolved": True}}
+
     harness = OfficialHarness(
         make_test_spec=lambda *_: None,
         build_container=lambda *_: None,
@@ -147,7 +153,7 @@ def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch
         close_logger=lambda *_: None,
         copy_to_container=copy_to_container,
         exec_run_with_timeout=exec_run_with_timeout,
-        get_eval_report=lambda *_: {"repo__issue-1": {"resolved": True}},
+        get_eval_report=get_eval_report,
     )
 
     report, output = _evaluate_patch(
@@ -159,7 +165,11 @@ def test_swebench_runner_evaluation_resets_agent_workspace_before_applying_patch
         60,
     )
 
-    assert commands == ["git reset --hard HEAD && git clean -fd && git apply --verbose /tmp/patch.diff"]
+    assert commands == [
+        ["git", "reset", "--hard", "HEAD"],
+        ["git", "clean", "-fd"],
+        ["git", "apply", "--verbose", "/tmp/patch.diff"],
+    ]
     assert report == {"repo__issue-1": {"resolved": True}}
     assert output == "tests passed"
 

@@ -504,8 +504,13 @@ def _evaluate_patch(
         patch_path.write_text(patch, encoding="utf-8")
         eval_path.write_text(str(test_spec.eval_script), encoding="utf-8")
         harness.copy_to_container(official_container, patch_path, PurePosixPath("/tmp/patch.diff"))
+        for command in (["git", "reset", "--hard", "HEAD"], ["git", "clean", "-fd"]):
+            result = official_container.exec_run(command, workdir="/testbed", user="root")
+            if result.exit_code != 0:
+                output = result.output.decode("utf-8", errors="replace")
+                raise RuntimeError(f"failed to prepare SWE-bench workspace: {output}")
         apply_result = official_container.exec_run(
-            "git reset --hard HEAD && git clean -fd && git apply --verbose /tmp/patch.diff",
+            ["git", "apply", "--verbose", "/tmp/patch.diff"],
             workdir="/testbed",
             user="root",
         )
@@ -523,7 +528,7 @@ def _evaluate_patch(
             "model_name_or_path": "codepulse",
             "model_patch": patch,
         }
-        return harness.get_eval_report(test_spec, prediction, output_path), test_output
+        return harness.get_eval_report(test_spec, prediction, output_path, True), test_output
 
 
 def _official_harness() -> OfficialHarness:
