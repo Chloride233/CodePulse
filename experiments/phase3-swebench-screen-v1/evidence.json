@@ -1,0 +1,16 @@
+{
+  "protocol_version": "phase3-swebench-screen-evidence-v1",
+  "manifest_sha256": "d9df42add0fe0a33f917724571f7e271237be1e3b3f6956221e8484642f59a9b",
+  "trials_path": "experiments/phase3-swebench-screen-v1/trials.jsonl",
+  "trials_sha256": "f0e5413d7efe780153a9a7d4bc59725dfd29ea3e8bcfcda885da380dd07ec45f",
+  "screen_report_path": "experiments/phase3-swebench-screen-v1/screen-report.json",
+  "screen_report_sha256": "72361c82903d15072dcfad9a219a2c3a6a01fa240579b42aac9f09772e6033e1",
+  "run_summary_sha256": "f9b1d73a7ced834e9ce4cb6300a441a8a3815f7c830832f8d1c8c269296a6413",
+  "accepted": true,
+  "completed_trials": 3,
+  "non_empty_patches": 2,
+  "resolved": 2,
+  "infrastructure_failures": 0,
+  "total_cost_cny_peak": 0.612554,
+  "max_trial_cost_cny_peak": 0.284448
+}

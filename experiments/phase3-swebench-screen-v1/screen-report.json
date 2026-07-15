@@ -1,0 +1,10 @@
+{
+  "accepted": true,
+  "rejection_reasons": [],
+  "completed_trials": 3,
+  "non_empty_patches": 2,
+  "resolved": 2,
+  "infrastructure_failures": 0,
+  "total_cost_cny_peak": 0.612554,
+  "max_trial_cost_cny_peak": 0.284448
+}

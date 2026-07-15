@@ -1,0 +1,10 @@
+{
+  "status": "completed",
+  "completed_trials": 3,
+  "planned_trials": 3,
+  "total_cost_cny_peak": 0.612554,
+  "agent_costs_cny_peak": {
+    "deepseek-v4-flash-swebench-direct-skillopt-v3": 0.612554
+  },
+  "stop_reasons": []
+}
