@@ -21,6 +21,7 @@ from codepulse.benchmark.swebench_runner import (
     validate_swebench_screen_manifest,
     validate_swebench_training_manifest,
 )
+from codepulse.eval.artifacts import file_sha256
 
 
 def test_swebench_runner_task_exposes_issue_but_not_oracle_data() -> None:
@@ -125,6 +126,23 @@ def test_swebench_runner_screen_manifest_accepts_frozen_training_inputs() -> Non
         (root / "experiments/phase3-swebench-screen-v3/manifest.json").read_text()
     )
     assert validate_swebench_screen_manifest(v3_manifest, root) == []
+
+
+def test_swebench_runner_screen_v3_negative_evidence_is_frozen() -> None:
+    root = Path(__file__).parents[1]
+    evidence = json.loads(
+        (root / "experiments/phase3-swebench-screen-v3/evidence.json").read_text()
+    )
+    report_path = root / evidence["screen_report_path"]
+    manifest_path = root / evidence["manifest_path"]
+
+    assert evidence["protocol_version"] == "phase3-swebench-screen-evidence-v3"
+    assert evidence["manifest_sha256"] == file_sha256(manifest_path)
+    assert evidence["screen_report_sha256"] == file_sha256(report_path)
+    assert evidence["accepted"] is False
+    assert evidence["same_model_low_resource_branch_stopped"] is True
+    assert evidence["v5_holdout_started"] is False
+    assert evidence["phase3_complete"] is False
 
 
 def test_swebench_runner_screen_preflight_cli_avoids_docker() -> None:
