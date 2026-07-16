@@ -366,6 +366,12 @@ def validate_swebench_screen_manifest(
             errors.append("strong-model screen must freeze Patch Guard and local-only images")
         if pricing != expected_pricing:
             errors.append("strong-model screen pricing must equal the frozen V4 Pro table")
+        if manifest.get("execution_policy") != {
+            "server": "forbidden",
+            "new_image_downloads": "forbidden",
+            "existing_evidence_images": "preserve",
+        }:
+            errors.append("strong-model screen must freeze the local-only execution policy")
         if any(
             agent.get("model_version") != "deepseek/deepseek-v4-pro"
             or agent.get("provider_model_version") != "deepseek-v4-pro"

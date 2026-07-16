@@ -1,0 +1,92 @@
+{
+  "protocol_version": "phase3-strong-model-screen-v1",
+  "benchmark": "swe-bench-verified",
+  "dataset": {
+    "task_path": "datasets/swe-bench/phase3-swebench-v3.jsonl",
+    "task_sha256": "1206d5c98a612951d82bda1fe131a30fb29cd3802b3d38e95ce078cd5f2f3408",
+    "source_name": "princeton-nlp/SWE-bench_Verified",
+    "source_revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a"
+  },
+  "task_ids": [
+    "pytest-dev__pytest-10081",
+    "scikit-learn__scikit-learn-13328",
+    "sphinx-doc__sphinx-8621"
+  ],
+  "n_trials": 1,
+  "seed": 20260723,
+  "agents": [
+    {
+      "role": "baseline",
+      "name": "deepseek-v4-pro-swebench-baseline-v1",
+      "model_version": "deepseek/deepseek-v4-pro",
+      "provider_model_version": "deepseek-v4-pro",
+      "profile_path": "agents/deepseek-v4-pro-swebench-baseline-v1.yaml",
+      "profile_sha256": "faaafd20aa933a904a2bb5daffc5ffe1c7058f1655100c753597e8020ca66510"
+    },
+    {
+      "role": "candidate",
+      "name": "deepseek-v4-pro-swebench-patch-guard-v1",
+      "model_version": "deepseek/deepseek-v4-pro",
+      "provider_model_version": "deepseek-v4-pro",
+      "profile_path": "agents/deepseek-v4-pro-swebench-patch-guard-v1.yaml",
+      "profile_sha256": "bd6fa8c02e9a77e830b1502316042401a1268386aef65bd8bf216ee443ca3c90"
+    }
+  ],
+  "profile_provenance": {
+    "path": "experiments/phase3-strong-model-screen-v1/profile-provenance.json",
+    "sha256": "52beefeb4a9a806d8c498f52aeea6cf8d38275ae5adc912fd9f71d94a9f633f2"
+  },
+  "tool_contract_version": "repository-tools-v2",
+  "controller_edit_id": "patch-guard-v1",
+  "runner": {
+    "harness_version": "swebench==4.1.0",
+    "architecture": "x86_64",
+    "image_namespace": "swebench",
+    "image_transport_prefix": "dockerproxy.net",
+    "image_policy": "local_only",
+    "image_digests": {
+      "pytest-dev__pytest-10081": "sha256:cb98e7a43ca4a8499a80ae446d100c6afb9ecac747dfafe1f4eca287a8321ecb",
+      "scikit-learn__scikit-learn-13328": "sha256:9e667cbb7eb011b5c0ec93dac6f00c8ef10b31d2ecf622ab6c8ee98f935258d1",
+      "sphinx-doc__sphinx-8621": "sha256:6eaeb2da91d08b25f8f38c074cc9b5d70f52f31d4b71b233df4789208498ad47"
+    },
+    "cpu_count": 2,
+    "memory_mb": 4096,
+    "timeout_seconds": 900,
+    "network": "none"
+  },
+  "pricing": {
+    "currency": "CNY",
+    "unit_tokens": 1000000,
+    "model": "deepseek/deepseek-v4-pro",
+    "off_peak": {
+      "cache_hit": 1.0,
+      "cache_miss": 4.0,
+      "output": 16.0
+    },
+    "peak": {
+      "cache_hit": 1.0,
+      "cache_miss": 4.0,
+      "output": 16.0
+    },
+    "budget_tier": "peak"
+  },
+  "budget": {
+    "total_cny": 2.0,
+    "per_agent_cny": 1.2,
+    "per_trial_cny": 0.4
+  },
+  "acceptance": {
+    "min_candidate_non_empty_patches": 2,
+    "min_candidate_resolved": 2,
+    "min_candidate_resolved_delta": 1,
+    "require_zero_candidate_regressions": true,
+    "max_candidate_token_ratio": 1.25,
+    "max_candidate_cost_ratio": 1.25
+  },
+  "execution_policy": {
+    "server": "forbidden",
+    "new_image_downloads": "forbidden",
+    "existing_evidence_images": "preserve"
+  },
+  "codepulse_commit": "f9a270c95650cc203eb86db3fdd86069154271c7"
+}

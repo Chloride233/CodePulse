@@ -131,6 +131,11 @@ def test_swebench_runner_screen_manifest_accepts_frozen_training_inputs() -> Non
     )
     assert validate_swebench_screen_manifest(v3_manifest, root) == []
 
+    strong_model_manifest = json.loads(
+        (root / "experiments/phase3-strong-model-screen-v1/manifest.json").read_text()
+    )
+    assert validate_swebench_screen_manifest(strong_model_manifest, root) == []
+
 
 def test_swebench_runner_screen_v3_negative_evidence_is_frozen() -> None:
     root = Path(__file__).parents[1]
