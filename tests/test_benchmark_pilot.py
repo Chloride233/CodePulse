@@ -16,6 +16,7 @@ from codepulse.benchmark.pilot import (
     PILOT_TASK_IDS,
     PilotBudgetGuard,
     build_pilot_schedule,
+    deepseek_model_cost_cny,
     deepseek_v4_flash_cost_cny,
     load_pilot_manifest,
     sha256_file,
@@ -533,6 +534,25 @@ def test_v4_flash_pricing_peak_is_double_off_peak() -> None:
 
 def test_v4_flash_pricing_cache_hit_uses_lower_rate() -> None:
     assert deepseek_v4_flash_cost_cny(5_000, 1_000, 5_000, "off_peak") == 0.0021
+
+
+def test_model_cost_preserves_v4_flash_pricing() -> None:
+    assert deepseek_model_cost_cny(
+        "deepseek/deepseek-v4-flash", 5_000, 1_000, 0, "peak"
+    ) == deepseek_v4_flash_cost_cny(5_000, 1_000, 0, "peak")
+
+
+def test_model_cost_uses_conservative_v4_pro_pricing() -> None:
+    assert deepseek_model_cost_cny(
+        "deepseek/deepseek-v4-pro", 5_000, 1_000, 1_000, "peak"
+    ) == 0.033
+    assert deepseek_model_cost_cny(
+        "deepseek/deepseek-v4-pro", 5_000, 1_000, 5_000, "off_peak"
+    ) == 0.021
+
+
+def test_model_cost_returns_none_for_unknown_model() -> None:
+    assert deepseek_model_cost_cny("unknown/model", 1, 1, 0, "peak") is None
 
 
 def test_pilot_schedule_is_seeded_and_interleaves_agents() -> None:

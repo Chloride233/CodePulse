@@ -28,6 +28,13 @@ V4_FLASH_PRICING_CNY = {
     "off_peak": {"cache_hit": 0.02, "cache_miss": 1.0, "output": 2.0},
     "peak": {"cache_hit": 0.04, "cache_miss": 2.0, "output": 4.0},
 }
+DEEPSEEK_MODEL_PRICING_CNY = {
+    "deepseek/deepseek-v4-flash": V4_FLASH_PRICING_CNY,
+    "deepseek/deepseek-v4-pro": {
+        "off_peak": {"cache_hit": 1.0, "cache_miss": 4.0, "output": 16.0},
+        "peak": {"cache_hit": 1.0, "cache_miss": 4.0, "output": 16.0},
+    },
+}
 
 
 def build_pilot_schedule(
@@ -58,6 +65,36 @@ def deepseek_v4_flash_cost_cny(
     if cache_hit_tokens > input_tokens:
         raise ValueError("Cache-hit tokens cannot exceed input tokens")
     pricing = V4_FLASH_PRICING_CNY[pricing_tier]
+    cache_miss_tokens = input_tokens - cache_hit_tokens
+    return round(
+        (
+            cache_hit_tokens * pricing["cache_hit"]
+            + cache_miss_tokens * pricing["cache_miss"]
+            + output_tokens * pricing["output"]
+        )
+        / 1_000_000,
+        6,
+    )
+
+
+def deepseek_model_cost_cny(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_hit_tokens: int,
+    pricing_tier: str,
+) -> float | None:
+    """Calculate frozen CNY cost for a supported DeepSeek model."""
+    pricing_by_tier = DEEPSEEK_MODEL_PRICING_CNY.get(model)
+    if pricing_by_tier is None:
+        return None
+    if pricing_tier not in pricing_by_tier:
+        raise ValueError(f"Unknown DeepSeek pricing tier: {pricing_tier}")
+    if min(input_tokens, output_tokens, cache_hit_tokens) < 0:
+        raise ValueError("Token counts cannot be negative")
+    if cache_hit_tokens > input_tokens:
+        raise ValueError("Cache-hit tokens cannot exceed input tokens")
+    pricing = pricing_by_tier[pricing_tier]
     cache_miss_tokens = input_tokens - cache_hit_tokens
     return round(
         (

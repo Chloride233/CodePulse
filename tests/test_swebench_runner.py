@@ -8,9 +8,11 @@ from pathlib import Path
 from click.testing import CliRunner
 from docker.errors import ImageNotFound
 
-from codepulse.benchmark.cli import benchmark_group
+from codepulse.benchmark.cli import _swebench_trial_record, benchmark_group
+from codepulse.benchmark.pilot import PilotBudgetGuard
 from codepulse.benchmark.swebench_runner import (
     OfficialHarness,
+    SWEbenchTrial,
     _evaluate_patch,
     _prepare_official_image,
     _start_isolated_container,
@@ -520,3 +522,35 @@ def test_swebench_runner_total_tokens_excludes_cache_double_count() -> None:
         "base_max_iterations": 8,
         "effective_call_limit": 9,
     }
+
+
+def test_swebench_trial_record_uses_profile_model_pricing() -> None:
+    guard = PilotBudgetGuard(
+        planned_trials=1,
+        total_limit_cny=1.0,
+        per_agent_limit_cny=1.0,
+        per_trial_limit_cny=1.0,
+    )
+    trial = SWEbenchTrial(
+        success=True,
+        outcome={"provider_model_versions": ["deepseek-v4-pro"]},
+        metrics={
+            "input_tokens": 5_000,
+            "output_tokens": 1_000,
+            "cache_tokens": 1_000,
+        },
+    )
+
+    record, stop_reasons = _swebench_trial_record(
+        trial,
+        task_id="repo__issue-1",
+        repetition=0,
+        agent_name="pro-agent",
+        expected_model="deepseek-v4-pro",
+        billing_model="deepseek/deepseek-v4-pro",
+        guard=guard,
+    )
+
+    assert record["metrics"]["cost_cny_peak"] == 0.033
+    assert record["metrics"]["cost_cny_off_peak"] == 0.033
+    assert stop_reasons == []

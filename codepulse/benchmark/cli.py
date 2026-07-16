@@ -21,6 +21,7 @@ from codepulse.benchmark.downloader import BenchmarkDownloader, DownloadError
 from codepulse.benchmark.pilot import (
     PilotBudgetGuard,
     build_pilot_schedule,
+    deepseek_model_cost_cny,
     deepseek_v4_flash_cost_cny,
     load_pilot_manifest,
     validate_pilot_manifest,
@@ -158,17 +159,18 @@ def _swebench_trial_record(
     repetition: int,
     agent_name: str,
     expected_model: str,
+    billing_model: str,
     guard: PilotBudgetGuard,
 ) -> tuple[dict[str, Any], list[str]]:
     """Convert one official trial to the shared Phase 3 record schema."""
     input_tokens = int(trial.metrics["input_tokens"])
     output_tokens = int(trial.metrics["output_tokens"])
     cache_tokens = int(trial.metrics["cache_tokens"])
-    peak_cost = deepseek_v4_flash_cost_cny(
-        input_tokens, output_tokens, cache_tokens, "peak"
+    peak_cost = deepseek_model_cost_cny(
+        billing_model, input_tokens, output_tokens, cache_tokens, "peak"
     )
-    off_peak_cost = deepseek_v4_flash_cost_cny(
-        input_tokens, output_tokens, cache_tokens, "off_peak"
+    off_peak_cost = deepseek_model_cost_cny(
+        billing_model, input_tokens, output_tokens, cache_tokens, "off_peak"
     )
     versions = trial.outcome.get("provider_model_versions", [])
     provider_failure = trial.outcome.get("failure_type")
@@ -466,6 +468,7 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
                 repetition=0,
                 agent_name=profile.name,
                 expected_model=expected_model,
+                billing_model=profile.model,
                 guard=guard,
             )
             trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -618,6 +621,7 @@ def benchmark_swebench_screen_run(
                 repetition=repetition,
                 agent_name=agent_name,
                 expected_model=expected_models[agent_name],
+                billing_model=profiles[agent_name].model,
                 guard=guard,
             )
             trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -742,6 +746,7 @@ def benchmark_swebench_evolution_run(
                 repetition=repetition,
                 agent_name=agent_name,
                 expected_model=expected_models[agent_name],
+                billing_model=profiles[agent_name].model,
                 guard=guard,
             )
             trial_file.write(json.dumps(record, ensure_ascii=False) + "\n")
