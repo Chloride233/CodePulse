@@ -121,7 +121,6 @@ def test_swebench_runner_screen_manifest_accepts_frozen_training_inputs() -> Non
     )
     assert validate_swebench_screen_manifest(v2_manifest, root) == []
 
-
 def test_swebench_runner_screen_preflight_cli_avoids_docker() -> None:
     root = Path(__file__).parents[1]
     result = CliRunner().invoke(
@@ -233,6 +232,32 @@ def test_swebench_runner_screen_v2_requires_paired_functional_and_resource_gain(
         "candidate_token_ratio_exceeded",
         "candidate_cost_ratio_exceeded",
     ]
+
+    manifest["protocol_version"] = "phase3-swebench-screen-v3"
+    manifest["budget"] = {
+        "total_cny": 1.0,
+        "per_agent_cny": 0.6,
+        "per_trial_cny": 0.25,
+    }
+    for row in rows:
+        row["metrics"]["total_tokens"] = 40 if row["agent_name"] == "candidate" else 34
+        row["metrics"]["cost_cny_peak"] = 0.12 if row["agent_name"] == "candidate" else 0.1
+        row["failure_type"] = None
+    rows[-1]["failure_type"] = "patch_guard_check_error"
+
+    guard_failure = evaluate_swebench_screen(rows, manifest)
+
+    assert guard_failure["accepted"] is False
+    assert guard_failure["rejection_reasons"] == ["infrastructure_failure"]
+
+    rows[-1]["failure_type"] = None
+    for row in rows:
+        if row["agent_name"] == "candidate":
+            row["metrics"]["cost_cny_peak"] = 0.21
+
+    agent_budget_failure = evaluate_swebench_screen(rows, manifest)
+
+    assert "per_agent_budget_exceeded" in agent_budget_failure["rejection_reasons"]
 
 
 def test_swebench_runner_evolution_resume_rejects_manifest_drift(tmp_path: Path) -> None:
@@ -437,7 +462,22 @@ def test_swebench_runner_total_tokens_excludes_cache_double_count() -> None:
                 "output_tokens": 20,
                 "cache_tokens": 60,
                 "cost_usd": 0.01,
+                "patch_guard_checks": 2,
+                "patch_guard_retries_used": 1,
+                "patch_guard_check_failures": 0,
+                "base_max_iterations": 8,
+                "effective_call_limit": 9,
             },
+            "events": [
+                type(
+                    "Event",
+                    (),
+                    {
+                        "event_type": "reflection",
+                        "content": {"kind": "patch_guard"},
+                    },
+                )()
+            ],
             "total_duration": 1.5,
         },
     )()
@@ -449,4 +489,10 @@ def test_swebench_runner_total_tokens_excludes_cache_double_count() -> None:
         "total_tokens": 120,
         "duration_seconds": 1.5,
         "cost_usd": 0.01,
+        "patch_guard_checks": 2,
+        "patch_guard_triggers": 1,
+        "patch_guard_retries_used": 1,
+        "patch_guard_check_failures": 0,
+        "base_max_iterations": 8,
+        "effective_call_limit": 9,
     }
