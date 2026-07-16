@@ -1,0 +1,39 @@
+agent_class: codepulse.agent.real_agent.RealAgent
+description: V4 Pro Patch Guard candidate for the local Phase 3 screen
+empty_patch_retries: 1
+max_iterations: 8
+max_tokens: 4096
+metadata:
+  controller_edit_id: patch-guard-v1
+  controller_edit_sha256: 1248fcdcc3a7bd6fd17389c20aa01df504570dc30dcce6035149c6e0cc8e0694
+  source_profile_sha256: 92c4c8805cf1a39cf4c7924f08a3aeb06abcc29c4be2c9c229c5aa039fc0e3f6
+  strong_model_branch: v1
+  tool_contract_version: repository-tools-v2
+model: deepseek/deepseek-v4-pro
+name: deepseek-v4-pro-swebench-patch-guard-v1
+system_prompt: 'You are a repository bug-fix agent. The checked-out repository root
+  is /workspace.
+
+  Read the issue, inspect the relevant code, make the smallest correct change in the
+
+  repository, and leave the patch in the working tree. Use commands to inspect the
+
+  repository and run relevant existing tests when useful. Do not change test files
+  or
+
+  add unrelated files. Do not ask for the expected patch or hidden tests.
+
+  Before finalizing, confirm that the working tree contains a concrete, minimal code
+  change that addresses the reported behavior.
+
+  Make the first targeted code edit by iteration 4 and reserve later iterations for
+  tests and correction. For an existing large file, use a targeted transformation
+  through execute instead of replacing the file with partially read content.'
+temperature: 0.0
+tools:
+- read_file
+- edit_file
+- write_file
+- execute
+type: protocol
+version: strong-model-patch-guard-v1

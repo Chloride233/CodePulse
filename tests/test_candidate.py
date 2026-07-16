@@ -8,11 +8,12 @@ from pathlib import Path
 import pytest
 
 from codepulse.agent.adapter import AgentProfile
-from codepulse.eval.artifacts import file_sha256
+from codepulse.eval.artifacts import canonical_sha256, file_sha256
 from codepulse.evolve.candidate import (
     materialize_candidate,
     materialize_patch_guard_candidate,
     materialize_resource_bounded_candidate,
+    materialize_strong_model_profiles,
 )
 
 
@@ -512,3 +513,115 @@ def test_frozen_candidate_v5_matches_baseline_except_patch_guard() -> None:
     )
     assert provenance["candidate_profile_sha256"] == file_sha256(candidate_path)
     assert evidence["feature_counts"] == provenance["trace_analysis"]
+
+
+def test_strong_model_profiles_change_only_patch_guard_between_arms(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.yaml"
+    controller_path = tmp_path / "controller.json"
+    rejected_path = tmp_path / "rejected.json"
+    baseline_path = tmp_path / "baseline.yaml"
+    candidate_path = tmp_path / "candidate.yaml"
+    provenance_path = tmp_path / "provenance.json"
+    AgentProfile(
+        name="flash-v2-tools-v2",
+        type="protocol",
+        model="deepseek/deepseek-v4-flash",
+        agent_class="codepulse.agent.real_agent.RealAgent",
+        system_prompt="Frozen prompt.",
+        tools=["read_file", "edit_file", "write_file", "execute"],
+        max_iterations=8,
+        temperature=0.0,
+        max_tokens=4096,
+        metadata={"skillopt_iteration": 2, "tool_contract_version": "repository-tools-v2"},
+    ).to_yaml(source_path)
+    controller_edit = {
+        "edit_id": "patch-guard-v1",
+        "edit_type": "controller",
+        "target": "empty_patch_termination",
+        "setting": "empty_patch_retries",
+        "before": 0,
+        "after": 1,
+        "maximum_extra_calls": 1,
+    }
+    controller_path.write_text(
+        json.dumps(
+            {
+                "protocol_version": "skillopt-candidate-v5",
+                "controller_edit": controller_edit,
+                "controller_edit_sha256": canonical_sha256(controller_edit),
+                "profile_changes": {
+                    "empty_patch_retries": {"before": 0, "after": 1}
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    rejected_path.write_text(
+        json.dumps(
+            {
+                "protocol_version": "phase3-swebench-screen-evidence-v3",
+                "accepted": False,
+                "same_model_low_resource_branch_stopped": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = materialize_strong_model_profiles(
+        source_path,
+        controller_path,
+        rejected_path,
+        baseline_path,
+        candidate_path,
+        provenance_path,
+    )
+    baseline = AgentProfile.from_yaml(baseline_path)
+    candidate = AgentProfile.from_yaml(candidate_path)
+
+    assert baseline.name == "deepseek-v4-pro-swebench-baseline-v1"
+    assert candidate.name == "deepseek-v4-pro-swebench-patch-guard-v1"
+    assert baseline.model == candidate.model == "deepseek/deepseek-v4-pro"
+    assert baseline.empty_patch_retries == 0
+    assert candidate.empty_patch_retries == 1
+    assert (
+        baseline.system_prompt,
+        baseline.tools,
+        baseline.max_iterations,
+        baseline.temperature,
+        baseline.max_tokens,
+    ) == (
+        candidate.system_prompt,
+        candidate.tools,
+        candidate.max_iterations,
+        candidate.temperature,
+        candidate.max_tokens,
+    )
+    assert result["protocol_version"] == "phase3-strong-model-profiles-v1"
+    assert result["runtime_changes"] == {
+        "empty_patch_retries": {"before": 0, "after": 1}
+    }
+    assert result["controller_edit_sha256"] == canonical_sha256(controller_edit)
+
+
+def test_frozen_strong_model_profiles_match_provenance() -> None:
+    root = Path(__file__).parents[1]
+    baseline_path = root / "agents/deepseek-v4-pro-swebench-baseline-v1.yaml"
+    candidate_path = root / "agents/deepseek-v4-pro-swebench-patch-guard-v1.yaml"
+    provenance = json.loads(
+        (
+            root
+            / "experiments/phase3-strong-model-screen-v1/profile-provenance.json"
+        ).read_text()
+    )
+    baseline = AgentProfile.from_yaml(baseline_path)
+    candidate = AgentProfile.from_yaml(candidate_path)
+
+    assert provenance["baseline_profile_sha256"] == file_sha256(baseline_path)
+    assert provenance["candidate_profile_sha256"] == file_sha256(candidate_path)
+    assert baseline.model == candidate.model == "deepseek/deepseek-v4-pro"
+    assert baseline.empty_patch_retries == 0
+    assert candidate.empty_patch_retries == 1
+    assert baseline.system_prompt == candidate.system_prompt
+    assert baseline.tools == candidate.tools

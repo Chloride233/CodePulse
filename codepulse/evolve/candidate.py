@@ -464,6 +464,121 @@ def materialize_patch_guard_candidate(
     return provenance
 
 
+def materialize_strong_model_profiles(
+    source_profile_path: str | Path,
+    controller_provenance_path: str | Path,
+    rejected_screen_evidence_path: str | Path,
+    baseline_profile_path: str | Path,
+    candidate_profile_path: str | Path,
+    provenance_path: str | Path,
+) -> dict[str, Any]:
+    """Materialize the paired V4 Pro profiles for the local strong-model screen."""
+    source_path = Path(source_profile_path)
+    controller_path = Path(controller_provenance_path)
+    rejected_path = Path(rejected_screen_evidence_path)
+    baseline_path = Path(baseline_profile_path)
+    candidate_path = Path(candidate_profile_path)
+    provenance_target = Path(provenance_path)
+    if any(path.exists() for path in (baseline_path, candidate_path, provenance_target)):
+        raise FileExistsError("strong-model profile or provenance already exists")
+
+    source = AgentProfile.from_yaml(source_path)
+    if (
+        source.model != "deepseek/deepseek-v4-flash"
+        or source.max_iterations != 8
+        or source.empty_patch_retries != 0
+        or source.tools != _RESOURCE_TOOL_NAMES
+        or source.metadata.get("skillopt_iteration") != 2
+        or source.metadata.get("tool_contract_version") != "repository-tools-v2"
+    ):
+        raise ValueError("strong-model profiles require the frozen v2 tools source")
+
+    controller_provenance = _load_json_object(
+        controller_path, "patch guard provenance"
+    )
+    controller_edit = controller_provenance.get("controller_edit")
+    controller_digest = controller_provenance.get("controller_edit_sha256")
+    if (
+        controller_provenance.get("protocol_version") != "skillopt-candidate-v5"
+        or not isinstance(controller_edit, dict)
+        or controller_edit.get("edit_id") != "patch-guard-v1"
+        or not isinstance(controller_digest, str)
+        or canonical_sha256(controller_edit) != controller_digest
+        or controller_provenance.get("profile_changes")
+        != {"empty_patch_retries": {"before": 0, "after": 1}}
+    ):
+        raise ValueError("controller provenance must freeze patch-guard-v1")
+
+    rejected_evidence = _load_json_object(rejected_path, "rejected screen evidence")
+    if (
+        rejected_evidence.get("protocol_version")
+        != "phase3-swebench-screen-evidence-v3"
+        or rejected_evidence.get("accepted") is not False
+        or rejected_evidence.get("same_model_low_resource_branch_stopped") is not True
+    ):
+        raise ValueError("strong-model profiles require rejected screen v3 evidence")
+
+    source_digest = file_sha256(source_path)
+    shared_metadata = {
+        "strong_model_branch": "v1",
+        "source_profile_sha256": source_digest,
+        "tool_contract_version": "repository-tools-v2",
+    }
+    baseline = replace(
+        source,
+        name="deepseek-v4-pro-swebench-baseline-v1",
+        model="deepseek/deepseek-v4-pro",
+        description="V4 Pro baseline for the local Phase 3 strong-model screen",
+        version="strong-model-baseline-v1",
+        metadata=shared_metadata,
+    )
+    candidate = replace(
+        baseline,
+        name="deepseek-v4-pro-swebench-patch-guard-v1",
+        description="V4 Pro Patch Guard candidate for the local Phase 3 screen",
+        empty_patch_retries=1,
+        version="strong-model-patch-guard-v1",
+        metadata={
+            **shared_metadata,
+            "controller_edit_id": "patch-guard-v1",
+            "controller_edit_sha256": controller_digest,
+        },
+    )
+    baseline.to_yaml(baseline_path)
+    candidate.to_yaml(candidate_path)
+    provenance = {
+        "protocol_version": "phase3-strong-model-profiles-v1",
+        "source_profile_path": str(source_path),
+        "source_profile_sha256": source_digest,
+        "controller_provenance_path": str(controller_path),
+        "controller_provenance_sha256": file_sha256(controller_path),
+        "controller_edit": controller_edit,
+        "controller_edit_sha256": controller_digest,
+        "rejected_screen_evidence_path": str(rejected_path),
+        "rejected_screen_evidence_sha256": file_sha256(rejected_path),
+        "model": "deepseek/deepseek-v4-pro",
+        "provider_model_version": "deepseek-v4-pro",
+        "tool_contract_version": "repository-tools-v2",
+        "baseline_profile_path": str(baseline_path),
+        "baseline_profile_sha256": file_sha256(baseline_path),
+        "candidate_profile_path": str(candidate_path),
+        "candidate_profile_sha256": file_sha256(candidate_path),
+        "runtime_changes": {
+            "empty_patch_retries": {"before": 0, "after": 1}
+        },
+        "pricing_cny_per_million_tokens": {
+            "off_peak": {"cache_hit": 1.0, "cache_miss": 4.0, "output": 16.0},
+            "peak": {"cache_hit": 1.0, "cache_miss": 4.0, "output": 16.0},
+        },
+        "oracle_content_included": False,
+    }
+    provenance_target.parent.mkdir(parents=True, exist_ok=True)
+    provenance_target.write_text(
+        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return provenance
+
+
 def _compact_patch_guard_trial(
     row: dict[str, Any], base_max_iterations: int
 ) -> dict[str, Any]:

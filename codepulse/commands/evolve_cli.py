@@ -16,6 +16,7 @@ from codepulse.evolve.candidate import (
     materialize_candidate,
     materialize_patch_guard_candidate,
     materialize_resource_bounded_candidate,
+    materialize_strong_model_profiles,
 )
 from codepulse.evolve.suggest import SuggestionEngine
 
@@ -118,6 +119,46 @@ def materialize_patch_guard_candidate_command(
         raise click.ClickException(str(exc)) from exc
     click.echo(f"Candidate profile: {result['candidate_profile_path']}")
     click.echo(f"Training evidence: {training_evidence}")
+    click.echo(f"Provenance: {provenance}")
+
+
+@evolve_group.command(name="materialize-strong-model-profiles")
+@click.option("--source-profile", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--controller-provenance",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option(
+    "--rejected-screen-evidence",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--baseline-profile", required=True, type=click.Path(dir_okay=False))
+@click.option("--candidate-profile", required=True, type=click.Path(dir_okay=False))
+@click.option("--provenance", required=True, type=click.Path(dir_okay=False))
+def materialize_strong_model_profiles_command(
+    source_profile: str,
+    controller_provenance: str,
+    rejected_screen_evidence: str,
+    baseline_profile: str,
+    candidate_profile: str,
+    provenance: str,
+) -> None:
+    """Generate paired V4 Pro profiles from the frozen Patch Guard evidence."""
+    try:
+        result = materialize_strong_model_profiles(
+            source_profile,
+            controller_provenance,
+            rejected_screen_evidence,
+            baseline_profile,
+            candidate_profile,
+            provenance,
+        )
+    except (FileExistsError, OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Baseline profile: {result['baseline_profile_path']}")
+    click.echo(f"Candidate profile: {result['candidate_profile_path']}")
     click.echo(f"Provenance: {provenance}")
 
 
