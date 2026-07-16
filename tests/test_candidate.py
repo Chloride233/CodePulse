@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -11,11 +11,9 @@ from codepulse.agent.adapter import AgentProfile
 from codepulse.eval.artifacts import file_sha256
 from codepulse.evolve.candidate import (
     materialize_candidate,
+    materialize_patch_guard_candidate,
     materialize_resource_bounded_candidate,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _write_baseline(path: Path) -> None:
@@ -350,3 +348,167 @@ def test_candidate_fourth_iteration_requires_rejected_prior_candidate(
             tmp_path / "candidate-v4.yaml",
             tmp_path / "provenance-v4.json",
         )
+
+
+def test_candidate_fifth_iteration_uses_only_screen_v2_control_flow_evidence(
+    tmp_path: Path,
+) -> None:
+    baseline_path = tmp_path / "baseline.yaml"
+    raw_trials_path = tmp_path / "screen-v2-trials.jsonl"
+    screen_evidence_path = tmp_path / "screen-v2-evidence.json"
+    compact_trials_path = tmp_path / "training-v5-trials.jsonl"
+    training_evidence_path = tmp_path / "training-v5-evidence.json"
+    candidate_path = tmp_path / "candidate-v5.yaml"
+    provenance_path = tmp_path / "candidate-v5-provenance.json"
+    baseline = AgentProfile(
+        name="repository-agent-skillopt-v2-tools-v2",
+        type="protocol",
+        model="deepseek/deepseek-v4-flash",
+        agent_class="codepulse.agent.real_agent.RealAgent",
+        system_prompt="Frozen v2 prompt.",
+        tools=["read_file", "edit_file", "write_file", "execute"],
+        max_iterations=8,
+        temperature=0.0,
+        max_tokens=4096,
+        version="skillopt-v2-tools-v2",
+        metadata={"skillopt_iteration": 2, "tool_contract_version": "repository-tools-v2"},
+    )
+    baseline.to_yaml(baseline_path)
+    rows = []
+    for index in range(6):
+        exhausted = index >= 4
+        events = [
+            {
+                "event_type": "llm_call",
+                "content": {"has_tool_calls": True},
+            }
+            for _ in range(8 if exhausted else 4)
+        ]
+        events.append(
+            {
+                "event_type": "tool_call",
+                "content": {
+                    "tool": "execute",
+                    "arguments": {"command": "grep -n target module.py 2>/dev/null"},
+                },
+            }
+        )
+        if not exhausted:
+            events.append(
+                {
+                    "event_type": "llm_call",
+                    "content": {"has_tool_calls": False},
+                }
+            )
+        rows.append(
+            {
+                "trial_id": f"trial-{index}",
+                "task_id": f"task-{index % 3}",
+                "agent_name": (
+                    baseline.name if index % 2 == 0 else "rejected-candidate-v4"
+                ),
+                "success": False,
+                "failure_type": "wrong_answer",
+                "outcome": {"patch": "", "trace": {"events": events}},
+            }
+        )
+    raw_trials_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+    screen_evidence_path.write_text(
+        json.dumps(
+            {
+                "protocol_version": "phase3-swebench-screen-evidence-v2",
+                "accepted": False,
+                "completed_trials": 6,
+                "raw_trials_path": str(raw_trials_path),
+                "raw_trials_sha256": file_sha256(raw_trials_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = materialize_patch_guard_candidate(
+        baseline_path,
+        raw_trials_path,
+        screen_evidence_path,
+        compact_trials_path,
+        training_evidence_path,
+        candidate_path,
+        provenance_path,
+    )
+    candidate = AgentProfile.from_yaml(candidate_path)
+    compact_rows = [
+        json.loads(line) for line in compact_trials_path.read_text().splitlines()
+    ]
+    evidence = json.loads(training_evidence_path.read_text())
+
+    assert candidate.name == "repository-agent-skillopt-v5"
+    assert candidate.empty_patch_retries == 1
+    assert candidate.model == baseline.model
+    assert candidate.system_prompt == baseline.system_prompt
+    assert candidate.tools == baseline.tools
+    assert candidate.max_iterations == baseline.max_iterations
+    assert candidate.temperature == baseline.temperature
+    assert candidate.max_tokens == baseline.max_tokens
+    assert evidence["feature_counts"] == {
+        "empty_patches": 6,
+        "modifying_tool_calls": 0,
+        "no_tool_final_responses": 4,
+        "base_budget_exhaustions": 2,
+    }
+    assert len(compact_rows) == 6
+    assert set(compact_rows[0]) == {
+        "trial_id",
+        "task_id",
+        "agent_name",
+        "llm_calls",
+        "tool_calls",
+        "last_response_had_tools",
+        "base_budget_exhausted",
+        "modifying_tool_calls",
+        "patch_empty",
+        "failure_type",
+    }
+    assert result["protocol_version"] == "skillopt-candidate-v5"
+    assert result["profile_changes"] == {
+        "empty_patch_retries": {"before": 0, "after": 1}
+    }
+    assert result["controller_edit"]["edit_id"] == "patch-guard-v1"
+    assert result["controller_edit_sha256"]
+
+
+def test_frozen_candidate_v5_matches_baseline_except_patch_guard() -> None:
+    root = Path(__file__).parents[1]
+    baseline = AgentProfile.from_yaml(
+        root / "agents/deepseek-v4-flash-swebench-skillopt-v2-tools-v2.yaml"
+    )
+    candidate_path = root / "agents/deepseek-v4-flash-swebench-skillopt-v5.yaml"
+    candidate = AgentProfile.from_yaml(candidate_path)
+    provenance = json.loads(
+        (
+            root / "experiments/phase3-swebench-screen-v3/candidate-provenance.json"
+        ).read_text()
+    )
+    evidence = json.loads(
+        (root / "experiments/phase3-swebench-training-v5/evidence.json").read_text()
+    )
+
+    assert candidate.empty_patch_retries == 1
+    assert (
+        candidate.model,
+        candidate.system_prompt,
+        candidate.tools,
+        candidate.max_iterations,
+        candidate.temperature,
+        candidate.max_tokens,
+    ) == (
+        baseline.model,
+        baseline.system_prompt,
+        baseline.tools,
+        baseline.max_iterations,
+        baseline.temperature,
+        baseline.max_tokens,
+    )
+    assert provenance["candidate_profile_sha256"] == file_sha256(candidate_path)
+    assert evidence["feature_counts"] == provenance["trace_analysis"]

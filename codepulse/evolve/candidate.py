@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -60,6 +61,15 @@ _RESOURCE_FEATURES = (
     "offline_package_attempts",
     "whole_file_write_calls",
 )
+_PATCH_GUARD_EDIT = {
+    "edit_id": "patch-guard-v1",
+    "edit_type": "controller",
+    "target": "empty_patch_termination",
+    "setting": "empty_patch_retries",
+    "before": 0,
+    "after": 1,
+    "maximum_extra_calls": 1,
+}
 
 
 def materialize_candidate(
@@ -309,6 +319,205 @@ def materialize_resource_bounded_candidate(
         json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     return provenance
+
+
+def materialize_patch_guard_candidate(
+    baseline_profile_path: str | Path,
+    screen_trials_path: str | Path,
+    rejected_screen_evidence_path: str | Path,
+    compact_trials_path: str | Path,
+    training_evidence_path: str | Path,
+    candidate_profile_path: str | Path,
+    provenance_path: str | Path,
+) -> dict[str, Any]:
+    """Derive candidate v5 from the rejected paired screen's control-flow traces."""
+    baseline_path = Path(baseline_profile_path)
+    raw_path = Path(screen_trials_path)
+    screen_evidence_path = Path(rejected_screen_evidence_path)
+    compact_path = Path(compact_trials_path)
+    evidence_path = Path(training_evidence_path)
+    candidate_path = Path(candidate_profile_path)
+    provenance_target = Path(provenance_path)
+    outputs = (compact_path, evidence_path, candidate_path, provenance_target)
+    if any(path.exists() for path in outputs):
+        raise FileExistsError("patch guard evidence, candidate, or provenance already exists")
+
+    baseline = AgentProfile.from_yaml(baseline_path)
+    if (
+        baseline.max_iterations != 8
+        or baseline.empty_patch_retries != 0
+        or baseline.metadata.get("skillopt_iteration") != 2
+        or baseline.metadata.get("tool_contract_version") != "repository-tools-v2"
+    ):
+        raise ValueError("patch guard candidate requires the frozen v2 tools baseline")
+
+    screen_evidence = _load_json_object(screen_evidence_path, "screen v2 evidence")
+    if (
+        screen_evidence.get("protocol_version")
+        != "phase3-swebench-screen-evidence-v2"
+        or screen_evidence.get("accepted") is not False
+        or screen_evidence.get("completed_trials") != 6
+        or screen_evidence.get("raw_trials_sha256") != file_sha256(raw_path)
+    ):
+        raise ValueError("screen v2 evidence must bind six rejected raw trials")
+
+    rows = load_jsonl(raw_path)
+    if len(rows) != 6:
+        raise ValueError("patch guard training requires exactly six screen v2 trials")
+    compact_rows = [
+        _compact_patch_guard_trial(row, baseline.max_iterations) for row in rows
+    ]
+    feature_counts = {
+        "empty_patches": sum(bool(row["patch_empty"]) for row in compact_rows),
+        "modifying_tool_calls": sum(
+            int(row["modifying_tool_calls"]) for row in compact_rows
+        ),
+        "no_tool_final_responses": sum(
+            not bool(row["last_response_had_tools"])
+            and not bool(row["base_budget_exhausted"])
+            for row in compact_rows
+        ),
+        "base_budget_exhaustions": sum(
+            bool(row["base_budget_exhausted"]) for row in compact_rows
+        ),
+    }
+    if feature_counts != {
+        "empty_patches": 6,
+        "modifying_tool_calls": 0,
+        "no_tool_final_responses": 4,
+        "base_budget_exhaustions": 2,
+    }:
+        raise ValueError("screen v2 traces do not match the approved patch guard evidence")
+
+    compact_path.parent.mkdir(parents=True, exist_ok=True)
+    compact_path.write_text(
+        "".join(
+            json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
+            for row in compact_rows
+        ),
+        encoding="utf-8",
+    )
+    training_evidence = {
+        "protocol_version": "phase3-swebench-training-evidence-v5",
+        "source_trials_path": str(raw_path),
+        "source_trials_sha256": file_sha256(raw_path),
+        "source_screen_evidence_path": str(screen_evidence_path),
+        "source_screen_evidence_sha256": file_sha256(screen_evidence_path),
+        "feature_schema": list(compact_rows[0]),
+        "training_trials_path": str(compact_path),
+        "training_trials_sha256": file_sha256(compact_path),
+        "selected_trials": len(compact_rows),
+        "source_tasks": len({str(row["task_id"]) for row in compact_rows}),
+        "source_agents": sorted({str(row["agent_name"]) for row in compact_rows}),
+        "feature_counts": feature_counts,
+        "oracle_content_included": False,
+        "raw_source_preserved": True,
+    }
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(
+        json.dumps(training_evidence, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    edit_sha256 = canonical_sha256(_PATCH_GUARD_EDIT)
+    base_name = baseline.name.split("-skillopt-v", 1)[0]
+    candidate = replace(
+        baseline,
+        name=f"{base_name}-skillopt-v5",
+        description=f"Patch Guard candidate derived from {baseline.name}",
+        empty_patch_retries=1,
+        version="skillopt-v5",
+        metadata={
+            **baseline.metadata,
+            "skillopt_iteration": 5,
+            "skillopt_edit_id": "patch-guard-v1",
+            "skillopt_edit_sha256": edit_sha256,
+        },
+    )
+    candidate.to_yaml(candidate_path)
+    provenance = {
+        "protocol_version": "skillopt-candidate-v5",
+        "baseline_profile_path": str(baseline_path),
+        "baseline_profile_sha256": file_sha256(baseline_path),
+        "training_evidence_path": str(evidence_path),
+        "training_evidence_sha256": file_sha256(evidence_path),
+        "training_trials_path": str(compact_path),
+        "training_trials_sha256": file_sha256(compact_path),
+        "rejected_screen_evidence_path": str(screen_evidence_path),
+        "rejected_screen_evidence_sha256": file_sha256(screen_evidence_path),
+        "source_task_ids": sorted({str(row["task_id"]) for row in compact_rows}),
+        "source_trial_ids": sorted(str(row["trial_id"]) for row in compact_rows),
+        "trace_analysis": feature_counts,
+        "controller_edit": _PATCH_GUARD_EDIT,
+        "controller_edit_sha256": edit_sha256,
+        "tool_contract_version": "repository-tools-v2",
+        "candidate_profile_path": str(candidate_path),
+        "candidate_profile_sha256": file_sha256(candidate_path),
+        "profile_changes": {
+            "empty_patch_retries": {"before": 0, "after": 1}
+        },
+    }
+    provenance_target.parent.mkdir(parents=True, exist_ok=True)
+    provenance_target.write_text(
+        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return provenance
+
+
+def _compact_patch_guard_trial(
+    row: dict[str, Any], base_max_iterations: int
+) -> dict[str, Any]:
+    outcome = row.get("outcome")
+    trace = outcome.get("trace") if isinstance(outcome, dict) else None
+    events = trace.get("events") if isinstance(trace, dict) else None
+    if (
+        bool(row.get("success"))
+        or row.get("failure_type") != "wrong_answer"
+        or not isinstance(outcome, dict)
+        or not isinstance(events, list)
+        or not all(isinstance(event, dict) for event in events)
+    ):
+        raise ValueError("patch guard training accepts functional failures with traces only")
+    llm_events = [event for event in events if event.get("event_type") == "llm_call"]
+    tool_events = [event for event in events if event.get("event_type") == "tool_call"]
+    if not llm_events:
+        raise ValueError("patch guard training traces require at least one LLM call")
+    last_content = llm_events[-1].get("content")
+    if not isinstance(last_content, dict):
+        raise ValueError("LLM trace events require content")
+    return {
+        "trial_id": str(row.get("trial_id")),
+        "task_id": str(row.get("task_id")),
+        "agent_name": str(row.get("agent_name")),
+        "llm_calls": len(llm_events),
+        "tool_calls": len(tool_events),
+        "last_response_had_tools": bool(last_content.get("has_tool_calls")),
+        "base_budget_exhausted": len(llm_events) >= base_max_iterations,
+        "modifying_tool_calls": sum(
+            _is_modifying_tool_event(event) for event in tool_events
+        ),
+        "patch_empty": not bool(str(outcome.get("patch", "")).strip()),
+        "failure_type": str(row.get("failure_type")),
+    }
+
+
+def _is_modifying_tool_event(event: dict[str, Any]) -> bool:
+    content = event.get("content")
+    if not isinstance(content, dict):
+        return False
+    tool = content.get("tool")
+    if tool in {"edit_file", "write_file"}:
+        return True
+    arguments = content.get("arguments")
+    if tool != "execute" or not isinstance(arguments, dict):
+        return False
+    command = str(arguments.get("command", "")).lower()
+    mutation_patterns = (
+        r"(?:^|[;&|]\s*|\s)(?:sed\s+-i|perl\s+-pi|git\s+apply|patch\s|rm\s|mv\s|cp\s|touch\s|tee\s|truncate\s)",
+        r"(?:cat|echo|printf)\b.*>{1,2}\s*(?!/dev/null)",
+        r"(?:write_text|write_bytes|open\s*\([^)]*,\s*['\"][wax+])",
+    )
+    return any(re.search(pattern, command) for pattern in mutation_patterns)
 
 
 def _load_json_object(path: Path, label: str) -> dict[str, Any]:

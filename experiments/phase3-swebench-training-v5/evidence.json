@@ -1,0 +1,35 @@
+{
+  "protocol_version": "phase3-swebench-training-evidence-v5",
+  "source_trials_path": "results/phase3/swebench-screen-v2/trials.jsonl",
+  "source_trials_sha256": "ec47b024340ef2570c2f4f59275bfdc456bc3b38b18c485ac91ffef01f5a5456",
+  "source_screen_evidence_path": "experiments/phase3-swebench-screen-v2/evidence.json",
+  "source_screen_evidence_sha256": "d6b85f2e118fea736fd66f912c8dfdab7ce9b43040378fcb1de55ae025a71259",
+  "feature_schema": [
+    "trial_id",
+    "task_id",
+    "agent_name",
+    "llm_calls",
+    "tool_calls",
+    "last_response_had_tools",
+    "base_budget_exhausted",
+    "modifying_tool_calls",
+    "patch_empty",
+    "failure_type"
+  ],
+  "training_trials_path": "experiments/phase3-swebench-training-v5/trials.jsonl",
+  "training_trials_sha256": "823b5ceb545852889f27c60a8e44057fcd1cb9d33338665b4c1ccc34a720f7ab",
+  "selected_trials": 6,
+  "source_tasks": 3,
+  "source_agents": [
+    "deepseek-v4-flash-swebench-direct-skillopt-v2-tools-v2",
+    "deepseek-v4-flash-swebench-direct-skillopt-v4"
+  ],
+  "feature_counts": {
+    "empty_patches": 6,
+    "modifying_tool_calls": 0,
+    "no_tool_final_responses": 4,
+    "base_budget_exhaustions": 2
+  },
+  "oracle_content_included": false,
+  "raw_source_preserved": true
+}

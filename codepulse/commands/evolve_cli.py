@@ -14,6 +14,7 @@ import click
 
 from codepulse.evolve.candidate import (
     materialize_candidate,
+    materialize_patch_guard_candidate,
     materialize_resource_bounded_candidate,
 )
 from codepulse.evolve.suggest import SuggestionEngine
@@ -78,6 +79,45 @@ def materialize_resource_candidate_command(
     except (FileExistsError, OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"Candidate profile: {result['candidate_profile_path']}")
+    click.echo(f"Provenance: {provenance}")
+
+
+@evolve_group.command(name="materialize-patch-guard-candidate")
+@click.option("--baseline-profile", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--screen-trials", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--rejected-screen-evidence",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--compact-trials", required=True, type=click.Path(dir_okay=False))
+@click.option("--training-evidence", required=True, type=click.Path(dir_okay=False))
+@click.option("--candidate-profile", required=True, type=click.Path(dir_okay=False))
+@click.option("--provenance", required=True, type=click.Path(dir_okay=False))
+def materialize_patch_guard_candidate_command(
+    baseline_profile: str,
+    screen_trials: str,
+    rejected_screen_evidence: str,
+    compact_trials: str,
+    training_evidence: str,
+    candidate_profile: str,
+    provenance: str,
+) -> None:
+    """Generate candidate v5 from the rejected paired screen traces."""
+    try:
+        result = materialize_patch_guard_candidate(
+            baseline_profile,
+            screen_trials,
+            rejected_screen_evidence,
+            compact_trials,
+            training_evidence,
+            candidate_profile,
+            provenance,
+        )
+    except (FileExistsError, OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Candidate profile: {result['candidate_profile_path']}")
+    click.echo(f"Training evidence: {training_evidence}")
     click.echo(f"Provenance: {provenance}")
 
 
