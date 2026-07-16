@@ -1,8 +1,11 @@
 # Phase 3 Archive and Mainline Integration Plan
 
-Status: proposed technical decision, Git operations not yet performed
+Status: archive and selective mainline integration completed
 Archive anchor: `5fbc52789558a71b812f8d494a0fb885c63a626e`
 Mainline base: `4a30ca5c15b660a03942883836364b32b1623535`
+Integration branch: `codex/phase4-truth-reset`
+Status commit: `fe0166e`
+Evidence commit: `a22f334`
 
 ## Decision
 
@@ -14,9 +17,8 @@ SWE-bench runner, rule-based candidate materialization, Phase 3 CLI commands, an
 custom Agent controller. Those responsibilities overlap maintained open-source
 projects and are not CodePulse's differentiated value.
 
-Preserve the complete branch as a research archive. Build a clean integration branch
-from the mainline and copy only the status, final evidence, and generic behavioral
-requirements listed below.
+The complete branch is preserved as `archive/phase3-negative-20260716`. The clean
+integration branch contains only the status documents and final evidence listed below.
 
 ## Preserve in the Archive Only
 
@@ -75,36 +77,35 @@ results or Docker assets.
 Historical evidence files must remain byte-for-byte unchanged. The current cleanup
 boundary belongs in `docs/project-status.md`, not in rewritten historical JSON.
 
-## Reimplement as Generic Product Behavior
+## Do Not Reimplement Generic Evaluation Behavior
 
 Do not cherry-pick commits `b1dca50`, `0f5ecbc`, `b7d92cb`, `651376d`, or `9e6b712`
-verbatim. Their useful behavior should be expressed in the Phase 4 offline demo without
-Phase 3 protocol names, fixed `k=3`, SkillOpt provenance versions, or one experiment's
-budget schema.
+verbatim, and do not recreate them as a new generic framework. Inspect AI covers
+general evaluation execution and logs; promptfoo covers evaluation configuration,
+assertions, and CI quality gates; MLflow covers tracing, experiment tracking, and
+dashboards.
 
-The retained behavior is:
+The Phase 4 offline report retains only these project-specific policy statements:
 
-- reject duplicate, missing, extra, or unpaired `(task_id, repetition)` records;
-- compare exactly one baseline and one candidate over a declared task set;
-- derive pass@k and pass^k from the declared repetition count;
-- classify improvement, regression, persistent failure, and stable success per task;
-- reject a candidate with no positive stable gain, any task regression, invalid cost,
-  or a configured resource-budget violation;
-- render metrics, attribution, Gate reasons, representative cases, and evidence links.
+- stable task success is distinct from single-run success;
+- a candidate needs positive stable gain, task-level zero regression, and acceptable
+  resource use;
+- Judge conclusions are limited by the completed human calibration;
+- missing raw Phase 3 results must be disclosed rather than reconstructed;
+- historical Gate decisions are displayed from immutable evidence, not recomputed.
 
-Prefer existing mainline primitives such as `align_exact()` and `summarize_pilot()`.
-Add the smallest pure reporting function needed by the offline demo rather than another
-experiment runner or evolution abstraction.
+The Demo may reuse `summarize_pilot()` for the Phase 1 raw Trial file. It must not add a
+new task runner, comparison abstraction, Gate engine, provenance schema, dashboard, or
+HTML chart renderer.
 
 ## Mainline Integration Sequence
 
-1. Preserve the archive anchor with a remote branch or annotated tag after explicit
-   approval for the external write.
-2. Create a clean branch from the current remote mainline.
-3. Apply the status and policy documents from the current working tree.
-4. Copy the three final evidence groups and verify their original hashes.
-5. Run documentation checks and the existing mainline CI before adding Demo code.
-6. Implement the generic offline report path in a separate change with fixture-only
+1. Completed: preserve the archive anchor as
+   `archive/phase3-negative-20260716`.
+2. Completed: create `codex/phase4-truth-reset` from the remote mainline.
+3. Completed: apply the status and policy documents in `fe0166e`.
+4. Completed: copy the three final evidence groups in `a22f334` and verify their hashes.
+5. Next: implement the offline evidence report in a separate change with fixture-only
    tests and no model, Docker, dataset download, or network dependency.
 
 ## Stop Conditions
@@ -121,7 +122,7 @@ Stop and review the plan again if integration requires any of the following:
 
 ## Verification Bar
 
-The archive step is complete only when the full Phase 3 history is remotely reachable.
-The evidence step is complete only when selected file hashes match the archive anchor.
-The product extraction step is complete only when the generic offline Demo passes CI
-from committed fixtures and produces no network, model, or Docker activity.
+The archive is remotely reachable at the exact anchor, and the 12 selected evidence
+files match it byte-for-byte. Phase 4 is complete only when the offline evidence report
+passes CI from committed fixtures and produces no network, model, Docker, database, or
+web-server activity.

@@ -7,16 +7,16 @@ The original PRD and dated experiment specifications remain historical design re
 
 ## Current Positioning
 
-CodePulse is a reproducible evaluation, evidence, and regression-gating platform for
-Code Agents. Mature open-source projects should provide repository Agent controllers,
-sandbox runtimes, and optimization search. CodePulse should provide the experiment
-control plane above them:
+CodePulse is an evidence-verification and acceptance-policy layer for Code Agent
+experiments. Mature open-source projects should provide Agent controllers, evaluation
+execution, sandbox runtimes, logs, dashboards, and optimization search. CodePulse
+should remain a thin decision layer above them:
 
-- frozen tasks, Agent profiles, models, dependencies, environments, seeds, and budgets;
-- normalized Trial and Trace evidence;
-- deterministic grading and calibrated qualitative Judge boundaries;
-- exact baseline/candidate pairing, pass@k and pass^k metrics, and task attribution;
-- provenance, Validation Gate decisions, and auditable reports.
+- verify the identity and declared boundary of frozen evidence;
+- distinguish single-run success from stable task success;
+- require task-level zero regression and explicit resource limits;
+- preserve calibrated qualitative Judge boundaries;
+- explain candidate acceptance or rejection with auditable evidence links.
 
 CodePulse does not currently claim that self-evolution improves Agent performance.
 
@@ -32,7 +32,7 @@ CodePulse does not currently claim that self-evolution improves Agent performanc
 Phase 3 engineering produced reusable comparison, attribution, provenance, Gate, and
 reporting assets. Its custom Agent/controller, candidate mutation, and repository
 runtime work are research implementations, not differentiated product capabilities.
-The proposed mainline extraction boundary is documented in
+The completed mainline extraction boundary is documented in
 [phase3-integration-plan.md](phase3-integration-plan.md).
 
 ## Phase 3 Closure
@@ -64,16 +64,21 @@ other infrastructure component:
 5. do not expand a legacy implementation while a maintained upstream solution covers
    the same responsibility.
 
-Current candidates are mini-SWE-agent for the repository Agent controller, GEPA for
-reflective optimization, and SWE-ReX for an optional runtime abstraction. None is a
-required dependency until a focused compatibility test justifies adoption.
+Current reuse candidates are Inspect AI for evaluation execution and logs,
+mini-SWE-agent for the repository Agent controller, the official SWE-bench harness for
+grading, GEPA for optional reflective optimization, and CJE for future Judge
+calibration. Promptfoo covers general evaluation assertions and CI quality gates;
+Inspect AI and MLflow cover evaluation logs, tracing, experiment tracking, and
+dashboards. None is a required dependency for the offline Demo.
 
 ## Next Approved Direction
 
-Phase 4 should first deliver a fully offline demo from committed fixtures. It must
-generate a fixed report showing Agent comparison, stability, cost, Judge calibration,
-failure cases, and a rejected Phase 3 candidate without calling a model or starting a
-repository benchmark container.
+Phase 4 should first deliver a fully offline evidence report from committed fixtures.
+It verifies the available evidence boundary and generates one deterministic Markdown
+document showing Agent comparison, stability, cost, Judge calibration, failure cases,
+and rejected Phase 3 candidates. It does not implement a generic evaluation, A/B,
+assertion, tracing, or reporting framework. The frozen design is in
+[phase4-offline-evidence-demo-design.md](phase4-offline-evidence-demo-design.md).
 
 No new paid experiment, candidate variant, custom controller feature, server rental,
 or model-training effort is approved by this status document.
