@@ -10,6 +10,7 @@ Provides:
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,18 @@ except ImportError:
 
 REGISTRY = BenchmarkRegistry()
 DOWNLOADER = BenchmarkDownloader()
+
+
+def _apply_screen_host_environment(manifest: dict[str, Any]) -> None:
+    """Apply the manifest's process-local network setting before model calls."""
+    policy = manifest.get("execution_policy")
+    no_proxy = policy.get("no_proxy") if isinstance(policy, dict) else None
+    if not isinstance(no_proxy, str) or "::1" in {
+        item.strip() for item in no_proxy.split(",")
+    }:
+        raise ValueError("screen execution_policy.no_proxy must exclude bare ::1")
+    os.environ["NO_PROXY"] = no_proxy
+    os.environ["no_proxy"] = no_proxy
 
 
 # ---------------------------------------------------------------------------
@@ -537,6 +550,11 @@ def benchmark_swebench_screen_run(
     errors = validate_swebench_screen_manifest(manifest, root)
     if errors:
         raise click.ClickException("SWE-bench screen preflight failed: " + "; ".join(errors))
+    if manifest.get("protocol_version") == "phase3-strong-model-screen-v1":
+        try:
+            _apply_screen_host_environment(manifest)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
     dataset = manifest["dataset"]
     runner = manifest["runner"]
     budget = manifest["budget"]

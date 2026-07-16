@@ -370,6 +370,7 @@ def validate_swebench_screen_manifest(
             "server": "forbidden",
             "new_image_downloads": "forbidden",
             "existing_evidence_images": "preserve",
+            "no_proxy": "127.0.0.1,localhost,127.0.0.0/8",
         }:
             errors.append("strong-model screen must freeze the local-only execution policy")
         if any(

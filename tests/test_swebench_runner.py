@@ -9,7 +9,11 @@ import pytest
 from click.testing import CliRunner
 from docker.errors import ImageNotFound
 
-from codepulse.benchmark.cli import _swebench_trial_record, benchmark_group
+from codepulse.benchmark.cli import (
+    _apply_screen_host_environment,
+    _swebench_trial_record,
+    benchmark_group,
+)
 from codepulse.benchmark.pilot import PilotBudgetGuard
 from codepulse.benchmark.swebench_runner import (
     OfficialHarness,
@@ -565,6 +569,30 @@ def test_swebench_runner_local_preflight_checks_all_digests_before_calls() -> No
         )
 
     assert calls == ["sha256:present", "sha256:missing"]
+
+
+def test_screen_host_environment_removes_httpx_invalid_ipv6_proxy_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost,::1")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost,::1")
+    manifest = {
+        "execution_policy": {
+            "server": "forbidden",
+            "new_image_downloads": "forbidden",
+            "existing_evidence_images": "preserve",
+            "no_proxy": "127.0.0.1,localhost,127.0.0.0/8",
+        }
+    }
+
+    _apply_screen_host_environment(manifest)
+
+    assert __import__("os").environ["NO_PROXY"] == (
+        "127.0.0.1,localhost,127.0.0.0/8"
+    )
+    assert __import__("os").environ["no_proxy"] == (
+        "127.0.0.1,localhost,127.0.0.0/8"
+    )
 
 
 def test_swebench_runner_starts_container_with_frozen_limits_and_no_network() -> None:
