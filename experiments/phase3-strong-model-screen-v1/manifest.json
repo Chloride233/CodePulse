@@ -86,7 +86,8 @@
   "execution_policy": {
     "server": "forbidden",
     "new_image_downloads": "forbidden",
-    "existing_evidence_images": "preserve"
+    "existing_evidence_images": "preserve",
+    "no_proxy": "127.0.0.1,localhost,127.0.0.0/8"
   },
-  "codepulse_commit": "f9a270c95650cc203eb86db3fdd86069154271c7"
+  "codepulse_commit": "988fe688581eec7d0e65459b2bc7fed7a6dfe52b"
 }
