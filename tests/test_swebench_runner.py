@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from docker.errors import ImageNotFound
 
@@ -15,6 +16,7 @@ from codepulse.benchmark.swebench_runner import (
     SWEbenchTrial,
     _evaluate_patch,
     _prepare_official_image,
+    _require_local_image_digests,
     _start_isolated_container,
     _task_from_instance,
     _transcript_metrics,
@@ -286,6 +288,75 @@ def test_swebench_runner_screen_v2_requires_paired_functional_and_resource_gain(
     assert "per_agent_budget_exceeded" in agent_budget_failure["rejection_reasons"]
 
 
+def test_strong_model_screen_requires_strict_gain_and_zero_regressions() -> None:
+    manifest = {
+        "protocol_version": "phase3-strong-model-screen-v1",
+        "task_ids": ["task-1", "task-2", "task-3"],
+        "agents": [
+            {"role": "baseline", "name": "baseline"},
+            {"role": "candidate", "name": "candidate"},
+        ],
+        "acceptance": {
+            "min_candidate_non_empty_patches": 2,
+            "min_candidate_resolved": 2,
+            "min_candidate_resolved_delta": 1,
+            "require_zero_candidate_regressions": True,
+            "max_candidate_token_ratio": 1.25,
+            "max_candidate_cost_ratio": 1.25,
+        },
+        "budget": {
+            "total_cny": 2.0,
+            "per_agent_cny": 1.2,
+            "per_trial_cny": 0.4,
+        },
+    }
+    outcomes = {
+        "task-1": {"baseline": False, "candidate": True},
+        "task-2": {"baseline": True, "candidate": True},
+        "task-3": {"baseline": False, "candidate": False},
+    }
+    rows = [
+        {
+            "task_id": task_id,
+            "repetition": 0,
+            "agent_name": agent_name,
+            "success": success,
+            "outcome": {"patch": "diff" if success else ""},
+            "metrics": {
+                "total_tokens": 100 if agent_name == "baseline" else 110,
+                "cost_cny_peak": 0.1 if agent_name == "baseline" else 0.11,
+            },
+            "failure_type": None if success else "wrong_answer",
+        }
+        for task_id, task_outcomes in outcomes.items()
+        for agent_name, success in task_outcomes.items()
+    ]
+
+    accepted = evaluate_swebench_screen(rows, manifest)
+
+    assert accepted["accepted"] is True
+    assert accepted["candidate_resolved_delta"] == 1
+    assert accepted["attribution_counts"] == {
+        "improvement": 1,
+        "regression": 0,
+        "persistent_failure": 1,
+        "stable_success": 1,
+    }
+
+    for row in rows:
+        if row["task_id"] == "task-2" and row["agent_name"] == "candidate":
+            row["success"] = False
+            row["outcome"]["patch"] = ""
+            row["failure_type"] = "wrong_answer"
+
+    rejected = evaluate_swebench_screen(rows, manifest)
+
+    assert rejected["accepted"] is False
+    assert "insufficient_candidate_resolved_delta" in rejected["rejection_reasons"]
+    assert "candidate_task_regression" in rejected["rejection_reasons"]
+    assert rejected["attribution_counts"]["regression"] == 1
+
+
 def test_swebench_runner_evolution_resume_rejects_manifest_drift(tmp_path: Path) -> None:
     root = Path(__file__).parents[1]
     output = tmp_path / "run"
@@ -430,6 +501,65 @@ def test_swebench_runner_uses_transport_prefix_without_changing_image_identity()
         ("pull", transport_ref),
         ("swebench/sweb.eval.x86_64.repo_1776_repo-1", "latest"),
     ]
+
+
+def test_swebench_runner_local_only_image_policy_never_pulls() -> None:
+    calls: list[tuple[str, str]] = []
+
+    class Images:
+        def get(self, image_ref: str) -> object:
+            calls.append(("get", image_ref))
+            raise ImageNotFound("missing")
+
+        def pull(self, image_ref: str) -> object:
+            calls.append(("pull", image_ref))
+            raise AssertionError("local-only policy must not pull")
+
+    client = type("Client", (), {"images": Images()})()
+    test_spec = type(
+        "TestSpec",
+        (),
+        {"instance_image_key": "swebench/sweb.eval.x86_64.repo_1776_repo-1:latest"},
+    )()
+    digest = "sha256:" + "a" * 64
+
+    with pytest.raises(ImageNotFound):
+        _prepare_official_image(
+            client,
+            test_spec,
+            digest,
+            image_transport_prefix="dockerproxy.net",
+            allow_pull=False,
+        )
+
+    assert calls == [
+        ("get", f"swebench/sweb.eval.x86_64.repo_1776_repo-1@{digest}"),
+        (
+            "get",
+            f"dockerproxy.net/swebench/sweb.eval.x86_64.repo_1776_repo-1@{digest}",
+        ),
+    ]
+
+
+def test_swebench_runner_local_preflight_checks_all_digests_before_calls() -> None:
+    calls: list[str] = []
+
+    class Images:
+        def get(self, digest: str) -> object:
+            calls.append(digest)
+            if digest == "sha256:missing":
+                raise ImageNotFound("missing")
+            return object()
+
+    client = type("Client", (), {"images": Images()})()
+
+    with pytest.raises(RuntimeError, match="task-2"):
+        _require_local_image_digests(
+            client,
+            {"task-1": "sha256:present", "task-2": "sha256:missing"},
+        )
+
+    assert calls == ["sha256:present", "sha256:missing"]
 
 
 def test_swebench_runner_starts_container_with_frozen_limits_and_no_network() -> None:

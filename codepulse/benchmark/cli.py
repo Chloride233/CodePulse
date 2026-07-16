@@ -29,6 +29,7 @@ from codepulse.benchmark.pilot import (
 from codepulse.benchmark.pilot_report import write_phase3_reports, write_pilot_reports
 from codepulse.benchmark.swebench_runner import (
     SWEbenchTrial,
+    _require_local_image_digests,
     evaluate_swebench_screen,
     load_swebench_instances,
     run_swebench_trial,
@@ -461,6 +462,7 @@ def benchmark_swebench_training_run(manifest_path: str, output_dir: str, repo_ro
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
                 image_transport_prefix=str(runner.get("image_transport_prefix", "")),
+                allow_image_pull=runner.get("image_policy") != "local_only",
             )
             record, stopped_reasons = _swebench_trial_record(
                 trial,
@@ -597,6 +599,8 @@ def benchmark_swebench_screen_run(
             raise click.ClickException("Cannot resume a screen that already triggered a stop condition")
 
     sandbox = SandboxManager()
+    if runner.get("image_policy") == "local_only":
+        _require_local_image_digests(sandbox._client, runner["image_digests"])
     stopped_reasons: list[str] = []
     with trials_path.open("a", encoding="utf-8") as trial_file:
         for index, (task_id, repetition, agent_name) in enumerate(schedule, start=1):
@@ -614,6 +618,7 @@ def benchmark_swebench_screen_run(
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
                 image_transport_prefix=str(runner.get("image_transport_prefix", "")),
+                allow_image_pull=runner.get("image_policy") != "local_only",
             )
             record, stopped_reasons = _swebench_trial_record(
                 trial,
@@ -739,6 +744,7 @@ def benchmark_swebench_evolution_run(
                 cpu_count=int(runner["cpu_count"]),
                 memory_mb=int(runner["memory_mb"]),
                 image_transport_prefix=str(runner.get("image_transport_prefix", "")),
+                allow_image_pull=runner.get("image_policy") != "local_only",
             )
             record, stopped_reasons = _swebench_trial_record(
                 trial,

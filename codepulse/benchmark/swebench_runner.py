@@ -257,11 +257,13 @@ def validate_swebench_screen_manifest(
         "phase3-swebench-screen-v1",
         "phase3-swebench-screen-v2",
         "phase3-swebench-screen-v3",
+        "phase3-strong-model-screen-v1",
     }:
         errors.append("protocol_version must identify a frozen SWE-bench screen")
     paired_screen = protocol_version in {
         "phase3-swebench-screen-v2",
         "phase3-swebench-screen-v3",
+        "phase3-strong-model-screen-v1",
     }
     expected_task_ids = (
         SWE_BENCH_SCREEN_V2_TASK_IDS if paired_screen else SWE_BENCH_SCREEN_TASK_IDS
@@ -275,6 +277,7 @@ def validate_swebench_screen_manifest(
     expected_seed = {
         "phase3-swebench-screen-v2": 20260721,
         "phase3-swebench-screen-v3": 20260722,
+        "phase3-strong-model-screen-v1": 20260723,
     }.get(str(protocol_version), 20260720)
     if manifest.get("seed") != expected_seed:
         errors.append(f"seed must equal {expected_seed}")
@@ -302,14 +305,34 @@ def validate_swebench_screen_manifest(
         errors.append("screen agent roles do not match the frozen protocol")
 
     _validate_swebench_runner(errors, manifest.get("runner"), expected_task_ids)
-    expected_budget = (
-        {"total_cny": 1.0, "per_agent_cny": 0.6, "per_trial_cny": 0.25}
-        if protocol_version == "phase3-swebench-screen-v3"
-        else {"total_cny": 2.0, "per_agent_cny": 2.0, "per_trial_cny": 1.0}
+    expected_budget = {
+        "phase3-swebench-screen-v3": {
+            "total_cny": 1.0,
+            "per_agent_cny": 0.6,
+            "per_trial_cny": 0.25,
+        },
+        "phase3-strong-model-screen-v1": {
+            "total_cny": 2.0,
+            "per_agent_cny": 1.2,
+            "per_trial_cny": 0.4,
+        },
+    }.get(
+        str(protocol_version),
+        {"total_cny": 2.0, "per_agent_cny": 2.0, "per_trial_cny": 1.0},
     )
     if manifest.get("budget") != expected_budget:
         errors.append("budget must equal the frozen screen limits")
     expected_acceptance = (
+        {
+            "min_candidate_non_empty_patches": 2,
+            "min_candidate_resolved": 2,
+            "min_candidate_resolved_delta": 1,
+            "require_zero_candidate_regressions": True,
+            "max_candidate_token_ratio": 1.25,
+            "max_candidate_cost_ratio": 1.25,
+        }
+        if protocol_version == "phase3-strong-model-screen-v1"
+        else
         {
             "min_candidate_non_empty_patches": 2,
             "min_candidate_resolved": 2,
@@ -324,6 +347,31 @@ def validate_swebench_screen_manifest(
         errors.append("acceptance must equal the frozen screen thresholds")
     if paired_screen and manifest.get("tool_contract_version") != "repository-tools-v2":
         errors.append("tool_contract_version must equal 'repository-tools-v2'")
+    if protocol_version == "phase3-strong-model-screen-v1":
+        runner = manifest.get("runner")
+        pricing = manifest.get("pricing")
+        expected_pricing = {
+            "currency": "CNY",
+            "unit_tokens": 1_000_000,
+            "model": "deepseek/deepseek-v4-pro",
+            "off_peak": {"cache_hit": 1.0, "cache_miss": 4.0, "output": 16.0},
+            "peak": {"cache_hit": 1.0, "cache_miss": 4.0, "output": 16.0},
+            "budget_tier": "peak",
+        }
+        if (
+            manifest.get("controller_edit_id") != "patch-guard-v1"
+            or not isinstance(runner, dict)
+            or runner.get("image_policy") != "local_only"
+        ):
+            errors.append("strong-model screen must freeze Patch Guard and local-only images")
+        if pricing != expected_pricing:
+            errors.append("strong-model screen pricing must equal the frozen V4 Pro table")
+        if any(
+            agent.get("model_version") != "deepseek/deepseek-v4-pro"
+            or agent.get("provider_model_version") != "deepseek-v4-pro"
+            for agent in agents
+        ):
+            errors.append("strong-model screen agents must freeze DeepSeek V4 Pro")
     _validate_swebench_screen_provenance(errors, manifest, agents, root)
     return errors
 
@@ -335,6 +383,7 @@ def evaluate_swebench_screen(
     if manifest.get("protocol_version") in {
         "phase3-swebench-screen-v2",
         "phase3-swebench-screen-v3",
+        "phase3-strong-model-screen-v1",
     }:
         return _evaluate_swebench_screen_v2(rows, manifest)
     agents = manifest.get("agents")
@@ -467,10 +516,40 @@ def _evaluate_swebench_screen_v2(
 
     baseline = agent_stats(role_names["baseline"])
     candidate = agent_stats(role_names["candidate"])
+    task_attribution: dict[str, str] = {}
+    for task_id in task_ids:
+        baseline_success = any(
+            bool(row.get("success"))
+            for row in rows
+            if row.get("task_id") == task_id
+            and row.get("agent_name") == role_names["baseline"]
+        )
+        candidate_success = any(
+            bool(row.get("success"))
+            for row in rows
+            if row.get("task_id") == task_id
+            and row.get("agent_name") == role_names["candidate"]
+        )
+        task_attribution[str(task_id)] = {
+            (False, True): "improvement",
+            (True, False): "regression",
+            (False, False): "persistent_failure",
+            (True, True): "stable_success",
+        }[(baseline_success, candidate_success)]
+    attribution_counts = {
+        category: sum(value == category for value in task_attribution.values())
+        for category in (
+            "improvement",
+            "regression",
+            "persistent_failure",
+            "stable_success",
+        )
+    }
     baseline_tokens = int(baseline["total_tokens"])
     candidate_tokens = int(candidate["total_tokens"])
     baseline_cost = float(baseline["total_cost_cny_peak"])
     candidate_cost = float(candidate["total_cost_cny_peak"])
+    candidate_resolved_delta = int(candidate["resolved"]) - int(baseline["resolved"])
     token_ratio = (
         round(candidate_tokens / baseline_tokens, 6) if baseline_tokens else None
     )
@@ -488,10 +567,16 @@ def _evaluate_swebench_screen_v2(
         rejection_reasons.append("insufficient_candidate_non_empty_patches")
     if int(candidate["resolved"]) < int(acceptance["min_candidate_resolved"]):
         rejection_reasons.append("insufficient_candidate_resolved")
-    if acceptance["require_candidate_resolved_gte_baseline"] and int(
+    if acceptance.get("require_candidate_resolved_gte_baseline", False) and int(
         candidate["resolved"]
     ) < int(baseline["resolved"]):
         rejection_reasons.append("candidate_resolved_below_baseline")
+    if candidate_resolved_delta < int(acceptance.get("min_candidate_resolved_delta", 0)):
+        rejection_reasons.append("insufficient_candidate_resolved_delta")
+    if acceptance.get("require_zero_candidate_regressions", False) and int(
+        attribution_counts["regression"]
+    ):
+        rejection_reasons.append("candidate_task_regression")
     if candidate_tokens > baseline_tokens * float(acceptance["max_candidate_token_ratio"]):
         rejection_reasons.append("candidate_token_ratio_exceeded")
     if candidate_cost > baseline_cost * float(acceptance["max_candidate_cost_ratio"]):
@@ -510,6 +595,9 @@ def _evaluate_swebench_screen_v2(
         "completed_trials": len(rows),
         "baseline": baseline,
         "candidate": candidate,
+        "candidate_resolved_delta": candidate_resolved_delta,
+        "task_attribution": task_attribution,
+        "attribution_counts": attribution_counts,
         "candidate_token_ratio": token_ratio,
         "candidate_cost_ratio": cost_ratio,
         "infrastructure_failures": infrastructure_failures,
@@ -658,9 +746,15 @@ def _validate_swebench_screen_provenance(
     errors: list[str], manifest: dict[str, Any], agents: list[dict[str, Any]], root: Path
 ) -> None:
     """Bind the training screen to its candidate profile and source traces."""
-    section = manifest.get("candidate_provenance")
+    protocol_version = manifest.get("protocol_version")
+    section_name = (
+        "profile_provenance"
+        if protocol_version == "phase3-strong-model-screen-v1"
+        else "candidate_provenance"
+    )
+    section = manifest.get(section_name)
     if not isinstance(section, dict):
-        errors.append("candidate_provenance must be an object")
+        errors.append(f"{section_name} must be an object")
         return
     path = section.get("path")
     digest = section.get("sha256")
@@ -676,10 +770,10 @@ def _validate_swebench_screen_provenance(
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"candidate_provenance cannot be loaded: {exc}")
         return
-    protocol_version = manifest.get("protocol_version")
     expected_provenance = {
         "phase3-swebench-screen-v2": "skillopt-candidate-v4",
         "phase3-swebench-screen-v3": "skillopt-candidate-v5",
+        "phase3-strong-model-screen-v1": "phase3-strong-model-profiles-v1",
     }.get(str(protocol_version), "skillopt-candidate-v3")
     if not isinstance(provenance, dict) or provenance.get(
         "protocol_version"
@@ -696,6 +790,33 @@ def _validate_swebench_screen_provenance(
     ):
         if provenance.get(key) != expected:
             errors.append(f"candidate_provenance.{key} must match the frozen manifest")
+    if protocol_version == "phase3-strong-model-screen-v1":
+        baseline = roles.get("baseline", {})
+        for key, expected in (
+            ("baseline_profile_path", baseline.get("profile_path")),
+            ("baseline_profile_sha256", baseline.get("profile_sha256")),
+        ):
+            if provenance.get(key) != expected:
+                errors.append(f"profile_provenance.{key} must match the frozen manifest")
+        controller_edit = provenance.get("controller_edit")
+        if (
+            provenance.get("model") != "deepseek/deepseek-v4-pro"
+            or provenance.get("provider_model_version") != "deepseek-v4-pro"
+            or provenance.get("tool_contract_version") != "repository-tools-v2"
+            or not isinstance(controller_edit, dict)
+            or controller_edit.get("edit_id") != "patch-guard-v1"
+            or provenance.get("runtime_changes")
+            != {"empty_patch_retries": {"before": 0, "after": 1}}
+        ):
+            errors.append("profile_provenance must freeze the V4 Pro Patch Guard pair")
+        provenance_pricing = provenance.get("pricing_cny_per_million_tokens")
+        manifest_pricing = manifest.get("pricing")
+        if not isinstance(manifest_pricing, dict) or provenance_pricing != {
+            "off_peak": manifest_pricing.get("off_peak"),
+            "peak": manifest_pricing.get("peak"),
+        }:
+            errors.append("profile_provenance pricing must match the frozen manifest")
+        return
     if protocol_version in {
         "phase3-swebench-screen-v2",
         "phase3-swebench-screen-v3",
@@ -806,6 +927,7 @@ def run_swebench_trial(
     cpu_count: int,
     memory_mb: int,
     image_transport_prefix: str = "",
+    allow_image_pull: bool = True,
 ) -> SWEbenchTrial:
     """Run one Agent in an official repository image and grade its submitted patch."""
     harness = _official_harness()
@@ -820,6 +942,7 @@ def run_swebench_trial(
         test_spec,
         image_digest,
         image_transport_prefix=image_transport_prefix,
+        allow_pull=allow_image_pull,
     )
     log_path = Path("results") / "swebench-harness" / str(instance["instance_id"]) / "agent.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -898,6 +1021,7 @@ def _prepare_official_image(
     digest: str,
     *,
     image_transport_prefix: str = "",
+    allow_pull: bool = True,
 ) -> str:
     """Pull the frozen official image by digest and expose its expected local tag."""
     repository, tag = str(test_spec.instance_image_key).rsplit(":", 1)
@@ -914,9 +1038,24 @@ def _prepare_official_image(
         try:
             image = client.images.get(transport_ref)
         except ImageNotFound:
+            if not allow_pull:
+                raise
             image = client.images.pull(transport_ref)
     image.tag(repository, tag=tag)
     return image_ref
+
+
+def _require_local_image_digests(
+    client: Any, image_digests: dict[str, str]
+) -> None:
+    """Fail before model calls when any local-only screen image is absent."""
+    for task_id, digest in image_digests.items():
+        try:
+            client.images.get(digest)
+        except ImageNotFound as exc:
+            raise RuntimeError(
+                f"local-only image digest is missing for {task_id}: {digest}"
+            ) from exc
 
 
 def _transcript_metrics(transcript: Any) -> dict[str, int | float]:
