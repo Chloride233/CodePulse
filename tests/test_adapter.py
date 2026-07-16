@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+from codepulse.agent import create_agent
 from codepulse.agent.adapter import (
     AgentProfile,
     AgentResult,
@@ -131,6 +132,31 @@ class TestAgentProfile:
         finally:
             Path(path).unlink(missing_ok=True)
 
+    def test_empty_patch_retries_roundtrip(self, tmp_path: Path) -> None:
+        path = tmp_path / "profile.yaml"
+        AgentProfile(
+            name="patch-guard",
+            type="protocol",
+            empty_patch_retries=1,
+        ).to_yaml(path)
+
+        loaded = AgentProfile.from_yaml(path)
+
+        assert loaded.empty_patch_retries == 1
+        assert yaml.safe_load(path.read_text(encoding="utf-8"))["empty_patch_retries"] == 1
+
+    def test_zero_empty_patch_retries_is_not_serialized(self, tmp_path: Path) -> None:
+        path = tmp_path / "profile.yaml"
+        AgentProfile(name="historical", type="protocol").to_yaml(path)
+
+        assert "empty_patch_retries" not in yaml.safe_load(
+            path.read_text(encoding="utf-8")
+        )
+
+    def test_empty_patch_retries_must_be_non_negative(self) -> None:
+        with pytest.raises(ValueError, match="empty_patch_retries"):
+            AgentProfile(name="invalid", type="protocol", empty_patch_retries=-1)
+
 
 def test_adapter_functional_only_full_score_is_success() -> None:
     assert _is_success({ScoreDimension.FUNCTIONAL: 1.0}, 30.0)
@@ -207,6 +233,29 @@ class TestLoadAgentClass:
 
         assert agent.name == "repository-agent"
         assert agent._tool_names == ["read_file", "edit_file", "execute"]
+
+    def test_real_agent_receives_empty_patch_retries(self) -> None:
+        profile = AgentProfile(
+            name="patch-guard",
+            type="protocol",
+            agent_class="codepulse.agent.real_agent.RealAgent",
+            empty_patch_retries=1,
+        )
+
+        agent = _load_agent_class(profile)
+
+        assert agent._empty_patch_retries == 1
+
+    def test_create_agent_receives_empty_patch_retries(self) -> None:
+        profile = AgentProfile(
+            name="patch-guard",
+            type="protocol",
+            empty_patch_retries=1,
+        )
+
+        agent = create_agent(profile)
+
+        assert agent._empty_patch_retries == 1
 
     def test_missing_agent_class(self):
         profile = AgentProfile(name="bad", type="protocol", agent_class="")

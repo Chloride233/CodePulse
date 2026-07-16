@@ -27,6 +27,7 @@ def create_agent(profile: AgentProfile) -> Any:
             max_tokens=profile.max_tokens,
             temperature=profile.temperature,
             max_iterations=profile.max_iterations,
+            empty_patch_retries=profile.empty_patch_retries,
             system_prompt=profile.system_prompt or None,
             tool_names=profile.tools,
         )

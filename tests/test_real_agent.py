@@ -217,6 +217,134 @@ class TestRealAgentRun:
         assert transcript.agent_config["provider_model_versions"] == [
             "provider-model-v1"
         ]
+        sandbox.execute.assert_not_called()
+        assert transcript.agent_config["empty_patch_retries"] == 0
+        assert transcript.agent_config["patch_guard_checks"] == 0
+
+    @patch("litellm.completion")
+    def test_empty_no_tool_final_triggers_one_correction(
+        self, mock_completion: MagicMock
+    ) -> None:
+        agent = RealAgent(max_iterations=8, empty_patch_retries=1)
+        sandbox = MagicMock()
+        sandbox.execute.return_value = MagicMock(exit_code=0, stdout="", stderr="")
+        mock_completion.side_effect = [
+            _make_llm_response(content="I cannot find the change."),
+            _make_llm_response(content="Still no patch."),
+        ]
+
+        transcript = agent.run(_make_task(), sandbox)
+
+        assert mock_completion.call_count == 2
+        correction_messages = mock_completion.call_args_list[1].kwargs["messages"]
+        assert correction_messages[-1]["role"] == "user"
+        assert "git diff" in correction_messages[-1]["content"]
+        reflections = [
+            event
+            for event in transcript.events
+            if event.event_type == EventType.REFLECTION
+        ]
+        assert reflections[0].content == {
+            "kind": "patch_guard",
+            "trigger": "no_tool_final",
+            "diff_status": "empty",
+            "calls_made": 1,
+            "base_limit": 8,
+            "retry_count": 1,
+            "extra_call_granted": False,
+        }
+        assert transcript.agent_config["patch_guard_checks"] == 2
+        assert transcript.agent_config["patch_guard_retries_used"] == 1
+        assert transcript.agent_config["effective_call_limit"] == 8
+
+    @patch("litellm.completion")
+    def test_non_empty_diff_stops_without_correction(
+        self, mock_completion: MagicMock
+    ) -> None:
+        agent = RealAgent(max_iterations=8, empty_patch_retries=1)
+        sandbox = MagicMock()
+        sandbox.execute.return_value = MagicMock(exit_code=1, stdout="", stderr="")
+        mock_completion.return_value = _make_llm_response(content="Done.")
+
+        transcript = agent.run(_make_task(), sandbox)
+
+        assert mock_completion.call_count == 1
+        assert transcript.agent_config["patch_guard_checks"] == 1
+        assert transcript.agent_config["patch_guard_retries_used"] == 0
+
+    @patch("litellm.completion")
+    def test_eighth_empty_diff_grants_exactly_ninth_call(
+        self, mock_completion: MagicMock
+    ) -> None:
+        agent = RealAgent(max_iterations=8, empty_patch_retries=1)
+        sandbox = MagicMock()
+        sandbox._active_container = MagicMock()
+        sandbox.execute.return_value = MagicMock(exit_code=0, stdout="ok", stderr="")
+        tool_call = _make_tool_call("execute", {"command": "echo inspect"})
+        mock_completion.side_effect = [
+            *[
+                _make_llm_response(content="Inspecting", tool_calls=[tool_call])
+                for _ in range(8)
+            ],
+            _make_llm_response(content="No patch."),
+        ]
+
+        transcript = agent.run(_make_task(), sandbox)
+
+        assert mock_completion.call_count == 9
+        assert transcript.agent_config["patch_guard_retries_used"] == 1
+        assert transcript.agent_config["effective_call_limit"] == 9
+        reflections = [
+            event.content
+            for event in transcript.events
+            if event.event_type == EventType.REFLECTION
+        ]
+        assert reflections[0]["trigger"] == "base_budget_exhausted"
+        assert reflections[0]["extra_call_granted"] is True
+
+    @patch("litellm.completion")
+    def test_early_retry_does_not_grant_ninth_call(
+        self, mock_completion: MagicMock
+    ) -> None:
+        agent = RealAgent(max_iterations=8, empty_patch_retries=1)
+        sandbox = MagicMock()
+        sandbox._active_container = MagicMock()
+        sandbox.execute.return_value = MagicMock(exit_code=0, stdout="ok", stderr="")
+        tool_call = _make_tool_call("execute", {"command": "echo inspect"})
+        mock_completion.side_effect = [
+            _make_llm_response(content="No patch."),
+            *[
+                _make_llm_response(content="Inspecting", tool_calls=[tool_call])
+                for _ in range(7)
+            ],
+        ]
+
+        transcript = agent.run(_make_task(), sandbox)
+
+        assert mock_completion.call_count == 8
+        assert transcript.agent_config["patch_guard_retries_used"] == 1
+        assert transcript.agent_config["effective_call_limit"] == 8
+
+    @patch("litellm.completion")
+    def test_diff_check_error_stops_without_retry(
+        self, mock_completion: MagicMock
+    ) -> None:
+        agent = RealAgent(max_iterations=8, empty_patch_retries=1)
+        sandbox = MagicMock()
+        sandbox.execute.return_value = MagicMock(
+            exit_code=2, stdout="", stderr="not a repository"
+        )
+        mock_completion.return_value = _make_llm_response(content="Done.")
+
+        transcript = agent.run(_make_task(), sandbox)
+
+        assert mock_completion.call_count == 1
+        assert transcript.agent_config["patch_guard_check_failures"] == 1
+        assert transcript.agent_config["patch_guard_retries_used"] == 0
+        reflection = next(
+            event for event in transcript.events if event.event_type == EventType.REFLECTION
+        )
+        assert reflection.content["diff_status"] == "check_error"
 
     @patch("litellm.completion")
     def test_unknown_profile_tool_fails_before_model_call(

@@ -59,6 +59,7 @@ class AgentProfile:
     system_prompt: str = ""
     tools: list[str] = field(default_factory=lambda: ["read_file", "write_file", "execute"])
     max_iterations: int = 20
+    empty_patch_retries: int = 0
     temperature: float = 0.0
     max_tokens: int = 4096
 
@@ -67,6 +68,14 @@ class AgentProfile:
     version: str = "1.0"
     author: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.empty_patch_retries, int)
+            or isinstance(self.empty_patch_retries, bool)
+            or self.empty_patch_retries < 0
+        ):
+            raise ValueError("empty_patch_retries must be a non-negative integer")
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> AgentProfile:
@@ -89,6 +98,7 @@ class AgentProfile:
             system_prompt=data.get("system_prompt", ""),
             tools=data.get("tools", ["read_file", "write_file", "execute"]),
             max_iterations=data.get("max_iterations", 20),
+            empty_patch_retries=data.get("empty_patch_retries", 0),
             temperature=data.get("temperature", 0.0),
             max_tokens=data.get("max_tokens", 4096),
             description=data.get("description", ""),
@@ -115,6 +125,8 @@ class AgentProfile:
             data["system_prompt"] = self.system_prompt
             data["tools"] = self.tools
             data["max_iterations"] = self.max_iterations
+            if self.empty_patch_retries:
+                data["empty_patch_retries"] = self.empty_patch_retries
             data["temperature"] = self.temperature
             data["max_tokens"] = self.max_tokens
         if self.author:
@@ -467,6 +479,7 @@ def _load_agent_class(profile: AgentProfile) -> Any:
             max_tokens=profile.max_tokens,
             temperature=profile.temperature,
             tool_names=profile.tools,
+            empty_patch_retries=profile.empty_patch_retries,
         )
 
     return cls(**kwargs)

@@ -43,6 +43,11 @@ You are a coding agent. You work inside a sandboxed environment to solve coding 
 Be concise. Focus on correctness. Do not over-engineer.
 """
 
+_PATCH_GUARD_CORRECTION = """\
+No repository edit exists (`git diff` is empty). Stop exploring. Use `edit_file` or a
+targeted `execute` command now to make the smallest defensible code change, then
+inspect `git diff`. Do not return a final answer without a patch."""
+
 
 class RealAgent:
     """基于 LiteLLM 的真实 Agent。
@@ -63,15 +68,23 @@ class RealAgent:
         max_tokens: int = 4096,
         temperature: float = 0.0,
         max_iterations: int = 20,
+        empty_patch_retries: int = 0,
         system_prompt: str | None = None,
         tool_names: list[str] | None = None,
         tool_registry: ToolRegistry | None = None,
     ) -> None:
+        if (
+            not isinstance(empty_patch_retries, int)
+            or isinstance(empty_patch_retries, bool)
+            or empty_patch_retries < 0
+        ):
+            raise ValueError("empty_patch_retries must be a non-negative integer")
         self._name = name
         self._model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
         self._max_iterations = max_iterations
+        self._empty_patch_retries = empty_patch_retries
         self._system_prompt = system_prompt
         self._tool_names = list(tool_names) if tool_names is not None else None
         self._tool_registry = tool_registry  # 延迟初始化，run 时绑定 sandbox
@@ -97,7 +110,16 @@ class RealAgent:
         session_id = f"{task.task_id}-{uuid.uuid4().hex[:8]}"
         transcript = Transcript(
             session_id=session_id,
-            agent_config={"name": self._name, "model": self._model},
+            agent_config={
+                "name": self._name,
+                "model": self._model,
+                "empty_patch_retries": self._empty_patch_retries,
+                "patch_guard_checks": 0,
+                "patch_guard_retries_used": 0,
+                "patch_guard_check_failures": 0,
+                "base_max_iterations": self._max_iterations,
+                "effective_call_limit": self._max_iterations,
+            },
         )
 
         # 绑定工具到 sandbox
@@ -123,10 +145,16 @@ class RealAgent:
         total_output = 0
         total_cache = 0
         provider_model_versions: set[str] = set()
+        calls_made = 0
+        guard_checks = 0
+        guard_retries = 0
+        guard_check_failures = 0
+        call_limit = self._max_iterations
 
         start_time = time.time()
 
-        for iteration in range(self._max_iterations):
+        while calls_made < call_limit:
+            iteration = calls_made
             # 调用 LLM
             llm_start = time.time()
             try:
@@ -183,12 +211,42 @@ class RealAgent:
                 duration=llm_duration,
             )
             transcript.add_event(llm_event)
+            calls_made += 1
 
             # 检查是否有工具调用
             tool_calls = getattr(message, "tool_calls", None)
             if not tool_calls:
-                # 无工具调用 → 模型认为任务完成
-                break
+                if not self._empty_patch_retries:
+                    break
+                guard_checks += 1
+                diff_status, check_detail = self._check_repository_diff(sandbox)
+                if diff_status == "check_error":
+                    guard_check_failures += 1
+                should_retry = (
+                    diff_status == "empty"
+                    and guard_retries < self._empty_patch_retries
+                )
+                extra_call_granted = should_retry and calls_made >= call_limit
+                if should_retry:
+                    guard_retries += 1
+                    if extra_call_granted:
+                        call_limit = self._max_iterations + 1
+                self._record_patch_guard(
+                    transcript,
+                    trigger="no_tool_final",
+                    diff_status=diff_status,
+                    calls_made=calls_made,
+                    retry_count=guard_retries,
+                    extra_call_granted=extra_call_granted,
+                    check_detail=check_detail,
+                )
+                if not should_retry:
+                    break
+                messages.extend([
+                    {"role": "assistant", "content": message.content or ""},
+                    {"role": "user", "content": _PATCH_GUARD_CORRECTION},
+                ])
+                continue
 
             # 将 assistant 消息加入对话
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": message.content or ""}
@@ -254,6 +312,33 @@ class RealAgent:
                     "content": result_content,
                 })
 
+            if (
+                self._empty_patch_retries
+                and calls_made == self._max_iterations
+                and guard_retries == 0
+            ):
+                guard_checks += 1
+                diff_status, check_detail = self._check_repository_diff(sandbox)
+                if diff_status == "check_error":
+                    guard_check_failures += 1
+                should_retry = diff_status == "empty"
+                if should_retry:
+                    guard_retries += 1
+                    call_limit = self._max_iterations + 1
+                self._record_patch_guard(
+                    transcript,
+                    trigger="base_budget_exhausted",
+                    diff_status=diff_status,
+                    calls_made=calls_made,
+                    retry_count=guard_retries,
+                    extra_call_granted=should_retry,
+                    check_detail=check_detail,
+                )
+                if should_retry:
+                    messages.append({"role": "user", "content": _PATCH_GUARD_CORRECTION})
+                else:
+                    break
+
         total_duration = time.time() - start_time
 
         # 更新 transcript 的汇总指标
@@ -269,8 +354,57 @@ class RealAgent:
         transcript.agent_config["provider_model_versions"] = sorted(
             provider_model_versions
         )
+        transcript.agent_config["patch_guard_checks"] = guard_checks
+        transcript.agent_config["patch_guard_retries_used"] = guard_retries
+        transcript.agent_config["patch_guard_check_failures"] = guard_check_failures
+        transcript.agent_config["effective_call_limit"] = call_limit
 
         return transcript
+
+    @staticmethod
+    def _check_repository_diff(sandbox: SandboxManager) -> tuple[str, str]:
+        try:
+            container = sandbox.get_active_container()
+            result = sandbox.execute(container, "cd /workspace && git diff --quiet --")
+        except Exception as exc:
+            return "check_error", str(exc)
+        if result.exit_code == 0:
+            return "empty", ""
+        if result.exit_code == 1:
+            return "non_empty", ""
+        detail = result.stderr or result.stdout or f"exit code {result.exit_code}"
+        return "check_error", detail
+
+    def _record_patch_guard(
+        self,
+        transcript: Transcript,
+        *,
+        trigger: str,
+        diff_status: str,
+        calls_made: int,
+        retry_count: int,
+        extra_call_granted: bool,
+        check_detail: str,
+    ) -> None:
+        content: dict[str, Any] = {
+            "kind": "patch_guard",
+            "trigger": trigger,
+            "diff_status": diff_status,
+            "calls_made": calls_made,
+            "base_limit": self._max_iterations,
+            "retry_count": retry_count,
+            "extra_call_granted": extra_call_granted,
+        }
+        if check_detail:
+            content["error"] = "patch_guard_check_error"
+            content["detail"] = check_detail
+        transcript.add_event(
+            TraceEvent(
+                timestamp=time.time(),
+                event_type=EventType.REFLECTION,
+                content=content,
+            )
+        )
 
     def _build_task_message(self, task: Task) -> str:
         """构建发送给 LLM 的任务消息。"""
