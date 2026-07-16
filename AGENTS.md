@@ -1,10 +1,12 @@
-# CodePulse — Code Agent 评测与自进化框架
+# CodePulse — Code Agent 可信评测与回归门禁
 
 ## 项目定位
 
-CodePulse 是一个 Code Agent 评测与自进化框架。核心理念：评测即奖励信号，评测体系本身就是 RL 环境。
+CodePulse 是一个面向 Code Agent 的可复现实验、可信评测与回归门禁平台。
+核心价值是验证改进声明，而不是自研通用 Agent、沙箱或优化器。
 
-六层架构：环境层 → 数据层 → 评测层 → 可观测性层 → 自进化层 → 产出层。
+当前权威状态见 `docs/project-status.md`。历史 PRD 和日期化实验规格不得覆盖
+该状态页中的阶段结论与证据边界。
 
 ## 技术栈
 
@@ -29,6 +31,13 @@ DRY。一切重复都是膨胀的种子。
 接口服务使用者。好用比好实现重要，复杂性封装内部。
 善用 AI 但别依赖 AI。把 AI 当加速器，审查输出比写 prompt 更重要。
 像负责一辈子那样写代码。如果每行代码都会公开到朋友圈，你一定写得更好。
+
+## Build or Buy
+
+新增 Agent controller、sandbox backend、optimizer 或 benchmark harness 前，先审查
+维护活跃度、许可证和适配成本。成熟开源方案能够覆盖职责时，优先写小型 Adapter，
+不扩展同职责的 legacy 实现。CodePulse 的自研代码只服务于实验冻结、证据、评测、
+归因、门禁和报告。
 
 ## 工程规范
 
@@ -69,7 +78,7 @@ CodePulse/
 │   ├── shared/       # Layer 1: 共享类型（trace_types / constants）
 │   ├── eval/         # Layer 3: 评测层（五维度 + 三类 Grader）
 │   ├── observe/      # Layer 4: 可观测性层（Trace + 指标）
-│   ├── evolve/       # Layer 5: 自进化层（SkillOpt）
+│   ├── evolve/       # Phase 3 研究实现 + 回归门禁
 │   ├── output/       # Layer 6: 产出层（报告）
 │   ├── api/          # REST API（FastAPI + Dashboard 后端）
 │   ├── benchmark/    # 业界基准注册 + 下载 + 运行
@@ -106,7 +115,7 @@ CodePulse/
 - **pass^k**：k 次全成功（稳定性）
 - **三个黑洞**：循环试错、上下文膨胀、过度谨慎
 - **四类归因**：改进 / 退化 / 持续失败 / 稳定成功
-- **SkillOpt 循环**：Forward → Backward → Validate → Buffer
+- **Phase 3 legacy SkillOpt**：研究实现，不作为已验证能力或后续默认扩展点
 
 ## 代码图谱工具（codebase-memory-mcp）
 
@@ -145,11 +154,13 @@ PRD 位于 `F:\Resume\06-岗位研究\DeepSeek-Code-Agent数据工程师\PRD-Cod
 
 ## 当前证据路线
 
-按顺序推进以下阶段；阶段之间不得跳过，除非前一阶段已满足 Issue 验收标准：
+按以下证据状态推进阶段：
 
 1. Phase 1：[可复现多 Agent Benchmark 基线](https://github.com/Chloride233/CodePulse/issues/2)
 2. Phase 2：[LLM-as-Judge 人工校准](https://github.com/Chloride233/CodePulse/issues/1)
-3. Phase 3：[自进化收益与回归门禁](https://github.com/Chloride233/CodePulse/issues/3)
+3. Phase 3：[自进化收益与回归门禁](https://github.com/Chloride233/CodePulse/issues/3) — 已以负面证据关闭，收益验收未通过
 4. Phase 4：[一键演示与作品级交付](https://github.com/Chloride233/CodePulse/issues/4)
 
-新功能必须服务于当前 Phase 的验收项。每个阶段结束时必须保留可复现命令、测试或实验报告以及量化结果。设计、计划和未运行的能力不得写成已实现结果。
+失败阶段可以在完整记录结论和停止条件后解除后续门禁，但不得标记为验收通过。
+新功能必须服务于当前 Phase 的验收项。每个阶段结束时必须保留可复现命令、
+测试或实验报告以及量化结果。设计、计划和未运行的能力不得写成已实现结果。
