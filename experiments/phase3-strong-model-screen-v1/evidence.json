@@ -1,0 +1,65 @@
+{
+  "protocol_version": "phase3-strong-model-screen-evidence-v1",
+  "manifest_path": "experiments/phase3-strong-model-screen-v1/manifest.json",
+  "manifest_sha256": "88ce1457cc898a2f54c8b2209011b133f073b3d944d71f935a7e20406426640d",
+  "raw_trials_path": "results/phase3/strong-model-screen-v1-retry-1/trials.jsonl",
+  "raw_trials_sha256": "a47c3b3f226bc58f40eeb6fcb41bf9dba2c0b8d75b29ea09c2d0174e379a2451",
+  "raw_run_summary_path": "results/phase3/strong-model-screen-v1-retry-1/run-summary.json",
+  "raw_run_summary_sha256": "98104065c27753ccd855e23b5e72c0ff146cd5ac3e8fea2575e7e4b0161da0a3",
+  "screen_report_path": "experiments/phase3-strong-model-screen-v1/screen-report.json",
+  "screen_report_sha256": "d7b4754f6902e2b3cc5e3b037739cbbeb4efdb75bc6bba6ad08bc48f8c7b6b13",
+  "aborted_attempt_evidence_path": "experiments/phase3-strong-model-screen-v1/aborted-evidence-v1.json",
+  "aborted_attempt_evidence_sha256": "1cbb49b6eafab74dc52aa819c188c9fd91535a239b017616547d0f4292438c57",
+  "status": "completed",
+  "accepted": false,
+  "rejection_reasons": [
+    "insufficient_candidate_non_empty_patches",
+    "insufficient_candidate_resolved",
+    "insufficient_candidate_resolved_delta"
+  ],
+  "completed_trials": 6,
+  "planned_trials": 6,
+  "unique_trial_keys": 6,
+  "tasks": 3,
+  "provider_model_versions": [
+    "deepseek-v4-pro"
+  ],
+  "baseline": {
+    "non_empty_patches": 0,
+    "resolved": 0,
+    "total_tokens": 206073,
+    "cost_cny_peak": 0.499416
+  },
+  "candidate": {
+    "non_empty_patches": 0,
+    "resolved": 0,
+    "total_tokens": 182182,
+    "cost_cny_peak": 0.52984,
+    "patch_guard_checks": 4,
+    "patch_guard_triggers": 4,
+    "patch_guard_retries_used": 3,
+    "patch_guard_check_failures": 0,
+    "effective_call_limits": [
+      9,
+      9,
+      9
+    ]
+  },
+  "candidate_resolved_delta": 0,
+  "attribution_counts": {
+    "improvement": 0,
+    "regression": 0,
+    "persistent_failure": 3,
+    "stable_success": 0
+  },
+  "candidate_token_ratio": 0.884065,
+  "candidate_cost_ratio": 1.060919,
+  "infrastructure_failures": 0,
+  "total_cost_cny_peak": 1.029256,
+  "max_trial_cost_cny_peak": 0.26804,
+  "raw_results_preserved": true,
+  "same_model_low_resource_branch_stopped": true,
+  "strong_model_branch_stopped": true,
+  "heldout_started": false,
+  "phase3_complete": false
+}

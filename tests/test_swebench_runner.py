@@ -158,6 +158,29 @@ def test_swebench_runner_screen_v3_negative_evidence_is_frozen() -> None:
     assert evidence["phase3_complete"] is False
 
 
+def test_strong_model_screen_negative_evidence_is_frozen() -> None:
+    root = Path(__file__).parents[1]
+    evidence = json.loads(
+        (root / "experiments/phase3-strong-model-screen-v1/evidence.json").read_text()
+    )
+    report_path = root / evidence["screen_report_path"]
+    manifest_path = root / evidence["manifest_path"]
+
+    assert evidence["protocol_version"] == "phase3-strong-model-screen-evidence-v1"
+    assert evidence["manifest_sha256"] == file_sha256(manifest_path)
+    assert evidence["screen_report_sha256"] == file_sha256(report_path)
+    assert evidence["accepted"] is False
+    assert evidence["attribution_counts"] == {
+        "improvement": 0,
+        "regression": 0,
+        "persistent_failure": 3,
+        "stable_success": 0,
+    }
+    assert evidence["strong_model_branch_stopped"] is True
+    assert evidence["heldout_started"] is False
+    assert evidence["phase3_complete"] is False
+
+
 def test_swebench_runner_screen_preflight_cli_avoids_docker() -> None:
     root = Path(__file__).parents[1]
     result = CliRunner().invoke(
