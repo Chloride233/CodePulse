@@ -220,6 +220,13 @@ def validate_swebench_evolution_manifest(
         _validate_swebench_agent(errors, agent, root, index)
     _validate_swebench_runner(errors, manifest.get("runner"), expected_task_ids)
     runner = manifest.get("runner")
+    if protocol_version == "phase3-swebench-screen-v3" and (
+        manifest.get("controller_edit_id") != "patch-guard-v1"
+        or not isinstance(runner, dict)
+        or runner.get("image_transport_prefix") != "dockerproxy.net"
+    ):
+        errors.append("screen v3 must freeze patch-guard-v1 and dockerproxy.net")
+    runner = manifest.get("runner")
     if protocol_version == "phase3-swebench-evolution-v4" and (
         not isinstance(runner, dict)
         or runner.get("image_transport_prefix") != "dockerproxy.net"
@@ -702,6 +709,14 @@ def _validate_swebench_screen_provenance(
                 errors.append(f"candidate_provenance.{key} must match the frozen manifest")
         if provenance.get("tool_contract_version") != "repository-tools-v2":
             errors.append("candidate_provenance must freeze repository-tools-v2")
+        controller_edit = provenance.get("controller_edit")
+        if protocol_version == "phase3-swebench-screen-v3" and (
+            not isinstance(controller_edit, dict)
+            or controller_edit.get("edit_id") != "patch-guard-v1"
+            or provenance.get("profile_changes")
+            != {"empty_patch_retries": {"before": 0, "after": 1}}
+        ):
+            errors.append("candidate_provenance must freeze the patch guard-only change")
     trials_path = provenance.get("training_trials_path")
     trials_digest = provenance.get("training_trials_sha256")
     if not isinstance(trials_path, str) or not isinstance(trials_digest, str):

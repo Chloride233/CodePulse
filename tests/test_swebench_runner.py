@@ -121,6 +121,12 @@ def test_swebench_runner_screen_manifest_accepts_frozen_training_inputs() -> Non
     )
     assert validate_swebench_screen_manifest(v2_manifest, root) == []
 
+    v3_manifest = json.loads(
+        (root / "experiments/phase3-swebench-screen-v3/manifest.json").read_text()
+    )
+    assert validate_swebench_screen_manifest(v3_manifest, root) == []
+
+
 def test_swebench_runner_screen_preflight_cli_avoids_docker() -> None:
     root = Path(__file__).parents[1]
     result = CliRunner().invoke(
