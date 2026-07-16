@@ -1,0 +1,45 @@
+{
+  "protocol_version": "phase3-strong-model-profiles-v1",
+  "source_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v2-tools-v2.yaml",
+  "source_profile_sha256": "92c4c8805cf1a39cf4c7924f08a3aeb06abcc29c4be2c9c229c5aa039fc0e3f6",
+  "controller_provenance_path": "experiments/phase3-swebench-screen-v3/candidate-provenance.json",
+  "controller_provenance_sha256": "7dff599c7ffd35890b8442c78ef79f58483b8fc64efbf21027930c53bc59372e",
+  "controller_edit": {
+    "edit_id": "patch-guard-v1",
+    "edit_type": "controller",
+    "target": "empty_patch_termination",
+    "setting": "empty_patch_retries",
+    "before": 0,
+    "after": 1,
+    "maximum_extra_calls": 1
+  },
+  "controller_edit_sha256": "1248fcdcc3a7bd6fd17389c20aa01df504570dc30dcce6035149c6e0cc8e0694",
+  "rejected_screen_evidence_path": "experiments/phase3-swebench-screen-v3/evidence.json",
+  "rejected_screen_evidence_sha256": "65907451e4a15319f18b234a61b9eb0f1d1d50054cbdc54d2955e3c042974fd2",
+  "model": "deepseek/deepseek-v4-pro",
+  "provider_model_version": "deepseek-v4-pro",
+  "tool_contract_version": "repository-tools-v2",
+  "baseline_profile_path": "agents/deepseek-v4-pro-swebench-baseline-v1.yaml",
+  "baseline_profile_sha256": "faaafd20aa933a904a2bb5daffc5ffe1c7058f1655100c753597e8020ca66510",
+  "candidate_profile_path": "agents/deepseek-v4-pro-swebench-patch-guard-v1.yaml",
+  "candidate_profile_sha256": "bd6fa8c02e9a77e830b1502316042401a1268386aef65bd8bf216ee443ca3c90",
+  "runtime_changes": {
+    "empty_patch_retries": {
+      "before": 0,
+      "after": 1
+    }
+  },
+  "pricing_cny_per_million_tokens": {
+    "off_peak": {
+      "cache_hit": 1.0,
+      "cache_miss": 4.0,
+      "output": 16.0
+    },
+    "peak": {
+      "cache_hit": 1.0,
+      "cache_miss": 4.0,
+      "output": 16.0
+    }
+  },
+  "oracle_content_included": false
+}
