@@ -71,14 +71,15 @@ calibration. Promptfoo covers general evaluation assertions and CI quality gates
 Inspect AI and MLflow cover evaluation logs, tracing, experiment tracking, and
 dashboards. None is a required dependency for the offline Demo.
 
-## Next Approved Direction
+## Phase 4 Offline Evidence Demo
 
-Phase 4 should first deliver a fully offline evidence report from committed fixtures.
-It verifies the available evidence boundary and generates one deterministic Markdown
-document showing Agent comparison, stability, cost, Judge calibration, failure cases,
-and rejected Phase 3 candidates. It does not implement a generic evaluation, A/B,
-assertion, tracing, or reporting framework. The frozen design is in
-[phase4-offline-evidence-demo-design.md](phase4-offline-evidence-demo-design.md).
+The first Phase 4 slice is implemented as a fully offline evidence report from
+committed fixtures. `codepulse demo` verifies the available evidence boundary and
+generates one deterministic Markdown document showing Agent comparison, stability,
+cost, Judge calibration, failure cases, and rejected Phase 3 candidates. It does not
+implement a generic evaluation, A/B, assertion, tracing, or reporting framework. See
+the [design](phase4-offline-evidence-demo-design.md) and the generated
+[evidence report](codepulse-evidence-report.md).
 
 No new paid experiment, candidate variant, custom controller feature, server rental,
 or model-training effort is approved by this status document.

@@ -1,6 +1,6 @@
 # Phase 4 Offline Evidence Demo Design
 
-Status: proposed for implementation
+Status: implemented
 Issue: [#4](https://github.com/Chloride233/CodePulse/issues/4)
 
 ## Goal
@@ -100,8 +100,9 @@ an unexpected protocol/status/count, or fails an available committed hash check.
 Deleted Phase 3 raw results are the one expected absence. They appear in the report as
 `raw evidence not locally preserved` and do not cause the command to fail.
 
-The command refuses to overwrite an existing output unless `--force` is supplied,
-reusing the repository's existing artifact overwrite guard.
+When an existing output is byte-identical, the command succeeds without writing it.
+When the content differs, the command refuses to overwrite it unless `--force` is
+supplied, reusing the repository's existing artifact overwrite guard.
 
 ## Tests
 
