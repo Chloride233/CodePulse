@@ -27,7 +27,7 @@ CodePulse does not currently claim that self-evolution improves Agent performanc
 | Phase 1: reproducible benchmark | Complete | 120 real trials, paired Agent metrics, cost and latency report |
 | Phase 2: Judge calibration | Complete | 100 functional samples and 10 full-evidence qualitative diagnostics |
 | Phase 3: evolution benefit | Closed without acceptance | Real SWE-bench candidates did not improve pass^3 and were rejected by the Gate |
-| Phase 4: portfolio delivery | Not started | Offline demo, public report, README path, and demo CI remain required |
+| Phase 4: portfolio delivery | In progress | Offline Demo and public report implemented; CI verification and README path remain |
 
 Phase 3 engineering produced reusable comparison, attribution, provenance, Gate, and
 reporting assets. Its custom Agent/controller, candidate mutation, and repository

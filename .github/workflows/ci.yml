@@ -46,6 +46,10 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[dev]"
       - run: pytest --cov=codepulse --cov-report=term-missing:skip-covered --cov-fail-under=60 -v
+      - name: Verify offline evidence Demo
+        run: |
+          codepulse demo --output /tmp/codepulse-evidence-report.md
+          cmp /tmp/codepulse-evidence-report.md docs/codepulse-evidence-report.md
 
   frontend:
     runs-on: ubuntu-latest
