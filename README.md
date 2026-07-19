@@ -44,7 +44,7 @@ LLM-as-Judge、稳定性指标和 Validation Gate 判断候选是否真的优于
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Chloride233/CodePulse.git
+git clone https://github.com/randy-labs/CodePulse.git
 cd CodePulse
 
 # 安装依赖

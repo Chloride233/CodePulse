@@ -156,10 +156,10 @@ PRD 位于 `F:\Resume\06-岗位研究\DeepSeek-Code-Agent数据工程师\PRD-Cod
 
 按以下证据状态推进阶段：
 
-1. Phase 1：[可复现多 Agent Benchmark 基线](https://github.com/Chloride233/CodePulse/issues/2)
-2. Phase 2：[LLM-as-Judge 人工校准](https://github.com/Chloride233/CodePulse/issues/1)
-3. Phase 3：[自进化收益与回归门禁](https://github.com/Chloride233/CodePulse/issues/3) — 已以负面证据关闭，收益验收未通过
-4. Phase 4：[一键演示与作品级交付](https://github.com/Chloride233/CodePulse/issues/4)
+1. Phase 1：[可复现多 Agent Benchmark 基线](https://github.com/randy-labs/CodePulse/issues/2)
+2. Phase 2：[LLM-as-Judge 人工校准](https://github.com/randy-labs/CodePulse/issues/1)
+3. Phase 3：[自进化收益与回归门禁](https://github.com/randy-labs/CodePulse/issues/3) — 已以负面证据关闭，收益验收未通过
+4. Phase 4：[一键演示与作品级交付](https://github.com/randy-labs/CodePulse/issues/4)
 
 失败阶段可以在完整记录结论和停止条件后解除后续门禁，但不得标记为验收通过。
 新功能必须服务于当前 Phase 的验收项。每个阶段结束时必须保留可复现命令、

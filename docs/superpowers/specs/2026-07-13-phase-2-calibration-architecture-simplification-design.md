@@ -2,7 +2,7 @@
 
 Status: Approved; empirically corrected after v2/v3 candidate captures
 Date: 2026-07-13
-Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)
+Issue: [#1](https://github.com/randy-labs/CodePulse/issues/1)
 
 ## Objective
 
