@@ -82,13 +82,15 @@ class SandboxManager:
         """初始化沙箱管理器。
 
         Args:
-            base_url: Docker daemon 地址，默认使用本地 socket。
+            base_url: Docker daemon 地址，默认使用 Docker 环境变量或本地 socket。
 
         Raises:
             SandboxError: 无法连接 Docker daemon。
         """
         try:
-            self._client = docker.DockerClient(base_url=base_url)
+            self._client = (
+                docker.from_env() if base_url is None else docker.DockerClient(base_url=base_url)
+            )
             self._client.ping()
         except Exception as exc:
             raise SandboxError(f"无法连接 Docker daemon: {exc}") from exc
