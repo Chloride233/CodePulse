@@ -1,0 +1,49 @@
+{
+  "protocol_version": "skillopt-candidate-v5",
+  "baseline_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v2-tools-v2.yaml",
+  "baseline_profile_sha256": "92c4c8805cf1a39cf4c7924f08a3aeb06abcc29c4be2c9c229c5aa039fc0e3f6",
+  "training_evidence_path": "experiments/phase3-swebench-training-v5/evidence.json",
+  "training_evidence_sha256": "c0eb997defed103e36215e27e782fc454d6a5abe2f93f2dee9514098bfc52637",
+  "training_trials_path": "experiments/phase3-swebench-training-v5/trials.jsonl",
+  "training_trials_sha256": "823b5ceb545852889f27c60a8e44057fcd1cb9d33338665b4c1ccc34a720f7ab",
+  "rejected_screen_evidence_path": "experiments/phase3-swebench-screen-v2/evidence.json",
+  "rejected_screen_evidence_sha256": "d6b85f2e118fea736fd66f912c8dfdab7ce9b43040378fcb1de55ae025a71259",
+  "source_task_ids": [
+    "pytest-dev__pytest-10081",
+    "scikit-learn__scikit-learn-13328",
+    "sphinx-doc__sphinx-8621"
+  ],
+  "source_trial_ids": [
+    "pytest-dev__pytest-10081--r0--deepseek-v4-flash-swebench-direct-skillopt-v2-tools-v2",
+    "pytest-dev__pytest-10081--r0--deepseek-v4-flash-swebench-direct-skillopt-v4",
+    "scikit-learn__scikit-learn-13328--r0--deepseek-v4-flash-swebench-direct-skillopt-v2-tools-v2",
+    "scikit-learn__scikit-learn-13328--r0--deepseek-v4-flash-swebench-direct-skillopt-v4",
+    "sphinx-doc__sphinx-8621--r0--deepseek-v4-flash-swebench-direct-skillopt-v2-tools-v2",
+    "sphinx-doc__sphinx-8621--r0--deepseek-v4-flash-swebench-direct-skillopt-v4"
+  ],
+  "trace_analysis": {
+    "empty_patches": 6,
+    "modifying_tool_calls": 0,
+    "no_tool_final_responses": 4,
+    "base_budget_exhaustions": 2
+  },
+  "controller_edit": {
+    "edit_id": "patch-guard-v1",
+    "edit_type": "controller",
+    "target": "empty_patch_termination",
+    "setting": "empty_patch_retries",
+    "before": 0,
+    "after": 1,
+    "maximum_extra_calls": 1
+  },
+  "controller_edit_sha256": "1248fcdcc3a7bd6fd17389c20aa01df504570dc30dcce6035149c6e0cc8e0694",
+  "tool_contract_version": "repository-tools-v2",
+  "candidate_profile_path": "agents/deepseek-v4-flash-swebench-skillopt-v5.yaml",
+  "candidate_profile_sha256": "06515163a8fede17b9c1881fb6549cbd58c64173537318b288ee3317065675b8",
+  "profile_changes": {
+    "empty_patch_retries": {
+      "before": 0,
+      "after": 1
+    }
+  }
+}

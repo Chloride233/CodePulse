@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -33,6 +34,7 @@ def mock_docker():
     """Patch docker.DockerClient 并返回 (client_cls, client_instance)。"""
     with patch("codepulse.env.sandbox.docker") as mock_mod:
         client_instance = MagicMock()
+        mock_mod.from_env.return_value = client_instance
         mock_mod.DockerClient.return_value = client_instance
         yield mock_mod, client_instance
 
@@ -150,10 +152,12 @@ class TestSandboxManagerInit:
     """SandboxManager 初始化测试。"""
 
     def test_success(self, mock_docker):
-        _, client = mock_docker
+        mock_mod, client = mock_docker
         client.ping.return_value = True
         mgr = SandboxManager()
         assert mgr._client is client
+        mock_mod.from_env.assert_called_once_with()
+        mock_mod.DockerClient.assert_not_called()
         client.ping.assert_called_once()
 
     def test_connection_failure(self, mock_docker):
@@ -498,7 +502,7 @@ class TestSandboxManagerIntegration:
     运行方式: pytest -m integration
     """
 
-    IMAGE = "alpine:3.19"
+    IMAGE = os.environ.get("CODEPULSE_TEST_IMAGE", "alpine:3.19")
 
     @pytest.fixture
     def real_manager(self):
@@ -536,20 +540,23 @@ class TestSandboxManagerIntegration:
     def test_snapshot_and_restore(self, real_manager):
         """快照和恢复容器。"""
         container = real_manager.create(self.IMAGE)
+        snapshot = None
         try:
             # Create a file so we can verify it survives snapshot
             real_manager.execute(container, "touch /snapshot_marker")
-            snap = real_manager.snapshot(container)
-            assert snap.container_id == container.id
-            assert "snapshot" in snap.image_tag
+            snapshot = real_manager.snapshot(container)
+            assert snapshot.container_id == container.id
+            assert "snapshot" in snapshot.image_tag
 
-            restored = real_manager.restore(snap)
+            restored = real_manager.restore(snapshot)
             try:
                 result = real_manager.execute(restored, "ls /snapshot_marker")
                 assert result.exit_code == 0
             finally:
                 real_manager.destroy(restored)
         finally:
+            if snapshot is not None:
+                real_manager._client.images.remove(snapshot.image_tag, force=True)
             real_manager.destroy(container)
 
     def test_destroy_nonexistent_container(self, real_manager):

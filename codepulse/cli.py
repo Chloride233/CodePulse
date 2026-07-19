@@ -6,6 +6,7 @@ Subcommands:
     codepulse compare    Compare multiple agents on a task.
     codepulse inspect    Inspect evaluation results.
     codepulse report     Generate report from saved results.
+    codepulse demo       Generate the offline evidence report.
     codepulse web        Start the web dashboard.
 """
 
@@ -24,7 +25,6 @@ from codepulse.commands.baseline_cli import baseline_group
 from codepulse.commands.evolve_cli import evolve_group
 from codepulse.config import DEFAULT_RESULTS_DIR
 from codepulse.data.custom_loader import CustomDatasetLoader
-from codepulse.env.sandbox import SandboxError, SandboxManager
 from codepulse.eval.harness import EvaluationHarness
 from codepulse.eval.scoring import weighted_total
 from codepulse.observe.metrics import compute_pass_metrics
@@ -32,6 +32,7 @@ from codepulse.output.report import ReportGenerator
 
 if TYPE_CHECKING:
     from codepulse.data.models import Task
+    from codepulse.env.sandbox import SandboxManager
 
 
 def _load_first_task(task_file: str) -> Task:
@@ -78,6 +79,8 @@ def _create_harness(sandbox: SandboxManager | None = None) -> EvaluationHarness:
 
 def _create_sandbox() -> SandboxManager:
     """Create a Docker sandbox or raise a clear error."""
+    from codepulse.env.sandbox import SandboxError, SandboxManager
+
     try:
         return SandboxManager()
     except SandboxError as exc:
@@ -626,6 +629,42 @@ def report(results_dir: str, fmt: str, output_path: str | None) -> None:
             click.echo(f"Report saved to: {output_path}")
         else:
             click.echo(md)
+
+
+# ------------------------------------------------------------------
+# demo
+# ------------------------------------------------------------------
+
+
+@cli.command()
+@click.option(
+    "--output",
+    "output_path",
+    default="docs/codepulse-evidence-report.md",
+    show_default=True,
+    type=click.Path(dir_okay=False),
+    help="Path for the deterministic Markdown report.",
+)
+@click.option("--force", is_flag=True, help="Overwrite an existing output file.")
+def demo(output_path: str, force: bool) -> None:
+    """Verify committed evidence and generate the offline decision report."""
+    from codepulse.eval.artifacts import ensure_outputs_available
+    from codepulse.evidence_report import EvidenceReportError, build_evidence_report
+
+    target = Path(output_path)
+    try:
+        markdown = build_evidence_report(Path.cwd())
+        encoded = markdown.encode("utf-8")
+        if target.is_file() and not force and target.read_bytes() == encoded:
+            click.echo(f"Evidence report is already current: {output_path}")
+            return
+        ensure_outputs_available([target], force=force)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(encoded)
+    except (EvidenceReportError, FileExistsError, OSError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"Evidence report saved to: {output_path}")
 
 
 # ------------------------------------------------------------------

@@ -1,5 +1,10 @@
 # PRD：CodePulse —— Code Agent 评测与自进化框架
 
+> **历史文档。** 本 PRD 保留最初的产品假设和阶段规划，不再作为当前执行路线。
+> 其中自研 Docker、SkillOpt、Backward Pass 和多模型实验计划已经被后续真实证据
+> 与 build-or-buy 审计取代。当前定位、阶段状态和下一步以
+> [project-status.md](project-status.md) 为准。
+
 > 版本：v1.0 | 日期：2026-06-26 | 作者：杨宇轩
 
 ---

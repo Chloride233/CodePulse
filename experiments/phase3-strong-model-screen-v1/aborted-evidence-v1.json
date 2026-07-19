@@ -1,0 +1,22 @@
+{
+  "protocol_version": "phase3-strong-model-screen-aborted-evidence-v1",
+  "status": "aborted",
+  "reason": "host_no_proxy_ipv6_parse_error",
+  "error": "DeepseekException - Invalid port: ':1'",
+  "completed_trials": 3,
+  "planned_trials": 6,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "total_cost_cny_peak": 0.0,
+  "provider_model_versions": [],
+  "source_manifest_path": "results/phase3/strong-model-screen-v1/manifest.json",
+  "source_manifest_sha256": "218d928e41c578b6be8a84897b4a0f17715889995f0e0f15483ca24b5dbe7cde",
+  "raw_trials_path": "results/phase3/strong-model-screen-v1/trials.jsonl",
+  "raw_trials_sha256": "e241439170c74ebe742a503763bbbd665ad699526e5a734b4a7f19e27eb5ca95",
+  "raw_run_summary_path": "results/phase3/strong-model-screen-v1/run-summary.json",
+  "raw_run_summary_sha256": "251ff5191dca11579c16de397c275d94f74b5667ec7468424276ba607e37f8ba",
+  "replacement_manifest_path": "experiments/phase3-strong-model-screen-v1/manifest.json",
+  "replacement_manifest_sha256": "88ce1457cc898a2f54c8b2209011b133f073b3d944d71f935a7e20406426640d",
+  "retry_output_path": "results/phase3/strong-model-screen-v1-retry-1",
+  "raw_results_preserved": true
+}

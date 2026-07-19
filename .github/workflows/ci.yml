@@ -5,59 +5,21 @@ on:
     branches: [master, main, dev]
   pull_request:
     branches: [master, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codepulse-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[dev]"
-      - run: ruff check codepulse/ tests/
-      - run: mypy codepulse/ --strict
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[dev]"
-      - run: bandit -c pyproject.toml -r codepulse/ --severity-level high
-
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[dev]"
-      - run: pytest --cov=codepulse --cov-report=term-missing:skip-covered --cov-fail-under=60 -v
-
-  frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - run: npm run build
+  ship:
+    uses: randy-labs/ship/.github/workflows/reusable-python-node-ci.yml@0dbea7c4e4c0b93091ae5d751b5f4bc892548b66
+    with:
+      python-versions: '["3.11", "3.12"]'
+      frontend-enabled: true
+      sparse-checkout: |
+        /*
+        !/article/
