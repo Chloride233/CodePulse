@@ -1,0 +1,22 @@
+version: "3"
+
+tasks:
+  ci:quality:
+    cmds:
+      - git diff --check
+      - actionlint
+      - ruff check --no-fix codepulse/ tests/
+      - mypy codepulse/ --strict
+      - bandit -c pyproject.toml -r codepulse/ --severity-level high
+
+  ci:test:
+    cmds:
+      - pytest --cov=codepulse --cov-report=term-missing:skip-covered --cov-fail-under=60 -v
+      - codepulse demo --output /tmp/codepulse-evidence-report.md
+      - cmp /tmp/codepulse-evidence-report.md docs/codepulse-evidence-report.md
+
+  ci:frontend:
+    dir: web
+    cmds:
+      - npm ci
+      - npm run build
