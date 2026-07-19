@@ -1,1 +1,25 @@
-@.github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [master, main, dev]
+  pull_request:
+    branches: [master, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codepulse-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ship:
+    uses: randy-labs/ship/.github/workflows/reusable-python-node-ci.yml@c442412e829ea26e944d44358f8ea04522a38e06
+    with:
+      python-versions: '["3.11", "3.12"]'
+      frontend-enabled: true
+      sparse-checkout: |
+        /*
+        !/article/
