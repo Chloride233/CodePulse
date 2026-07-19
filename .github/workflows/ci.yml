@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   ship:
-    uses: randy-labs/ship/.github/workflows/reusable-python-node-ci.yml@a2d6efd39bdd1620be5cc51b771fed0f751ee214
+    uses: randy-labs/ship/.github/workflows/reusable-python-node-ci.yml@0dbea7c4e4c0b93091ae5d751b5f4bc892548b66
     with:
       python-versions: '["3.11", "3.12"]'
       frontend-enabled: true
