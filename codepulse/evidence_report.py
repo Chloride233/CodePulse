@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from codepulse.benchmark.pilot_report import summarize_pilot
 from codepulse.eval.artifacts import file_sha256, load_jsonl
@@ -55,8 +55,15 @@ def _load_phase1(root: Path) -> list[dict[str, Any]]:
     _expect(isinstance(agents, list) and len(agents) == 2, "Phase 1 requires two agents")
     _expect(manifest.get("n_trials") == 3, "Phase 1 requires n_trials 3")
 
+    task_ids = cast("list[Any]", task_ids)
+    agents = cast("list[Any]", agents)
     agent_names = [agent.get("name") for agent in agents if isinstance(agent, dict)]
-    _expect(len(agent_names) == 2 and all(agent_names), "Phase 1 agent names are invalid")
+    _expect(
+        len(agent_names) == 2
+        and all(isinstance(agent_name, str) and agent_name for agent_name in agent_names),
+        "Phase 1 agent names are invalid",
+    )
+    validated_agent_names = cast("list[str]", agent_names)
     _expect(summary.get("status") == "completed", "Phase 1 run summary status is not completed")
     _expect(
         summary.get("completed_trials") == 120 and summary.get("planned_trials") == 120,
@@ -72,7 +79,7 @@ def _load_phase1(root: Path) -> list[dict[str, Any]]:
     expected = {
         (task_id, agent_name, repetition)
         for task_id in task_ids
-        for agent_name in agent_names
+        for agent_name in validated_agent_names
         for repetition in range(3)
     }
     try:
@@ -89,7 +96,7 @@ def _load_phase1(root: Path) -> list[dict[str, Any]]:
     except (KeyError, TypeError, ZeroDivisionError) as exc:
         raise EvidenceReportError(f"Phase 1 Trial metrics are malformed: {exc}") from exc
     _expect(
-        [metric["agent"] for metric in metrics] == sorted(agent_names),
+        [metric["agent"] for metric in metrics] == sorted(validated_agent_names),
         "Phase 1 metric agents do not match the frozen manifest",
     )
     return metrics
@@ -132,11 +139,13 @@ def _verify_referenced_file(
     expected_hash = evidence.get(path_key.removesuffix("_path") + "_sha256")
     _expect(isinstance(relative_path, str), f"Phase 3 {path_key} is missing")
     _expect(isinstance(expected_hash, str), f"Phase 3 {path_key} hash is missing")
-    path = root / relative_path
-    _expect(path.is_file(), f"required committed evidence is missing: {relative_path}")
+    validated_relative_path = cast("str", relative_path)
+    validated_expected_hash = cast("str", expected_hash)
+    path = root / validated_relative_path
+    _expect(path.is_file(), f"required committed evidence is missing: {validated_relative_path}")
     _expect(
-        file_sha256(path) == expected_hash,
-        f"{path_key.removesuffix('_path')}_sha256 mismatch: {relative_path}",
+        file_sha256(path) == validated_expected_hash,
+        f"{path_key.removesuffix('_path')}_sha256 mismatch: {validated_relative_path}",
     )
 
 
@@ -160,7 +169,8 @@ def _load_phase3(root: Path) -> list[dict[str, Any]]:
                 isinstance(gate, dict) and gate.get("accepted") is False,
                 f"{relative_path} was not rejected",
             )
-            reasons = gate.get("rejection_reasons")
+            validated_gate = cast("dict[str, Any]", gate)
+            reasons = validated_gate.get("rejection_reasons")
         else:
             _expect(evidence.get("accepted") is False, f"{relative_path} was not rejected")
             reasons = evidence.get("rejection_reasons")
