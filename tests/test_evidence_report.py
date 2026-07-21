@@ -85,6 +85,17 @@ def test_report_rejects_phase1_coverage_drift(tmp_path: Path) -> None:
         build_evidence_report(tmp_path)
 
 
+def test_report_rejects_malformed_phase1_manifest_shape(tmp_path: Path) -> None:
+    _copy_bundle(tmp_path)
+    manifest_path = tmp_path / "results/pilot-v1/runs/20260713-v1/manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["task_ids"] = None
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(EvidenceReportError, match="20 task_ids"):
+        build_evidence_report(tmp_path)
+
+
 def test_report_rejects_available_file_hash_mismatch(tmp_path: Path) -> None:
     _copy_bundle(tmp_path)
     manifest_path = tmp_path / "experiments/phase3-swebench-evolution-v4/manifest.json"
@@ -93,6 +104,28 @@ def test_report_rejects_available_file_hash_mismatch(tmp_path: Path) -> None:
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(EvidenceReportError, match="manifest_sha256 mismatch"):
+        build_evidence_report(tmp_path)
+
+
+def test_report_rejects_malformed_phase3_reference_shape(tmp_path: Path) -> None:
+    _copy_bundle(tmp_path)
+    evidence_path = tmp_path / "experiments/phase3-swebench-evolution-v4/evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["manifest_path"] = None
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    with pytest.raises(EvidenceReportError, match="manifest_path is missing"):
+        build_evidence_report(tmp_path)
+
+
+def test_report_rejects_malformed_phase3_gate_shape(tmp_path: Path) -> None:
+    _copy_bundle(tmp_path)
+    evidence_path = tmp_path / "experiments/phase3-swebench-evolution-v4/evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["validation_gate"] = None
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    with pytest.raises(EvidenceReportError, match="was not rejected"):
         build_evidence_report(tmp_path)
 
 

@@ -51,12 +51,20 @@ def _load_phase1(root: Path) -> list[dict[str, Any]]:
     _expect(manifest.get("protocol_version") == "pilot-v1", "unexpected Phase 1 protocol")
     task_ids = manifest.get("task_ids")
     agents = manifest.get("agents")
-    _expect(isinstance(task_ids, list) and len(task_ids) == 20, "Phase 1 requires 20 task_ids")
-    _expect(isinstance(agents, list) and len(agents) == 2, "Phase 1 requires two agents")
+    if not isinstance(task_ids, list) or len(task_ids) != 20:
+        raise EvidenceReportError("Phase 1 requires 20 task_ids")
+    if not isinstance(agents, list) or len(agents) != 2:
+        raise EvidenceReportError("Phase 1 requires two agents")
     _expect(manifest.get("n_trials") == 3, "Phase 1 requires n_trials 3")
 
-    agent_names = [agent.get("name") for agent in agents if isinstance(agent, dict)]
-    _expect(len(agent_names) == 2 and all(agent_names), "Phase 1 agent names are invalid")
+    agent_names: list[str] = []
+    for agent in agents:
+        if not isinstance(agent, dict):
+            raise EvidenceReportError("Phase 1 agent names are invalid")
+        name = agent.get("name")
+        if not isinstance(name, str) or not name:
+            raise EvidenceReportError("Phase 1 agent names are invalid")
+        agent_names.append(name)
     _expect(summary.get("status") == "completed", "Phase 1 run summary status is not completed")
     _expect(
         summary.get("completed_trials") == 120 and summary.get("planned_trials") == 120,
@@ -130,8 +138,10 @@ def _verify_referenced_file(
 ) -> None:
     relative_path = evidence.get(path_key)
     expected_hash = evidence.get(path_key.removesuffix("_path") + "_sha256")
-    _expect(isinstance(relative_path, str), f"Phase 3 {path_key} is missing")
-    _expect(isinstance(expected_hash, str), f"Phase 3 {path_key} hash is missing")
+    if not isinstance(relative_path, str):
+        raise EvidenceReportError(f"Phase 3 {path_key} is missing")
+    if not isinstance(expected_hash, str):
+        raise EvidenceReportError(f"Phase 3 {path_key} hash is missing")
     path = root / relative_path
     _expect(path.is_file(), f"required committed evidence is missing: {relative_path}")
     _expect(
@@ -156,10 +166,8 @@ def _load_phase3(root: Path) -> list[dict[str, Any]]:
 
         if "validation_gate" in evidence:
             gate = evidence.get("validation_gate")
-            _expect(
-                isinstance(gate, dict) and gate.get("accepted") is False,
-                f"{relative_path} was not rejected",
-            )
+            if not isinstance(gate, dict) or gate.get("accepted") is not False:
+                raise EvidenceReportError(f"{relative_path} was not rejected")
             reasons = gate.get("rejection_reasons")
         else:
             _expect(evidence.get("accepted") is False, f"{relative_path} was not rejected")
