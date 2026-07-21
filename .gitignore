@@ -30,6 +30,7 @@ ENV/
 .env
 .env.*
 !.env.example
+*.private.jsonl
 
 # Runtime experiment manifests contain commit-specific evidence
 experiments/*/manifest.json

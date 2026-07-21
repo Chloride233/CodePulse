@@ -53,9 +53,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Chloride233/CodePulse"
-Repository = "https://github.com/Chloride233/CodePulse"
-Documentation = "https://github.com/Chloride233/CodePulse#readme"
+Homepage = "https://github.com/randy-labs/CodePulse"
+Repository = "https://github.com/randy-labs/CodePulse"
+Documentation = "https://github.com/randy-labs/CodePulse#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["codepulse"]

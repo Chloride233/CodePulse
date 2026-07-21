@@ -1,7 +1,7 @@
 # Phase 2 Diagnostic Browser Review Design
 
 Status: Plain-language revision approved on 2026-07-13
-Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)
+Issue: [#1](https://github.com/randy-labs/CodePulse/issues/1)
 
 ## Objective
 

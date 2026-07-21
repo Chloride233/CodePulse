@@ -1,6 +1,6 @@
 # CodePulse Project Status
 
-Status date: 2026-07-17
+Status date: 2026-07-20
 
 This document is the authoritative source for current project scope and phase status.
 The original PRD and dated experiment specifications remain historical design records.
@@ -27,7 +27,7 @@ CodePulse does not currently claim that self-evolution improves Agent performanc
 | Phase 1: reproducible benchmark | Complete | 120 real trials, paired Agent metrics, cost and latency report |
 | Phase 2: Judge calibration | Complete | 100 functional samples and 10 full-evidence qualitative diagnostics |
 | Phase 3: evolution benefit | Closed without acceptance | Real SWE-bench candidates did not improve pass^3 and were rejected by the Gate |
-| Phase 4: portfolio delivery | In progress | Offline Demo and public report implemented; CI verification and README path remain |
+| Phase 4: portfolio delivery | In progress | Offline Demo, public report, and README path implemented; PR CI verification remains |
 
 Phase 3 engineering produced reusable comparison, attribution, provenance, Gate, and
 reporting assets. Its custom Agent/controller, candidate mutation, and repository

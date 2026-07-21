@@ -1,7 +1,7 @@
 # Phase 4 Offline Evidence Demo Design
 
 Status: implemented
-Issue: [#4](https://github.com/Chloride233/CodePulse/issues/4)
+Issue: [#4](https://github.com/randy-labs/CodePulse/issues/4)
 
 ## Goal
 

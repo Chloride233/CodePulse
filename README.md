@@ -12,6 +12,18 @@ LLM-as-Judge、稳定性指标和 Validation Gate 判断候选是否真的优于
 稳定收益，候选被门禁拒绝。该结果作为负面证据保留，不表述为“自进化成功”。
 当前状态和证据边界见 [项目状态](docs/project-status.md)。
 
+## 离线证据演示
+
+无需模型密钥或付费调用，即可从仓库内已提交的冻结证据生成作品级报告：
+
+```bash
+codepulse demo --output docs/codepulse-evidence-report.md
+```
+
+命令会校验证据边界，并汇总 Agent 对比、稳定性、成本、Judge 校准、失败案例和
+Phase 3 被门禁拒绝的候选。查看[生成报告](docs/codepulse-evidence-report.md)和
+[当前项目状态](docs/project-status.md)。
+
 ## 核心特性
 
 - **可复现实验**：冻结任务、Agent、模型、依赖、容器、随机种子和预算
@@ -44,7 +56,7 @@ LLM-as-Judge、稳定性指标和 Validation Gate 判断候选是否真的优于
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Chloride233/CodePulse.git
+git clone https://github.com/randy-labs/CodePulse.git
 cd CodePulse
 
 # 安装依赖
@@ -189,12 +201,12 @@ CodePulse/
 ├── datasets/          # 数据集
 ├── docs/              # 文档
 ├── pyproject.toml     # 项目配置
-└── CLAUDE.md          # 开发指南
+└── AGENTS.md          # 共享开发指南
 ```
 
 ## 开发指南
 
-详见 [CLAUDE.md](./CLAUDE.md)。
+详见 [AGENTS.md](./AGENTS.md)。
 
 ## 许可证
 
