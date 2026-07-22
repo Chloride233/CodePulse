@@ -1,9 +1,4 @@
-"""CodePulse — Code Agent 评测与自进化框架。
-
-六层架构：环境层 → 数据层 → 评测层 → 可观测性层 → 自进化层 → 产出层。
-
-核心理念：评测即奖励信号，评测体系本身就是 RL 环境。
-"""
+"""CodePulse — reproducible experiments and trustworthy evaluation for Code Agents."""
 
 __version__ = "0.1.0"
 __all__ = ["__version__"]

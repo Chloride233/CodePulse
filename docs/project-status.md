@@ -1,6 +1,6 @@
 # CodePulse Project Status
 
-Status date: 2026-07-20
+Status date: 2026-07-22
 
 This document is the authoritative source for current project scope and phase status.
 The original PRD and dated experiment specifications remain historical design records.
@@ -27,7 +27,7 @@ CodePulse does not currently claim that self-evolution improves Agent performanc
 | Phase 1: reproducible benchmark | Complete | 120 real trials, paired Agent metrics, cost and latency report |
 | Phase 2: Judge calibration | Complete | 100 functional samples and 10 full-evidence qualitative diagnostics |
 | Phase 3: evolution benefit | Closed without acceptance | Real SWE-bench candidates did not improve pass^3 and were rejected by the Gate |
-| Phase 4: portfolio delivery | In progress | Offline Demo, public report, and README path implemented; PR CI verification remains |
+| Phase 4: portfolio delivery | Ready to merge | Offline Demo, public report, README path, and CI verification are implemented in Draft PR #8; merge remains |
 
 Phase 3 engineering produced reusable comparison, attribution, provenance, Gate, and
 reporting assets. Its custom Agent/controller, candidate mutation, and repository
@@ -80,6 +80,9 @@ cost, Judge calibration, failure cases, and rejected Phase 3 candidates. It does
 implement a generic evaluation, A/B, assertion, tracing, or reporting framework. See
 the [design](phase4-offline-evidence-demo-design.md) and the generated
 [evidence report](codepulse-evidence-report.md).
+
+Draft PR #8 is the current delivery lane. Its offline Demo and CI path are implemented;
+the project is not merged into the default branch until that PR lands.
 
 No new paid experiment, candidate variant, custom controller feature, server rental,
 or model-training effort is approved by this status document.

@@ -105,8 +105,8 @@ HTML chart renderer.
 2. Completed: create `codex/phase4-truth-reset` from the remote mainline.
 3. Completed: apply the status and policy documents in `fe0166e`.
 4. Completed: copy the three final evidence groups in `a22f334` and verify their hashes.
-5. Next: implement the offline evidence report in a separate change with fixture-only
-   tests and no model, Docker, dataset download, or network dependency.
+5. Completed: implement the offline evidence report with fixture-only tests and no
+   model, Docker, dataset download, or network dependency.
 
 ## Stop Conditions
 

@@ -164,8 +164,8 @@ bandit -r codepulse
 | 代码质量 | ruff + mypy + bandit |
 | LLM | LiteLLM |
 | 容器 | Docker |
-| 存储 | SQLite + JSONL |
-| 报告 | Jinja2 |
+| 存储 | JSONL |
+| 报告 | Markdown + HTML |
 
 ## 目录结构
 
@@ -197,7 +197,7 @@ CodePulse/
 │   └── output/        # Layer 6: 产出层
 │       ├── report.py     # 报告生成
 │       └── cli.py        # 命令行接口
-├── tests/             # 测试 (350+)
+├── tests/             # pytest 测试
 ├── datasets/          # 数据集
 ├── docs/              # 文档
 ├── pyproject.toml     # 项目配置

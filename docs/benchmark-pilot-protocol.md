@@ -1,8 +1,9 @@
 # Benchmark Pilot 实验协议
 
-状态：**已锁定，尚未执行**  
-协议版本：`pilot-v1`  
-锁定日期：2026-07-12  
+状态：**已完成**
+协议版本：`pilot-v1`
+锁定日期：2026-07-12
+完成日期：2026-07-13
 关联 Issue：[GitHub Issue #2](https://github.com/randy-labs/CodePulse/issues/2)
 
 ## 1. 目标与边界

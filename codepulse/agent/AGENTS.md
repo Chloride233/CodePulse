@@ -4,6 +4,10 @@
 
 实现通过 LiteLLM 调用真实 LLM 的 Agent（RealAgent），以及三种零侵入 Adapter 模式（CLI/Protocol/Mock）。**只管**将 Task 转化为 LLM 交互循环，**不管**评测评分（那是 eval 的事）。
 
+`RealAgent` 是已完成实验的 legacy backend，不是 CodePulse 的差异化能力。只维护
+现有实验与 Adapter 兼容性；新增 controller 能力前先执行根目录的 build-or-buy
+审查。
+
 ## 关键设计决策
 
 ### OpenAI function-calling 工具系统

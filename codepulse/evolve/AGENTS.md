@@ -1,10 +1,13 @@
-# evolve — Layer 5: Self-Evolution Layer
+# evolve — Phase 3 Legacy Research and Regression Gate
 
 ## 职责边界
 
-通过 SkillOpt 循环驱动 Agent 能力自我进化。**只管**进化算法、经验抽象、建议生成，**不管**评测执行（调用 eval/harness）、报告输出（调用 output/report）。
+保留 Phase 3 的 SkillOpt 研究实现、样本归因和 Validation Gate。真实 SWE-bench
+实验没有证明自进化收益，因此本目录不是后续默认扩展点。只维护现有行为、测试和
+历史证据兼容性；新增优化器或候选生成能力前必须遵守根目录 `AGENTS.md` 的
+build-or-buy 规则。
 
-## 关键设计决策
+## 历史设计
 
 ### SkillOpt 四步循环
 
@@ -58,12 +61,15 @@ Forward → Backward → Validate → Buffer
 
 ## 约定与模式
 
-- ValidationGate 的 pass 条件：improvement_rate > regression_rate
+- 当前 legacy `ValidationGate` 以候选总分、P0 回归、成本和 regression suite
+  失败共同判定；它不等同于 Phase 3 冻结证据中的稳定收益验收策略
 - EditBuffer 是内存中的环形缓冲区，不持久化（未来需要）
 - PromptEdit 必须携带 reasoning 和 confidence 字段
 
 ## 陷阱与已知问题
 
+- Phase 3 候选没有提高 pass^3，且完整 V4 Flash 对照的 Token 增加约 92.5%；
+  不得把流程存在写成收益已验证
 - ExperienceEvolution 的 promote 阈值是硬编码验证次数阈值，未暴露为配置
 - Buffer 纯内存存储，重启丢失
 - ForwardPass 对每个候选运行完整评测（代价高），未做增量评估

@@ -24,7 +24,7 @@ test_<模块>_<场景>_<预期>.py
 
 ### 覆盖率目标
 
-`pyproject.toml` 中配置 `--cov-fail-under=60`，与 `AGENTS.md` 中声明的 80% 不一致。60% 是当前实际阈值，80% 是目标。新模块应致力达到 80%。
+`pyproject.toml` 配置 `--cov-fail-under=80`，与根目录 `AGENTS.md` 一致。
 
 ## 约定与模式
 
@@ -36,8 +36,8 @@ test_<模块>_<场景>_<预期>.py
 ## 陷阱与已知问题
 
 - Docker 依赖的测试在 Windows 上可能因 Docker Desktop 模式问题 skip
-- 35 个测试文件中部分未跟踪（git ??），需整理后提交
-- 目前无 GitHub Actions 流水线自动运行测试
+- 当前 sparse checkout 可能省略少量已跟踪的 Phase 2 fixture；完整 CI checkout 才是
+  全量仓库测试的权威环境
 
 ## 当前测试覆盖
 

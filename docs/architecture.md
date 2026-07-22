@@ -103,9 +103,8 @@ Lesson（单次观察）→ Pattern（≥2次泛化）→ Instinct（高置信�
 | 评测 | pytest、ruff、mypy、bandit |
 | 模型 | LiteLLM（DeepSeek/GPT/Codex/Qwen） |
 | 环境 | Docker 隔离执行 |
-| 存储 | SQLite + JSONL |
-| 向量 | LanceDB |
-| 报告 | Jinja2 + Chart.js |
+| 存储 | JSONL |
+| 报告 | Markdown + HTML + Chart.js |
 | CI/CD | GitHub Actions |
 | 前端 | Vue.js 3 + TypeScript + Vite + Pinia |
 | 后端 | FastAPI + Pydantic v2 |
