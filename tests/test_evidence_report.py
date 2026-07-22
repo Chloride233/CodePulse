@@ -129,6 +129,30 @@ def test_report_rejects_malformed_phase3_gate_shape(tmp_path: Path) -> None:
         build_evidence_report(tmp_path)
 
 
+def test_report_rejects_malformed_nested_metrics_with_domain_error(tmp_path: Path) -> None:
+    _copy_bundle(tmp_path)
+    analysis_path = tmp_path / "results/phase2/calibration-analysis.json"
+    analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+    del analysis["functional_calibration"]["after"]["exact_agreement"]
+    analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+
+    with pytest.raises(EvidenceReportError, match="report metrics are malformed"):
+        build_evidence_report(tmp_path)
+
+
+def test_report_narrative_uses_evidence_metrics(tmp_path: Path) -> None:
+    _copy_bundle(tmp_path)
+    evidence_path = tmp_path / "experiments/phase3-swebench-evolution-v4/evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["metrics"]["candidate"]["success_rate"] = 0.5
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    report = build_evidence_report(tmp_path)
+
+    assert "25.0% success | 50.0% success" in report
+    assert "single-run success from 25.0% to 50.0%" in report
+
+
 def test_demo_cli_writes_report_accepts_identical_output_and_guards_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

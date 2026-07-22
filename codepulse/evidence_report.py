@@ -11,6 +11,8 @@ from codepulse.benchmark.pilot_report import summarize_pilot
 from codepulse.eval.artifacts import file_sha256, load_jsonl
 
 PHASE1_RUN = Path("results/pilot-v1/runs/20260713-v1")
+PHASE1_DIRECT_AGENT = "deepseek-v4-flash-direct"
+PHASE1_ITERATIVE_AGENT = "deepseek-v4-flash-iterative"
 PHASE2_ANALYSIS = Path("results/phase2/calibration-analysis.json")
 PHASE3_EVIDENCE = (
     Path("experiments/phase3-swebench-evolution-v4/evidence.json"),
@@ -65,6 +67,10 @@ def _load_phase1(root: Path) -> list[dict[str, Any]]:
         if not isinstance(name, str) or not name:
             raise EvidenceReportError("Phase 1 agent names are invalid")
         agent_names.append(name)
+    _expect(
+        set(agent_names) == {PHASE1_DIRECT_AGENT, PHASE1_ITERATIVE_AGENT},
+        "Phase 1 agents do not match the frozen profiles",
+    )
     _expect(summary.get("status") == "completed", "Phase 1 run summary status is not completed")
     _expect(
         summary.get("completed_trials") == 120 and summary.get("planned_trials") == 120,
@@ -220,6 +226,9 @@ def _render_report(
     evolution, patch_guard, strong_model = phase3
     baseline = evolution["metrics"]["baseline"]
     candidate = evolution["metrics"]["candidate"]
+    phase1_by_agent = {metric["agent"]: metric for metric in phase1_metrics}
+    direct = phase1_by_agent[PHASE1_DIRECT_AGENT]
+    iterative = phase1_by_agent[PHASE1_ITERATIVE_AGENT]
     token_delta = candidate["total_tokens"] / baseline["total_tokens"] - 1
 
     lines = [
@@ -249,8 +258,9 @@ def _render_report(
         "",
         *_phase1_table(phase1_metrics),
         "",
-        "The iterative profile reached 100.0% pass^3; the direct profile reached 90.0%. These are "
-        "pilot results on the frozen HumanEval subset, not a general repository-level claim.",
+        f"The iterative profile reached {iterative['pass_hat_3']:.1%} pass^3; the direct profile "
+        f"reached {direct['pass_hat_3']:.1%}. These are pilot results on the frozen HumanEval "
+        "subset, not a general repository-level claim.",
         "",
         "## 4. Phase 2 Judge calibration and usage boundaries",
         "",
@@ -272,11 +282,18 @@ def _render_report(
         "",
         "## 6. Why the Gate rejected apparent improvement",
         "",
-        "The V4 Flash candidate raised single-run success from 25.0% to 29.2%, but pass^3 remained "
-        "12.5% and task attribution contained no stable improvement. Its token use increased by "
-        f"{token_delta:.1%}. The Patch Guard screen resolved one task but exceeded the frozen cost "
-        "ratio. The V4 Pro screen resolved no task in either arm. The recorded decisions therefore "
-        "separate occasional success from stable, zero-regression, resource-bounded improvement.",
+        f"The V4 Flash candidate raised single-run success from {baseline['success_rate']:.1%} to "
+        f"{candidate['success_rate']:.1%}, but pass^3 remained "
+        f"{baseline['pass_hat_3']:.1%} -> {candidate['pass_hat_3']:.1%} and task attribution "
+        "contained no stable improvement. Its token use increased by "
+        f"{token_delta:.1%}. The Patch Guard screen resolved "
+        f"{patch_guard['baseline']['resolved']}/{patch_guard['tasks']} baseline tasks and "
+        f"{patch_guard['candidate']['resolved']}/{patch_guard['tasks']} candidate tasks but "
+        "exceeded the frozen cost ratio. The V4 Pro screen resolved "
+        f"{strong_model['baseline']['resolved']}/{strong_model['tasks']} baseline tasks and "
+        f"{strong_model['candidate']['resolved']}/{strong_model['tasks']} candidate tasks. The "
+        "recorded decisions therefore separate occasional success from stable, zero-regression, "
+        "resource-bounded improvement.",
         "",
         "## 7. Evidence index and preservation boundary",
         "",
@@ -301,4 +318,7 @@ def build_evidence_report(root: str | Path) -> str:
     phase1_metrics = _load_phase1(repository_root)
     phase2 = _load_phase2(repository_root)
     phase3 = _load_phase3(repository_root)
-    return _render_report(phase1_metrics, phase2, phase3)
+    try:
+        return _render_report(phase1_metrics, phase2, phase3)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+        raise EvidenceReportError(f"report metrics are malformed: {exc}") from exc

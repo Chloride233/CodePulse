@@ -47,7 +47,7 @@ The iterative profile reached 100.0% pass^3; the direct profile reached 90.0%. T
 
 ## 6. Why the Gate rejected apparent improvement
 
-The V4 Flash candidate raised single-run success from 25.0% to 29.2%, but pass^3 remained 12.5% and task attribution contained no stable improvement. Its token use increased by 92.5%. The Patch Guard screen resolved one task but exceeded the frozen cost ratio. The V4 Pro screen resolved no task in either arm. The recorded decisions therefore separate occasional success from stable, zero-regression, resource-bounded improvement.
+The V4 Flash candidate raised single-run success from 25.0% to 29.2%, but pass^3 remained 12.5% -> 12.5% and task attribution contained no stable improvement. Its token use increased by 92.5%. The Patch Guard screen resolved 0/3 baseline tasks and 1/3 candidate tasks but exceeded the frozen cost ratio. The V4 Pro screen resolved 0/3 baseline tasks and 0/3 candidate tasks. The recorded decisions therefore separate occasional success from stable, zero-regression, resource-bounded improvement.
 
 ## 7. Evidence index and preservation boundary
 
