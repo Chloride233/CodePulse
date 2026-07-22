@@ -1,5 +1,9 @@
 # CodePulse 架构文档
 
+> 当前项目定位与阶段状态以 [project-status.md](project-status.md) 为准。本文件描述
+> 现有代码结构，其中 Agent controller、sandbox 和自进化相关模块包含 legacy/研究
+> 实现，不代表这些能力已经证明有效或应继续自研。
+
 ## 六层架构
 
 ### Layer 1: 环境层 (`codepulse/env/`)
@@ -28,7 +32,10 @@ Agent Trace 采集（session→turn→step→tool_call）、Token 效率统计�
 
 ### Layer 5: 自进化层 (`codepulse/evolve/`)
 
-SkillOpt 训练循环：Forward Pass 收集轨迹 → Backward Pass 分析失败生成原子编辑 → Validation Gate 严格验证 → Rejected-Edit Buffer 负反馈学习。四类样本归因（改进/退化/持续失败/稳定成功）。三级经验进化（Lesson→Pattern→Instinct）。学习率调度器控制编辑激进程度。
+该目录包含 Phase 3 的研究实现：Forward Pass、规则化候选编辑、Validation Gate、
+Rejected-Edit Buffer、四类样本归因和经验模型。真实实验没有证明候选带来稳定收益。
+后续保留 Gate、归因和报告能力；候选搜索若重启，应优先适配成熟优化器，而不是
+扩展当前规则化 SkillOpt 实现。
 
 关键类：`SkillOpt`、`ForwardPass`、`ValidationGate`、`EditBuffer`、`SampleAttribution`、`ExperienceEvolution`
 
@@ -42,7 +49,9 @@ HTML/Markdown 评测报告生成、多模型对比报告、雷达图可视化。
 
 ### Agent 模块 (`codepulse/agent/`)
 
-LiteLLM 驱动的多模型 Agent 适配器。支持 DeepSeek / GPT / Codex / Qwen 等模型。工具系统（ReadFile/WriteFile/ExecuteTool）。RealAgent 通过 ToolRegistry 与沙箱交互。
+Agent adapter 将不同执行后端归一化为 CodePulse Trial。LiteLLM `RealAgent` 和
+ReadFile/WriteFile/ExecuteTool 是现有 legacy 实现，不再作为差异化能力扩展；后续
+仓库 Agent 应优先通过 Adapter 接入成熟开源 backend。
 
 ### API 模块 (`codepulse/api/`)
 
@@ -50,7 +59,7 @@ FastAPI 后端，提供 5 个路由器：Overview、Evaluations、Compare、Trac
 
 ### CLI 模块 (`codepulse/cli.py`)
 
-Click CLI 入口：评测运行、结果检视、基线对比、自进化触发、Web 服务启动。
+Click CLI 入口：评测运行、结果检视、基线对比、Phase 3 legacy 研究命令、Web 服务启动。
 
 ### Web 前端 (`web/`)
 
@@ -68,7 +77,9 @@ Vue.js 3 + TypeScript + Vite。路由页面：Overview、Tasks、TaskDetail、Co
 | 鲁棒安全 | P0 | 20 | 确定性+LLM |
 | 体验对齐 | P2 | 10 | LLM-as-Judge |
 
-## SkillOpt 循环
+## Historical SkillOpt Research Flow
+
+以下流程描述现有 Phase 3 研究代码，不是已验证的产品闭环：
 
 ```
 Forward Pass → Backward Pass → Validation Gate → Edit Buffer
@@ -76,7 +87,9 @@ Forward Pass → Backward Pass → Validation Gate → Edit Buffer
   收集轨迹       分析失败         候选vs基线      存储负反馈
 ```
 
-## 经验三级进化
+## Historical Experience Model
+
+该模型尚未由真实 Phase 3 收益实验验证：
 
 ```
 Lesson（单次观察）→ Pattern（≥2次泛化）→ Instinct（高置信度自动注入）
@@ -90,9 +103,8 @@ Lesson（单次观察）→ Pattern（≥2次泛化）→ Instinct（高置信�
 | 评测 | pytest、ruff、mypy、bandit |
 | 模型 | LiteLLM（DeepSeek/GPT/Codex/Qwen） |
 | 环境 | Docker 隔离执行 |
-| 存储 | SQLite + JSONL |
-| 向量 | LanceDB |
-| 报告 | Jinja2 + Chart.js |
+| 存储 | JSONL |
+| 报告 | Markdown + HTML + Chart.js |
 | CI/CD | GitHub Actions |
 | 前端 | Vue.js 3 + TypeScript + Vite + Pinia |
 | 后端 | FastAPI + Pydantic v2 |

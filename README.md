@@ -1,41 +1,53 @@
-# CodePulse — Code Agent 评测与自进化框架
+# CodePulse — Code Agent 可信评测与回归门禁
 
-> 评测即奖励信号，评测体系本身就是 RL 环境。
+> 用冻结配置、可追溯证据和严格门禁验证 Code Agent 的改进声明。
 
 ## 项目简介
 
-CodePulse 是一个 Code Agent 评测与自进化框架，从真实 GitHub 场景收集评测数据，用确定性工程 + LLM-as-Judge 构建五维度评测体系，通过 SkillOpt 风格的训练循环推动 Agent 能力自进化。
+CodePulse 是一个面向 Code Agent 的可复现实验与可信评测平台。它统一记录
+任务、Agent、模型、环境和成本配置，用确定性 Grader、经过人工校准的
+LLM-as-Judge、稳定性指标和 Validation Gate 判断候选是否真的优于基线。
+
+项目曾在 Phase 3 尝试基于失败轨迹改进 Agent，但真实 SWE-bench 对照没有证明
+稳定收益，候选被门禁拒绝。该结果作为负面证据保留，不表述为“自进化成功”。
+当前状态和证据边界见 [项目状态](docs/project-status.md)。
+
+## 离线证据演示
+
+无需模型密钥或付费调用，即可从仓库内已提交的冻结证据生成作品级报告：
+
+```bash
+codepulse demo --output docs/codepulse-evidence-report.md
+```
+
+命令会校验证据边界，并汇总 Agent 对比、稳定性、成本、Judge 校准、失败案例和
+Phase 3 被门禁拒绝的候选。查看[生成报告](docs/codepulse-evidence-report.md)和
+[当前项目状态](docs/project-status.md)。
 
 ## 核心特性
 
-- **五维度评测体系**：功能正确性、过程质量、效率成本、鲁棒安全、体验对齐
-- **三类 Grader**：确定性评分 + LLM-as-Judge + 人工校准
-- **100 分扣分制**：通过阈值 80 分，可配置
-- **Agent 可观测性**：完整 Trace 采集、Token 黑洞模式检测、pass@k/pass^k 统计
-- **自进化框架**：SkillOpt 训练循环，四类样本归因，经验三级进化
+- **可复现实验**：冻结任务、Agent、模型、依赖、容器、随机种子和预算
+- **可信评分边界**：确定性 Grader 保持权威，LLM-as-Judge 仅用于完整证据的定性维度
+- **稳定性比较**：报告 pass@k、pass^k、Token、成本、P50/P95 延迟和失败分类
+- **回归门禁**：严格配对、完整覆盖、四类任务归因、零回归与资源约束
+- **可审计报告**：保留 manifest、provenance、指标、典型案例和复现命令
 
-## 六层架构
+## 核心链路
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Layer 6: 产出层                          │
-│  HTML 报告 / 多模型对比 / 自进化报告 / 失败模式知识库           │
-├─────────────────────────────────────────────────────────────┤
-│                      Layer 5: 自进化层                         │
-│  SkillOpt Forward→Backward→Validate→Buffer                   │
-├─────────────────────────────────────────────────────────────┤
-│                      Layer 4: 可观测性层                       │
-│  Agent Trace / Token 统计 / 黑洞模式检测 / pass@k/pass^k     │
-├─────────────────────────────────────────────────────────────┤
-│                      Layer 3: 评测层                          │
-│  五维度评测体系 / 确定性 Grader + LLM-as-Judge               │
-├─────────────────────────────────────────────────────────────┤
-│                      Layer 2: 数据层                          │
-│  SWE-bench + AACR-Bench + 自定义数据集                       │
-├─────────────────────────────────────────────────────────────┤
-│                      Layer 1: 环境层                          │
-│  Docker 沙箱管理 / 容器生命周期                               │
-└─────────────────────────────────────────────────────────────┘
+任务、Agent、模型、环境与预算冻结
+                 │
+                 ▼
+        统一 Trial 与完整 Trace
+                 │
+                 ▼
+确定性 Grader + 校准后的 LLM-as-Judge
+                 │
+                 ▼
+严格配对 + pass@k/pass^k + 四类归因
+                 │
+                 ▼
+       Validation Gate + 可审计报告
 ```
 
 ## 快速开始
@@ -44,7 +56,7 @@ CodePulse 是一个 Code Agent 评测与自进化框架，从真实 GitHub 场�
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Chloride233/CodePulse.git
+git clone https://github.com/randy-labs/CodePulse.git
 cd CodePulse
 
 # 安装依赖
@@ -106,32 +118,15 @@ for trial in trials:
 #### 4. 使用 CLI
 
 ```bash
-# 评测单个任务
-codepulse evaluate --task-file task.jsonl --agent-name my-agent --model deepseek-chat
+# 使用 Mock Agent 评测单个任务
+codepulse evaluate --task-file datasets/example.jsonl --agent agents/mock-agent.yaml
 
-# 对比多个 Agent
-codepulse compare --task-file task.jsonl --agents agent1 agent2 agent3
+# 对比多个 Agent 配置；--agents 是可重复参数
+codepulse compare --task-file datasets/example.jsonl \
+  --agents agents/mock-agent.yaml --agents agents/cli-agent.yaml
 
 # 生成报告
 codepulse report --results-dir ./results --format markdown
-```
-
-#### 5. 自进化循环
-
-```python
-from codepulse.evolve.skillopt import SkillOpt
-
-# 创建 SkillOpt
-opt = SkillOpt(harness=harness, dataset=[task])
-
-# 运行进化
-baseline = MockAgent(name="baseline", model="v1")
-candidate = MockAgent(name="candidate", model="v2")
-results = opt.evolve(baseline, candidate, n_epochs=3)
-
-# 查看结果
-for result in results:
-    print(f"Epoch {result.epoch}: {result.baseline_score} -> {result.candidate_score}")
 ```
 
 ### 运行测试
@@ -169,8 +164,8 @@ bandit -r codepulse
 | 代码质量 | ruff + mypy + bandit |
 | LLM | LiteLLM |
 | 容器 | Docker |
-| 存储 | SQLite + JSONL |
-| 报告 | Jinja2 |
+| 存储 | JSONL |
+| 报告 | Markdown + HTML |
 
 ## 目录结构
 
@@ -193,8 +188,8 @@ CodePulse/
 │   │   ├── collector.py  # Trace 采集
 │   │   ├── blackhole.py  # 黑洞检测
 │   │   └── metrics.py    # pass@k/pass^k
-│   ├── evolve/        # Layer 5: 自进化层
-│   │   ├── skillopt.py   # SkillOpt 主循环
+│   ├── evolve/        # Phase 3 研究实现 + 回归门禁
+│   │   ├── skillopt.py   # Legacy SkillOpt 研究循环
 │   │   ├── forward.py    # Forward Pass
 │   │   ├── gate.py       # Validation Gate
 │   │   ├── buffer.py     # Edit Buffer
@@ -202,16 +197,16 @@ CodePulse/
 │   └── output/        # Layer 6: 产出层
 │       ├── report.py     # 报告生成
 │       └── cli.py        # 命令行接口
-├── tests/             # 测试 (350+)
+├── tests/             # pytest 测试
 ├── datasets/          # 数据集
 ├── docs/              # 文档
 ├── pyproject.toml     # 项目配置
-└── CLAUDE.md          # 开发指南
+└── AGENTS.md          # 共享开发指南
 ```
 
 ## 开发指南
 
-详见 [CLAUDE.md](./CLAUDE.md)。
+详见 [AGENTS.md](./AGENTS.md)。
 
 ## 许可证
 

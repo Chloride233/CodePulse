@@ -30,6 +30,13 @@ ENV/
 .env
 .env.*
 !.env.example
+*.private.jsonl
+
+# Local Phase 2 review and diagnostic evidence (not part of the public bundle)
+results/phase2/calibration-study-v1/judge-observations*.jsonl
+results/phase2/diagnostic-pool-*/
+results/phase2/diagnostic-run-*/
+results/phase2/diagnostic-study-*/
 
 # Runtime experiment manifests contain commit-specific evidence
 experiments/*/manifest.json

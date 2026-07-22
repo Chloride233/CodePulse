@@ -14,7 +14,7 @@ def test_benchmark_pilot_protocol_fixed_scope_and_metrics_present() -> None:
     assert all(metric in protocol for metric in ("pass@1", "pass@3", "pass^3", "P50/P95"))
 
 
-def test_benchmark_pilot_protocol_reproducibility_and_budget_gates_present() -> None:
+def test_benchmark_pilot_protocol_reproducibility_budget_and_completion_present() -> None:
     protocol = PROTOCOL_PATH.read_text(encoding="utf-8")
 
     assert all(
@@ -32,4 +32,5 @@ def test_benchmark_pilot_protocol_reproducibility_and_budget_gates_present() -> 
     assert "pilot 总实际成本上界 | CNY 10.00" in protocol
     assert "pending_official_schedule" in protocol
     assert "codepulse benchmark preflight" in protocol
-    assert "状态：**已锁定，尚未执行**" in protocol
+    assert "状态：**已完成**" in protocol
+    assert "完成日期：2026-07-13" in protocol

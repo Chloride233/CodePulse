@@ -1,0 +1,66 @@
+{
+  "protocol_version": "phase3-swebench-evolution-evidence-v4",
+  "manifest_path": "experiments/phase3-swebench-evolution-v4/manifest.json",
+  "manifest_sha256": "2857be75fd0f98f54ca1a9e40a2bed46cb1b1657958230688f23d1b301209954",
+  "raw_trials_path": "results/phase3/swebench-evolution-v4/trials.jsonl",
+  "raw_trials_sha256": "3a8973e3d0b5b9def33a5833077259bc1cce4e9e3c5439b9ca51fa325e863fb2",
+  "raw_run_summary_path": "results/phase3/swebench-evolution-v4/run-summary.json",
+  "raw_run_summary_sha256": "2008c47ce3ba72ae2b67c146a767c0f49416ae27e88f48ae6b13535b211a9a50",
+  "report_path": "experiments/phase3-swebench-evolution-v4/phase3-report.md",
+  "report_sha256": "73faa518f66fcbc38bfc18280aa60491c1d62dd7df27b576c8f7b92f9ce2f13e",
+  "status": "completed",
+  "completed_trials": 48,
+  "planned_trials": 48,
+  "unique_trial_keys": 48,
+  "tasks": 8,
+  "trials_per_agent_task": 3,
+  "provider_model_versions": [
+    "deepseek-v4-flash"
+  ],
+  "metrics": {
+    "baseline": {
+      "success_rate": 0.25,
+      "pass_at_3": 0.375,
+      "pass_hat_3": 0.125,
+      "total_tokens": 1300330,
+      "cost_cny_off_peak": 0.378891,
+      "cost_cny_peak": 0.757777,
+      "p50_seconds": 21.054,
+      "p95_seconds": 45.96
+    },
+    "candidate": {
+      "success_rate": 0.291667,
+      "pass_at_3": 0.375,
+      "pass_hat_3": 0.125,
+      "total_tokens": 2503580,
+      "cost_cny_off_peak": 0.487703,
+      "cost_cny_peak": 0.975401,
+      "p50_seconds": 36.508,
+      "p95_seconds": 53.551
+    }
+  },
+  "attribution": {
+    "improvement": 0,
+    "regression": 0,
+    "persistent_failure": 7,
+    "stable_success": 1
+  },
+  "trial_outcomes": {
+    "success": 13,
+    "wrong_answer": 34,
+    "provider_error": 1
+  },
+  "cost": {
+    "total_cny_peak": 1.733178,
+    "max_trial_cny_peak": 0.060983,
+    "budget_cny_peak": 10.0
+  },
+  "validation_gate": {
+    "accepted": false,
+    "rejection_reasons": [
+      "no_stable_improvement"
+    ]
+  },
+  "raw_results_preserved": true,
+  "phase3_complete": false
+}

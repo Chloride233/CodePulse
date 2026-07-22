@@ -1,7 +1,7 @@
 # Phase 2 Calibration Sampling Protocol
 
 Status: **Phase 2 calibration complete**
-Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)  
+Issue: [#1](https://github.com/randy-labs/CodePulse/issues/1)
 Sample version: `calibration-sample-v1`
 
 ## Source And Stratification

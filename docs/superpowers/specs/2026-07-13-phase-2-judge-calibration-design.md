@@ -1,7 +1,7 @@
 # Phase 2 LLM-as-Judge Calibration Design
 
 Status: Approved; methodology corrected on 2026-07-13
-Issue: [#1](https://github.com/Chloride233/CodePulse/issues/1)
+Issue: [#1](https://github.com/randy-labs/CodePulse/issues/1)
 
 Implementation note: command names and cohort eligibility are superseded by
 `2026-07-13-phase-2-calibration-architecture-simplification-design.md`. The evidence

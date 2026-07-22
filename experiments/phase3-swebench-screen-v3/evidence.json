@@ -1,0 +1,55 @@
+{
+  "protocol_version": "phase3-swebench-screen-evidence-v3",
+  "manifest_path": "experiments/phase3-swebench-screen-v3/manifest.json",
+  "manifest_sha256": "0f198f5c0b7e68797ebc3ea02ee7a0d0eaf3ea53664ea13affaed824ccd90ef1",
+  "raw_trials_path": "results/phase3/swebench-screen-v3/trials.jsonl",
+  "raw_trials_sha256": "0be3e71444cd9ae6f1195b2f4e6e787e03eb95906d679cf5bbc4355092e6607e",
+  "raw_run_summary_path": "results/phase3/swebench-screen-v3/run-summary.json",
+  "raw_run_summary_sha256": "a7dbbab579b323fa16789634f06531df81338b5623984ef9f917414929057c94",
+  "screen_report_path": "experiments/phase3-swebench-screen-v3/screen-report.json",
+  "screen_report_sha256": "187050afd6331598e7b786d9768b6511f0bf1ce27ddf23bb0131ef2165cf58c2",
+  "status": "completed",
+  "accepted": false,
+  "rejection_reasons": [
+    "insufficient_candidate_non_empty_patches",
+    "insufficient_candidate_resolved",
+    "candidate_cost_ratio_exceeded"
+  ],
+  "completed_trials": 6,
+  "planned_trials": 6,
+  "unique_trial_keys": 6,
+  "tasks": 3,
+  "provider_model_versions": [
+    "deepseek-v4-flash"
+  ],
+  "baseline": {
+    "non_empty_patches": 0,
+    "resolved": 0,
+    "total_tokens": 125328,
+    "cost_cny_peak": 0.090786
+  },
+  "candidate": {
+    "non_empty_patches": 1,
+    "resolved": 1,
+    "total_tokens": 135790,
+    "cost_cny_peak": 0.125322,
+    "patch_guard_checks": 4,
+    "patch_guard_triggers": 4,
+    "patch_guard_retries_used": 3,
+    "patch_guard_check_failures": 0,
+    "effective_call_limits": [
+      8,
+      8,
+      9
+    ]
+  },
+  "candidate_token_ratio": 1.083477,
+  "candidate_cost_ratio": 1.380411,
+  "infrastructure_failures": 0,
+  "total_cost_cny_peak": 0.216108,
+  "max_trial_cost_cny_peak": 0.05194,
+  "raw_results_preserved": true,
+  "same_model_low_resource_branch_stopped": true,
+  "v5_holdout_started": false,
+  "phase3_complete": false
+}
